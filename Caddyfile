@@ -1,0 +1,47 @@
+{
+	# Don't expose Caddy's own admin API.
+	admin off
+	servers {
+		trusted_proxies static {$TRUSTED_EDGE_PROXY:127.0.0.1}
+		trusted_proxies_strict
+	}
+}
+
+# Container port 80 sits behind the host TLS proxy in production.
+:80 {
+	encode gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+	@site not path /admin /admin/*
+	header @site Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://thumbnails.roproxy.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+	@private path /session.txt /codex.md /.env* /treasury/* /supabase/* /.git/*
+	handle @private {
+		respond 404
+	}
+
+	# Treasury backend: API, admin panel, health. Load-balanced across the
+	# two replicas; during a rolling deploy the healthy one serves everything.
+	@backend path /api/* /admin /admin/* /healthz
+	handle @backend {
+		reverse_proxy treasury_blue:8787 treasury_green:8787 {
+			header_up X-Forwarded-For {client_ip}
+			lb_policy round_robin
+			lb_try_duration 5s
+			health_uri /healthz
+			health_interval 5s
+			health_timeout 3s
+			fail_duration 30s
+		}
+	}
+
+	# Everything else: the static site.
+	handle {
+		root * /srv
+		try_files {path} {path}/ /index.html
+		file_server
+	}
+}

@@ -1,0 +1,17 @@
+*
+!treasury/
+treasury/*
+!treasury/Dockerfile
+!treasury/package.json
+!treasury/package-lock.json
+!treasury/tsconfig.json
+!treasury/src/
+!treasury/src/**
+!treasury/sql/
+!treasury/sql/**
+!assets/
+assets/*
+!assets/wallet/
+assets/wallet/*
+!assets/wallet/option-picker.js
+!assets/wallet/option-picker.css

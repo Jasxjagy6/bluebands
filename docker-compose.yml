@@ -1,0 +1,101 @@
+name: empireblox
+
+# Zero-downtime model: two identical backend replicas (blue + green) always
+# run behind Caddy, which health-checks both and only routes to healthy ones.
+# deploy.sh recreates them one at a time, so one replica always serves traffic.
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgres://treasury:${DB_PASSWORD}@db:5432/empireblox_treasury
+  TREASURY_MASTER_KEY: ${TREASURY_MASTER_KEY}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  ALLOW_ORIGIN: ${ALLOW_ORIGIN:-}
+  PUBLIC_SITE_ORIGIN: ${PUBLIC_SITE_ORIGIN:-}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+  NODE_ENV: production
+  PORT: "8787"
+
+x-backend-health: &backend-health
+  test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  interval: 10s
+  timeout: 4s
+  retries: 5
+  start_period: 15s
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: treasury
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: empireblox_treasury
+    ports:
+      - "127.0.0.1:5433:5432"   # localhost-only, for running tests from the host
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U treasury -d empireblox_treasury"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # one-shot: apply migrations before backends start
+  migrate:
+    image: empireblox-treasury:latest
+    build: &treasury_build
+      context: .
+      dockerfile: treasury/Dockerfile
+    command: ["node", "dist/migrate.js"]
+    environment: *backend-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  treasury_blue:
+    image: empireblox-treasury:latest
+    build: *treasury_build
+    environment: *backend-env
+    healthcheck: *backend-health
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  treasury_green:
+    image: empireblox-treasury:latest
+    environment: *backend-env
+    healthcheck: *backend-health
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      TRUSTED_EDGE_PROXY: ${TRUSTED_EDGE_PROXY:-127.0.0.1}
+    ports:
+      - "${PUBLIC_BIND_ADDRESS:-0.0.0.0}:${PUBLIC_PORT:-3000}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Serve ONLY the static frontend files — never the repo root (keeps
+      # .env, sql and the backend source out of the web path).
+      - ./index.html:/srv/index.html:ro
+      - ./app.js:/srv/app.js:ro
+      - ./wallet.js:/srv/wallet.js:ro
+      - ./assets:/srv/assets:ro
+      - caddy_data:/data
+    depends_on:
+      - treasury_blue
+      - treasury_green
+
+volumes:
+  dbdata:
+  caddy_data:
