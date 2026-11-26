@@ -1,0 +1,9 @@
+.env*
+session.txt
+codex.md
+treasury/
+supabase/
+.git/
+docker-compose.yml
+Caddyfile
+deploy.sh

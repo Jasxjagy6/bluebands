@@ -1,0 +1,39 @@
+{
+  "name": "empireblox-treasury",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-custody crypto deposit backend + admin panel for EmpireBlox. Watch-only (no signing keys) — deposits only.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "migrate": "node --import tsx src/migrate.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/admin && cp src/admin/index.html ../assets/wallet/option-picker.js ../assets/wallet/option-picker.css dist/admin/",
+    "start": "node dist/index.js",
+    "admin:create": "tsx src/scripts/create-admin.ts",
+    "keygen": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    "test": "node src/test/run.mjs"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.5",
+    "@fastify/cors": "11.4.3",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.4.0",
+    "@scure/base": "1.1.9",
+    "@scure/bip32": "1.4.0",
+    "dotenv": "16.4.5",
+    "ethers": "6.17.0",
+    "fastify": "5.12.8",
+    "pg": "8.12.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/pg": "8.11.6",
+    "playwright": "1.64.1",
+    "tsx": "4.23.15",
+    "typescript": "5.5.3"
+  }
+}

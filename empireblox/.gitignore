@@ -1,0 +1,10 @@
+.vercel
+.env
+.env.*
+!.env.example
+node_modules
+treasury/node_modules
+treasury/dist
+*.log
+session.txt
+codex.md

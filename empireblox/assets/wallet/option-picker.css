@@ -1,0 +1,92 @@
+/* The face is the real form field; only its menu is enhanced. */
+select.eb-option-trigger, [aria-controls=ebwMenu], .eb-option-picker, .eb-option-picker * { -webkit-tap-highlight-color: transparent; }
+select.eb-option-trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  padding-inline-end: 29px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m2.5 4.5 3.5 3.5 3.5-3.5' stroke='%23bfc9d0' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 12px 12px;
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+select.eb-option-trigger:dir(rtl) { background-position: left 9px center; }
+select.eb-option-trigger:disabled { cursor: not-allowed; }
+select.eb-option-trigger:focus-visible { outline: 2px solid var(--acc, #e5c178); outline-offset: 2px; }
+select.eb-option-trigger[aria-expanded=true] { border-color: #a78e61; }
+.wallet-select select.eb-option-trigger { flex: 1 1 0; width: 0; padding-inline-end: 18px; background-position: right 1px center; }
+.wallet-select:has(.eb-option-trigger[aria-expanded=true]) { border-color: #a78e61; }
+.transaction-toolbar select.eb-option-trigger { max-width: 65%; }
+.eb-option-space { display: block; flex: none; grid-column: 1/-1; width: 1px; min-height: 0; margin: 0; padding: 0; border: 0; pointer-events: none; overflow-anchor: none; }
+.eb-option-lifted { translate: 0 var(--eb-option-lift); z-index: 5; }
+.eb-option-raised { position: relative; z-index: 8; background-color: var(--panel, #1a2228); }
+
+dialog.eb-option-picker {
+  --eb-accent: #ebca90;
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  border: 1px solid #4b565e;
+  border-radius: 8px;
+  background: #1a2228;
+  color: #edf1f3;
+  box-shadow: 0 10px 26px -11px #000c, inset 0 1px #ffffff09;
+  font: 500 14px/1.35 Inter, system-ui, -apple-system, sans-serif;
+  text-align: start;
+  color-scheme: dark;
+}
+dialog.eb-option-picker[open] { display: flex; flex-direction: column; }
+dialog.eb-option-picker::backdrop { background: #080c101a; touch-action: none; }
+.eb-option-head { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 3px 4px 3px 12px; border-bottom: 1px solid #344049; }
+.eb-option-head h2 { display: flex; align-items: center; gap: 7px; min-width: 0; margin: 0; color: #c1cbd1; font: 600 12px/1.3 Inter, system-ui, sans-serif; text-align: start; overflow-wrap: anywhere; }
+.eb-option-head h2::before { content: ''; flex: none; width: 5px; height: 5px; background: var(--eb-accent); transform: rotate(45deg); }
+.eb-option-head h2 span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.eb-option-picker button.eb-option-close { display: grid; flex: none; place-items: center; width: 29px; height: 29px; min-height: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #b7c1c8; cursor: pointer; }
+.eb-option-close::before, .eb-option-close::after { content: ''; grid-area: 1/1; width: 12px; height: 1.5px; background: currentColor; transform: rotate(45deg); }
+.eb-option-close::after { transform: rotate(-45deg); }
+.eb-option-picker button.eb-option-close:hover { background: #303d46; color: #fff; }
+.eb-option-picker button.eb-option-close:focus-visible { outline: 2px solid var(--eb-accent); outline-offset: -2px; }
+.eb-option-picker [role=listbox] { min-height: 0; padding: 4px; overflow: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: #65737c transparent; outline: none; }
+.eb-option-picker[data-more] [role=listbox] { mask-image: linear-gradient(black calc(100% - 8px), transparent); }
+.eb-option-picker[data-above] [role=listbox] { mask-image: linear-gradient(transparent, black 8px); }
+.eb-option-picker[data-above][data-more] [role=listbox] { mask-image: linear-gradient(transparent, black 8px, black calc(100% - 8px), transparent); }
+.eb-option-picker [role=listbox]:focus-visible:not([aria-activedescendant]) { outline: 2px solid var(--eb-accent); outline-offset: -2px; }
+.eb-option-group { padding: 9px 8px 3px; color: #9eadb7; font: 650 10px/1.35 system-ui, sans-serif; letter-spacing: .055em; text-transform: uppercase; overflow-wrap: anywhere; }
+.eb-option-picker [role=option] { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 34px; box-sizing: border-box; padding: 7px 9px; border-radius: 4px; cursor: pointer; overflow-wrap: anywhere; }
+.eb-option-picker [role=option]::after { content: ''; flex: none; width: 9px; }
+.eb-option-picker [role=option][aria-selected=true] { background: #333029; color: #f0d49f; font-weight: 650; }
+.eb-option-picker [role=option][aria-selected=true]::after { width: 6px; height: 11px; margin-inline-end: 3px; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+.eb-option-picker[data-keyboard] [role=listbox]:focus [data-active] { outline: 2px solid var(--eb-accent); outline-offset: -2px; }
+@media (hover: hover) { .eb-option-picker [role=option]:not([aria-disabled=true]):hover { background: #303c45; } }
+.eb-option-picker [role=option][aria-disabled=true], .eb-option-empty { color: #9aa8b1; font-weight: 400; cursor: default; }
+.eb-option-empty { padding: 12px 9px; }
+@media (max-width: 740px), (pointer: coarse) {
+  .eb-option-picker [role=option] { min-height: 40px; }
+  .eb-option-picker button.eb-option-close { width: 34px; height: 34px; }
+}
+.eb-option-picker[data-compact] .eb-option-head { padding-block: 1px; }
+.eb-option-picker[data-compact] button.eb-option-close { height: 26px; }
+.eb-option-picker[data-compact] [role=option] { min-height: 32px; padding-block: 5px; }
+.eb-option-picker[data-tight] .eb-option-head { position: absolute; z-index: 1; inset: 2px 2px auto auto; padding: 0; border: 0; }
+.eb-option-picker[data-tight] .eb-option-head h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.eb-option-picker[data-tight] button.eb-option-close { width: 25px; height: 25px; }
+.eb-option-picker[data-tight] [role=listbox] { padding: 2px 28px 2px 2px; }
+.eb-option-picker[data-tight] [role=option] { min-height: 28px; padding-block: 4px; }
+@media (prefers-reduced-motion: no-preference) {
+  dialog.eb-option-picker[open] { transform-origin: top; animation: eb-dropdown-in .12s ease-out; }
+  @keyframes eb-dropdown-in { from { opacity: .4; clip-path: inset(0 0 12% round 8px); } to { opacity: 1; clip-path: inset(0 round 8px); } }
+}
+@media (forced-colors: active) {
+  select.eb-option-trigger { appearance: auto; background-image: none; }
+  .eb-option-picker [role=option][aria-selected=true] { color: Highlight; }
+  .eb-option-picker [role=option][aria-disabled=true] { color: GrayText; }
+  dialog.eb-option-picker:is([data-above], [data-more]) [role=listbox] { mask-image: none; }
+}
