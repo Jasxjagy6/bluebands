@@ -21,13 +21,15 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     const assets = await query(`select a.id,a.chain_id,a.symbol,a.kind,a.decimals,a.min_deposit::text,(a.enabled and n.enabled) as enabled
       from assets a join chains n on n.id=a.chain_id where ${supportedAssets} order by a.chain_id,a.kind desc,a.symbol`);
     const currencies=await query(`select id,symbol,decimals,kind,chain_id,min_deposit::text from playing_assets order by (id='USDT') desc,symbol`);
+    const walletCurrencies=await query(`select id,symbol,decimals,kind,chain_id from wallet_assets order by (id='USDT') desc,symbol`);
     const direct=await query(`select a.id,a.chain_id,a.symbol,a.kind,a.decimals,a.min_deposit::text,(a.enabled and n.enabled) as enabled,
       (a.enabled and h.ready) as available from custody_launch_assets a join chains n on n.id=a.chain_id
       join custody_network_readiness h on h.chain_id=n.id order by a.symbol,n.id`);
     const denominations=await query('select id,symbol,decimals,chain_id from assets');
     const {deposits_paused}=await depositSetup();
     return {deposits_paused,chains:chains.rows,assets:assets.rows.filter(a=>a.enabled),transferRoutes:assets.rows,
-      directRoutes:direct.rows.map(a=>({...a,available:!deposits_paused && a.available})),currencies:currencies.rows,denominations:denominations.rows};
+      directRoutes:direct.rows.map(a=>({...a,available:!deposits_paused && a.available})),currencies:currencies.rows,walletCurrencies:walletCurrencies.rows,
+      coinRate:{coins:'6000',usdt:'10'},denominations:denominations.rows};
   });
 
   // Everything below needs a signed-in player.

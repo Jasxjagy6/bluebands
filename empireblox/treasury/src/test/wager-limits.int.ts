@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { buildServer } from '../api/server.js';
 import { createSession } from '../auth-user.js';
 import { signAdminToken } from '../authutil.js';
+import { quoteConversion,convert } from '../conversions.js';
 import { debitStake } from '../bet.js';
 import { query,pool,tx } from '../db.js';
 import { balanceOf,post } from '../ledger.js';
@@ -31,11 +32,11 @@ async function limits(min_usdt:string,max_usdt:string|null) { assert.equal((awai
 async function player() {
   const id=randomUUID();
   await query("insert into users(id,email,username,pass_hash) values($1,$2,$3,'fixture')",[id,id+'@test.invalid','lim'+id.slice(0,8)]);
-  await tx(c=>post(c,'deposit','limits-fixture',['ETH','USDT'].flatMap(asset=>[
-    {account:'ext:fixture',asset,delta:-1000n*coin},{account:'u:'+id,asset,delta:1000n*coin}])));
+  await tx(c=>post(c,'deposit','limits-fixture',['ETH','USDT','COINS'].flatMap(asset=>[
+    {account:'ext:fixture',asset,delta:-(asset==='COINS'?1000000n:1000n)*coin},{account:'u:'+id,asset,delta:(asset==='COINS'?1000000n:1000n)*coin}])));
   return {id,cookie:'eb_sess='+await createSession(id)};
 }
-const balance=(uid:string,asset='ETH')=>tx(c=>balanceOf(c,'u:'+uid,asset));
+const balance=(uid:string,asset='COINS')=>tx(c=>balanceOf(c,'u:'+uid,asset));
 const booked=async(uid:string)=>(await query('select * from valued_debits where user_id=$1 order by journal_id',[uid])).rows;
 const text=(n:string)=>n.includes('.')?n.replace(/0+$/,'').replace(/\.$/,''):n;
 const offline=()=>{throw new Error('Fixture market offline');};
@@ -47,7 +48,7 @@ before(async()=>{
 beforeEach(async()=>{
   response=good;requests=0;tron=()=>krakenResponse();tronRequests=0;
   await query('update wager_limits set min_units=0,max_units=null where singleton');
-  await expireMarket('ETH');await expireMarket('USDT');
+  await expireMarket('ETH');await expireMarket('USDT');await expireMarket('COINS');
 });
 after(async()=>{
   await query('update wager_limits set min_units=$1,max_units=$2 where singleton',[original.min_units,original.max_units]);
@@ -69,9 +70,9 @@ test('only operators can change the full range; player readback and the audit ar
 });
 
 test('an admitted stake and its limits are serialized; an issued quote cannot reprice its receipt',async()=>{
-  const p=await player(),q=await currentQuote('ETH');await limits('2','2');
+  const p=await player(),q=await currentQuote('COINS');await limits('2','2');
   await tx(async c=>{
-    await debitStake(c,p.id,'ETH',10n**15n,'fixture','lock-check',{quote:q.id});
+    await debitStake(c,p.id,'COINS',1200n*coin,'fixture','lock-check',{quote:q.id});
     await assert.rejects(tx(other=>other.query('select singleton from wager_limits where singleton for update nowait')),
       (e:{code?:string})=>e.code==='55P03');
   });
@@ -89,10 +90,10 @@ test('unbounded paid entries fail closed on bad, stale or missing market legs; l
     ()=>marketResponse({},{date:new Date(Date.now()-130000).toUTCString()}),()=>marketResponse({},{date:new Date(Date.now()+60000).toUTCString()}),
     ()=>Response.json({data:{currency:'EUR',rates:{ETH:'1',USDT:'1'}}},{headers:{date:new Date().toUTCString()}})]){
     response=invalid;
-    const r=await app.inject({url:'/api/games/mines/start',method:'POST',headers:{cookie:p.cookie},payload:{asset:'ETH',bet:'1',size:25,mines:3,request:key}});
+    const r=await app.inject({url:'/api/me/conversions/quote',method:'POST',headers:{cookie:p.cookie},payload:{asset:'ETH',direction:'crypto_to_coins',amount:'1'}});
     assert.equal(r.statusCode,503);assert.match(r.json().error,/Market price/);
   }
-  assert.equal(await balance(p.id),1000n*coin);assert.equal(await activeMines(p.id),null);assert.deepEqual(await booked(p.id),[]);
+  assert.equal(await balance(p.id),1000000n*coin);assert.equal(await activeMines(p.id),null);assert.deepEqual(await booked(p.id),[]);
   response=good;
   const q=await currentQuote('ETH');assert.equal(q.unit,'1000000000000');assert.equal(q.usdt_per_usd,'1.2');
   assert.ok(+q.expires_at-+q.quoted_at<=120000);assert.equal((await currentQuote('ETH')).id,q.id);
@@ -105,32 +106,27 @@ test('unbounded paid entries fail closed on bad, stale or missing market legs; l
   // Catalog rounding must not prevent a player-denominated stake valuation.
   response=()=>marketResponse({ETH:'0.000000000000000000000001',USDT:'1.2'});
   assert.equal((await marketQuote(pool,'ETH')).unit,'0');await assert.rejects(currentQuote('ETH'),/Market price/);
-  await startMines(p.id,'ETH','0.000000000000000001',25,3,key);
+  await assert.rejects(startMines(p.id,'ETH','0.000000000000000001',25,3,key),/Unknown currency/);
+  assert.equal((await quoteConversion(p.id,'ETH','crypto_to_coins','0.000000000000000001')).coin_amount,'720000000');
 });
 
-test('Mines and USDT independently value exact boundaries, paid history, rewards and admin; no lookup on cashout or replay',async()=>{
-  const p=await player(),key=randomUUID();
-  await limits('120','120');
-  for(const [bet,error] of [['0.059999999999999999',/Minimum/],['0.060000000000000001',/Maximum/]] as const)
-    await assert.rejects(startMines(p.id,'ETH',bet,25,3,key),error);
-  const m=await startMines(p.id,'ETH','0.06',25,3,key);
+test('Mines enforce exact coin boundaries, preserve replay/cashout, and freeze coin progress independently of the market',async()=>{
+  const p=await player(),key=randomUUID();await limits('120','120');
+  for(const [bet,error] of [['71999.999999999999999999',/Minimum/],['72000.000000000000000001',/Maximum/]] as const)
+    await assert.rejects(startMines(p.id,'COINS',bet,25,3,key),error);
+  const m=await startMines(p.id,'COINS','72000',25,3,key);
   assert.equal(text((await get('/api/me/levels',p.cookie)).json().wagered_usdt),'0');
-  await expireMarket('ETH');response=offline;await limits('900','901');const calls=requests;
-  assert.deepEqual(await startMines(p.id,'ETH','0.06',25,3,key),m);
+  await expireMarket('COINS');response=offline;await limits('900','901');const calls=requests;
+  assert.deepEqual(await startMines(p.id,'COINS','72000',25,3,key),m);
   const mines=(await query('select mine_positions from mines_rounds where id=$1',[m.id])).rows[0].mine_positions as number[];
-  await revealMines(p.id,Array.from({length:25},(_,i)=>i).find(i=>!mines.includes(i))!,m.id);
-  await cashoutMines(p.id,m.id);assert.equal(requests,calls);
-  response=good;await limits('120','120');
-  const stable=await startMines(p.id,'USDT','120',25,3);
-  const tile=(await query('select mine_positions[1] as tile from mines_rounds where id=$1',[stable.id])).rows[0].tile;
-  await revealMines(p.id,tile,stable.id);
-  await expireMarket('ETH');response=()=>marketResponse({ETH:'0.001',USDT:'0.8'});await currentQuote('ETH');
-  const rewards=(await get('/api/me/levels',p.cookie)).json();
-  assert.equal(text(rewards.wagered_usdt),'240');assert.equal(text(rewards.wagered_usd),'200');assert.equal(rewards.unpriced_usdt,0);
-  assert.deepEqual((await get('/api/admin/users/'+p.id,admin)).json().vip,rewards);
-  const stats=(await get('/api/me/stats?asset=ETH',p.cookie)).json().days.at(-1);
-  assert.equal(stats.stake,'60000000000000000');assert.equal(text(stats.wagered_usdt),'120');
-  assert.deepEqual((await get('/api/admin/users/'+p.id+'/stats?asset=ETH',admin)).json().days.at(-1),stats);
+  await revealMines(p.id,Array.from({length:25},(_,i)=>i).find(i=>!mines.includes(i))!,m.id);await cashoutMines(p.id,m.id);assert.equal(requests,calls);
+  await limits('120','120');const stable=await startMines(p.id,'COINS','72000',25,3);
+  await revealMines(p.id,(await query('select mine_positions[1] as tile from mines_rounds where id=$1',[stable.id])).rows[0].tile,stable.id);
+  response=()=>marketResponse({ETH:'0.001',USDT:'0.8'});await currentQuote('ETH');
+  const rewards=(await get('/api/me/levels',p.cookie)).json();assert.equal(text(rewards.wagered_usdt),'240');assert.equal(text(rewards.wagered_usd),'240');assert.equal(rewards.unpriced_usdt,0);
+  assert.deepEqual((await get('/api/admin/users/'+p.id,admin)).json().rewards,rewards);
+  const stats=(await get('/api/me/stats?asset=COINS',p.cookie)).json().days.at(-1);assert.equal(stats.stake,(144000n*coin).toString());
+  assert.deepEqual((await get('/api/admin/users/'+p.id+'/stats?asset=COINS',admin)).json().days.at(-1),stats);
 });
 
 test('only TRX uses Kraken: recurring USD reciprocals preserve an exact depegged wagering boundary',async()=>{
@@ -150,13 +146,15 @@ test('only TRX uses Kraken: recurring USD reciprocals preserve an exact depegged
   assert.ok((usdError<0n?-usdError:usdError)*10n**16n<=100000000n*scale);
   const p=await player();await tx(c=>post(c,'deposit','tron-fixture',[
     {account:'u:'+p.id,asset:'TRX',delta:200000000n},{account:'ext:fixture',asset:'TRX',delta:-200000000n}]));
-  await limits('31','31');
-  await assert.rejects(startMines(p.id,'TRX','102.999999',25,3),/Minimum/);
-  await assert.rejects(startMines(p.id,'TRX','103.000001',25,3),/Maximum/);
-  await limits('0','30.999999999999999999');await assert.rejects(startMines(p.id,'TRX','103',25,3),/Maximum/);
-  await limits('31.000000000000000001',null);await assert.rejects(startMines(p.id,'TRX','103',25,3),/Minimum/);
-  await limits('31','31');await startMines(p.id,'TRX','103',25,3);
-  const [debit]=await booked(p.id);assert.equal(debit.quote_id,q.id);assert.equal(text(debit.usdt),'31');assert.equal(tronRequests,1);
+  const conversion=await quoteConversion(p.id,'TRX','crypto_to_coins','103');assert.equal(conversion.coin_amount,'18600');
+  await convert(p.id,randomUUID(),conversion.id);await limits('31','31');
+  await assert.rejects(startMines(p.id,'COINS','18599.999999999999999999',25,3),/Minimum/);
+  await assert.rejects(startMines(p.id,'COINS','18600.000000000000000001',25,3),/Maximum/);
+  await limits('0','30.999999999999999999');await assert.rejects(startMines(p.id,'COINS','18600',25,3),/Maximum/);
+  await limits('31.000000000000000001',null);await assert.rejects(startMines(p.id,'COINS','18600',25,3),/Minimum/);
+  await limits('31','31');await startMines(p.id,'COINS','18600',25,3);
+  const [debit]=await booked(p.id);assert.equal(text(debit.usdt),'31');assert.equal(tronRequests,1);
+  assert.equal((await query('select market_quote_id from conversion_quotes where id=$1',[conversion.id])).rows[0].market_quote_id,q.id);
 });
 
 test('TRX rejects stale, partial, crossed or unrepresentable books without borrowing a Coinbase leg',async()=>{
@@ -185,25 +183,23 @@ async function deal(uid:string,matches:(shoe:number[])=>boolean) {
   for(let i=0;i<10000;i++){const s='limits-'+i;if(matches(shuffle(312,s,client,0).map(n=>n%52))){seed=s;break;}}
   assert.ok(seed);
   await query('insert into user_fair(user_id,server_seed,server_seed_hash,client_seed,nonce) values($1,$2,$3,$4,0)',[uid,seed,hashSeed(seed),client]);
-  return startBlackjack(uid,'ETH','0.006',randomUUID());
+  return startBlackjack(uid,'COINS','7200',randomUUID());
 }
-test('blackjack splits and doubles use exact cumulative exposure and a new quote for each paid addition',async()=>{
+test('blackjack splits and doubles enforce cumulative coin exposure with a fresh fixed quote for each paid addition',async()=>{
   const p=await player();await limits('12','24');
-  const r=await deal(p.id,s=>s[0]!%13===4 && s[2]!%13===4 && s[1]!%13>0 && s[1]!%13<9);
-  assert.equal(r.can_split,true);const before=await balance(p.id);
-  await expireMarket('ETH');response=offline;await assert.rejects(actBlackjack(p.id,r.id,0,'split'),/Market price/);
-  response=()=>marketResponse({ETH:'0.0003',USDT:'1.2'}); // now 24 USDT for the same addition, not 12
-  await assert.rejects(actBlackjack(p.id,r.id,0,'split'),/Maximum/);assert.deepEqual(await activeBlackjack(p.id),r);
-  assert.equal(await balance(p.id),before);await limits('12','36');
-  const split=await actBlackjack(p.id,r.id,0,'split');assert.equal(split.hands.length,2);
-  await limits('12','59.999999999999999999');await assert.rejects(actBlackjack(p.id,r.id,1,'double'),/Maximum/);
-  await limits('12','60');const doubled=await actBlackjack(p.id,r.id,1,'double');
-  await expireMarket('ETH');response=offline;await limits('100','100');const calls=requests;
-  assert.deepEqual(await actBlackjack(p.id,r.id,1,'double'),doubled);
-  if(doubled.status!=='done')assert.equal((await actBlackjack(p.id,r.id,2,'stand')).status,'done');
-  assert.equal(requests,calls);assert.deepEqual((await booked(p.id)).map(r=>text(r.usdt)),['12','24','24']);
-  const progress=(await get('/api/me/levels',p.cookie)).json();assert.equal(text(progress.wagered_usdt),'60');assert.equal(text(progress.wagered_usd),'50');
+  const r=await deal(p.id,s=>s[0]!%13===4&&s[2]!%13===4&&s[1]!%13>0&&s[1]!%13<9);assert.equal(r.can_split,true);
+  const before=await balance(p.id);await expireMarket('COINS');response=offline;
+  await limits('12','23.999999999999999999');await assert.rejects(actBlackjack(p.id,r.id,0,'split'),/Maximum/);
+  assert.deepEqual(await activeBlackjack(p.id),r);assert.equal(await balance(p.id),before);
+  await limits('12','24');const split=await actBlackjack(p.id,r.id,0,'split');assert.equal(split.hands.length,2);
+  await limits('12','35.999999999999999999');await assert.rejects(actBlackjack(p.id,r.id,1,'double'),/Maximum/);
+  await limits('12','36');const doubled=await actBlackjack(p.id,r.id,1,'double');
+  await expireMarket('COINS');await limits('100','100');const calls=requests;
+  assert.deepEqual(await actBlackjack(p.id,r.id,1,'double'),doubled);if(doubled.status!=='done')assert.equal((await actBlackjack(p.id,r.id,2,'stand')).status,'done');
+  assert.equal(requests,calls);assert.deepEqual((await booked(p.id)).map(r=>text(r.usdt)),['12','12','12']);
+  const progress=(await get('/api/me/levels',p.cookie)).json();assert.equal(text(progress.wagered_usdt),'36');assert.equal(text(progress.wagered_usd),'36');
 });
+
 test('insurance checks its own minimum and the hand maximum, but declining and natural settlement never debit extra',async()=>{
   const p=await player(),other=await player();const natural=(s:number[])=>s[1]!%13===0 && s[3]!%13>=9;
   await limits('12','18');const r=await deal(p.id,natural),n=await deal(other.id,natural);
@@ -216,59 +212,48 @@ test('insurance checks its own minimum and the hand maximum, but declining and n
   assert.equal((await booked(other.id)).length,1);
 });
 
-test('cases, upgrader and battle creation check actual quoted debits, not catalog points; reward prizes do not count',async()=>{
-  const p=await player(),q=await currentQuote('ETH'),key=randomUUID();
-  const open=()=>instantRound(p.id,'ETH',q.id,key,{game:'cases',case:'peppermint'});
-  await limits('2.000000000000000001',null);await assert.rejects(open(),/Minimum/);
-  await limits('0','1.999999999999999999');await assert.rejects(open(),/Maximum/);
-  await limits('2','2');const receipt=await open();assert.equal(receipt.stake,'1000000000000000');
-  const upgrade=()=>instantRound(p.id,'ETH',q.id,randomUUID(),{game:'upgrader',bet:'0.0005',item:21070012,over:true});
-  await assert.rejects(upgrade(),/Minimum/);await limits('0','0.999999999999999999');await assert.rejects(upgrade(),/Maximum/);
-  await limits('1','1');await upgrade();
-  const b={mode:'3way',cases:['peppermint'],asset:'ETH',quote:q.id,request:randomUUID(),crazy:false,jackpot:false,borrow:0};
+test('cases, upgrader and battle creation check exact coin debits; free reward prizes do not count as wagers',async()=>{
+  const p=await player(),q=await currentQuote('COINS'),key=randomUUID();
+  const open=()=>instantRound(p.id,'COINS',q.id,key,{game:'cases',case:'peppermint'});
+  await limits('1.666666666666666667',null);await assert.rejects(open(),/Minimum/);
+  await limits('0','1.666666666666666666');await assert.rejects(open(),/Maximum/);
+  await limits('1.666666666666666666','1.666666666666666667');const receipt=await open();assert.equal(receipt.stake,(1000n*coin).toString());
+  const upgrade=()=>instantRound(p.id,'COINS',q.id,randomUUID(),{game:'upgrader',bet:'300',item:21070012,over:true});
+  await assert.rejects(upgrade(),/Minimum/);await limits('0','0.499999999999999999');await assert.rejects(upgrade(),/Maximum/);
+  await limits('0.5','0.5');await upgrade();await limits('1','1.6');
+  const b={mode:'3way',cases:['peppermint'],asset:'COINS',quote:q.id,request:randomUUID(),crazy:false,jackpot:false,borrow:0};
   await assert.rejects(createBattle(p.id,b),/Maximum/);await assert.rejects(createBattle(p.id,{...b,borrow:51}),/Minimum/);
   await query('update users set catalog_wagered=(select xp from levels where level=10) where id=$1',[p.id]);
-  await limits('1000','1000');await instantRound(p.id,'ETH',q.id,randomUUID(),{game:'rewards',level:10});
-  await expireMarket('ETH');response=offline;assert.deepEqual(await open(),receipt);assert.equal((await booked(p.id)).length,2);
+  await limits('1000','1000');await instantRound(p.id,'COINS',q.id,randomUUID(),{game:'rewards',level:10});
+  await expireMarket('COINS');response=offline;assert.deepEqual(await open(),receipt);assert.equal((await booked(p.id)).length,2);
 });
-test('a late battle seat keeps its asset terms but uses a fresh rate; bots, refunds and cancelled entries add no wager',async()=>{
-  const host=await player(),guest=await player(),q=await currentQuote('ETH');
-  const setup={mode:'3way',cases:['peppermint'],asset:'ETH',quote:q.id,request:randomUUID(),crazy:false,jackpot:false,borrow:50};
-  await limits('1','1');const original=await balance(host.id),{id}=await createBattle(host.id,setup);
-  const cancelled=await createBattle(host.id,{...setup,request:randomUUID()});
-  await expireMarket('ETH');response=offline;
-  await assert.rejects(battleAction(guest.id,id,'join',1,50,'ETH'),/Market price/);
-  response=()=>marketResponse({ETH:'0.0003',USDT:'1.2'});
-  await assert.rejects(battleAction(guest.id,id,'join',1,50,'ETH'),/Maximum/);
+
+test('late battle seats keep fixed coin terms; bots, refunds and cancelled entries add no wager progress',async()=>{
+  const host=await player(),guest=await player(),q=await currentQuote('COINS');
+  const setup={mode:'3way',cases:['peppermint'],asset:'COINS',quote:q.id,request:randomUUID(),crazy:false,jackpot:false,borrow:50};
+  await limits('0.833333333333333333','0.833333333333333334');const original=await balance(host.id),{id}=await createBattle(host.id,setup);
+  const cancelled=await createBattle(host.id,{...setup,request:randomUUID()});await expireMarket('COINS');response=offline;
+  await limits('0','0.8');await assert.rejects(battleAction(guest.id,id,'join',1,50,'COINS'),/Maximum/);
   assert.deepEqual((await query('select seats from battles where id=$1',[id])).rows[0].seats,[host.id,null,null]);
-  await limits('2','2');await battleAction(guest.id,id,'join',1,50,'ETH');
-  await battleAction(guest.id,cancelled.id,'join',1,50,'ETH');
-  await expireMarket('ETH');response=offline;await limits('900','900');const calls=requests;
-  // Refund restores the exact debits, not the current value or a re-priced fee.
+  await limits('0.833333333333333333','0.833333333333333334');await battleAction(guest.id,id,'join',1,50,'COINS');await battleAction(guest.id,cancelled.id,'join',1,50,'COINS');
+  await expireMarket('COINS');await limits('900','900');const calls=requests;
   await battleAction(host.id,cancelled.id,'cancel',null,0);assert.equal(await balance(host.id),original-500n*BigInt(q.unit));
   await battleAction(host.id,id,'bots',null,0);assert.equal(requests,calls);
-  for(const [p,usdt,xp] of [[host,'1','500'],[guest,'2','1000']] as const){
-    const rewards=(await get('/api/me/levels',p.cookie)).json();assert.equal(text(rewards.wagered_usdt),usdt);
-    assert.equal((await query('select catalog_wagered from users where id=$1',[p.id])).rows[0].catalog_wagered,xp);
-    assert.equal((await booked(p.id)).length,2); // one settled, one refunded, no bot records
+  for(const p of [host,guest]){
+    const rewards=(await get('/api/me/levels',p.cookie)).json();assert.equal(text(rewards.wagered_usdt),'0.833333333333333333');
+    assert.equal((await query('select catalog_wagered from users where id=$1',[p.id])).rows[0].catalog_wagered,'500');assert.equal((await booked(p.id)).length,2);
   }
 });
 
-test('old USDT hands keep exact denomination; old native value is never guessed to authorize an addition',async()=>{
+test('old crypto hands finish without new crypto debits or guessed historical rates',async()=>{
   for(const asset of ['USDT.ERC20','ETH']){
     const p=await player(),id=randomUUID(),stake=asset==='ETH'?'6000000000000000':'1000000';
     const state={dealer:[9,7],hands:[{cards:[4,5],bet:stake}],pos:4,active:0,insurance:'0',payout:'0'};
     await query(`insert into blackjack_rounds(id,user_id,request_id,asset_id,bet,shoe,state,status,server_seed,server_seed_hash,client_seed,nonce)
       values($1,$2,$3,$4,$5,$6,$7,'playing','seed','hash','client',0)`,[id,p.id,randomUUID(),asset,stake,[4,9,5,7,9],state]);
-    await limits('0','1.999999999999999999');const b=await balance(p.id,asset==='ETH'?'ETH':'USDT');
-    await assert.rejects(actBlackjack(p.id,id,0,'double'),asset==='ETH'?/Earlier stake/:/Maximum/);
-    assert.equal(await balance(p.id,asset==='ETH'?'ETH':'USDT'),b);
-    if(asset==='ETH'){
-      const calls=requests;await actBlackjack(p.id,id,0,'stand');assert.equal(requests,calls);
-      assert.equal((await get('/api/me/levels',p.cookie)).json().unpriced_usdt,1);
-    }else{
-      await limits('0','2');await actBlackjack(p.id,id,0,'double');
-      assert.equal(text((await get('/api/me/levels',p.cookie)).json().wagered_usdt),'2');
-    }
+    await limits('0','2');const b=await balance(p.id,asset==='ETH'?'ETH':'USDT');
+    await assert.rejects(actBlackjack(p.id,id,0,'double'),/New wagers use coins/);assert.equal(await balance(p.id,asset==='ETH'?'ETH':'USDT'),b);
+    const calls=requests;await actBlackjack(p.id,id,0,'stand');assert.equal(requests,calls);
+    assert.equal((await get('/api/me/levels',p.cookie)).json().unpriced_usdt,asset==='ETH'?1:0);assert.equal((await booked(p.id)).length,0);
   }
 });

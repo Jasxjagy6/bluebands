@@ -103,6 +103,7 @@ export async function listBattles(asset:string, uid?:string) {
     case when a.symbol='USDT' then (unit*power(10::numeric,18-a.decimals))::numeric(78,0) else unit end as unit,
     case when a.symbol='USDT' then 'USDT' else asset_id end as asset_id,results,payouts,jp,pf_hash,
     case when status='rolling' then pf_seed end as pf_seed,b.created_at,started_at from battles b join assets a on a.id=b.asset_id
-    where (asset_id=$1 or ($1='USDT' and a.symbol='USDT')) and (b.created_at >=now()-interval '7 days' or status='open' or $2=any(seats))
+    where (asset_id=$1 or ($1='USDT' and a.symbol='USDT') or ($1='COINS' and $2=any(seats)))
+      and (b.created_at >=now()-interval '7 days' or status='open' or $2=any(seats))
     order by (status='open' and $2=any(seats)) desc,b.created_at desc limit 100`,[asset,uid??null])).rows;
 }

@@ -110,8 +110,8 @@ test('token log scans filter for every assigned recipient instead of downloading
 });
 test('saves a supported currency server-side and restricts disabled deposit routes',async()=>{
   const put=(asset:string)=>app.inject({method:'PUT',url:'/api/me/currency',headers:{cookie},payload:{asset}});
-  assert.equal((await put('USDT')).statusCode,200);
-  assert.equal((await request('/api/auth/me')).json().user.display_ccy,'USDT');
+  assert.equal((await put('COINS')).statusCode,200);
+  assert.equal((await request('/api/auth/me')).json().user.display_ccy,'COINS');
   assert.equal((await put('USDT.ERC20')).statusCode,400);
   assert.equal((await put('BAD')).statusCode,400);
   await query("update chains set enabled=false where id='ETH'");
@@ -136,9 +136,9 @@ test('pausing blocks address issuance while issued addresses stay monitored thro
   for(const field of ['deposit_provider','oxapay_ready','merchant_configured','public_origin'])assert.equal(Object.hasOwn(catalog,field),false,field);
   assert.deepEqual(catalog.directRoutes.map((a:any)=>a.id).sort(),['BNB','ETH','POL','SOL','USDT.BEP20','USDT.ERC20','USDT.POL']);
   assert.ok(catalog.directRoutes.every((a:any)=>a.available===false));
-  for(const asset of ['USDT','BTC','ETH','BNB','POL','SOL','TRX'])assert.ok(catalog.currencies.some((a:any)=>a.id===asset),asset);
-  assert.equal((await app.inject({method:'PUT',url:'/api/me/currency',headers:{cookie},payload:{asset:'SOL'}})).statusCode,200);
-  assert.equal((await request('/api/auth/me')).json().user.display_ccy,'SOL');
+  for(const asset of ['USDT','BTC','ETH','BNB','POL','SOL','TRX'])assert.ok(catalog.walletCurrencies.some((a:any)=>a.id===asset),asset);
+  assert.equal((await app.inject({method:'PUT',url:'/api/me/currency',headers:{cookie},payload:{asset:'SOL'}})).statusCode,400);
+  assert.equal((await request('/api/auth/me')).json().user.display_ccy,'COINS');
   head=105; await watcher.tick();
   const hist=async()=>(await request('/api/me/deposits?asset=USDT.ERC20')).json().deposits;
   assert.equal((await hist())[0].status,'pending');

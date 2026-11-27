@@ -3,6 +3,7 @@ import { post, balanceOf, type Leg } from './ledger.js';
 import { checkedQuote, marketQuote, MarketUnavailable, ratePlaces } from './games/prices.js';
 import { checkLimits,readLimits,usdtValue } from './games/wager-limits.js';
 import { parseAmount } from './money.js';
+import { COINS } from './coins.js';
 
 const HOUSE = 'house:bank';
 
@@ -18,6 +19,7 @@ export class InsufficientFunds extends Error {
 export async function debitStake(c: PoolClient, userId: string, assetId: string, amount: bigint, game: string, ref: string,
   options:{quote?:string;previous?:bigint}={}) {
   if (amount <= 0n) throw new Error('Stake must be positive');
+  if(assetId!==COINS)throw new Error('Currency unavailable. New wagers use coins; convert crypto in your profile first.');
   let currency=assetId, scale=1n;
   // An in-flight hand or battle may still use the original network's units.
   if (assetId.startsWith('USDT.')) {

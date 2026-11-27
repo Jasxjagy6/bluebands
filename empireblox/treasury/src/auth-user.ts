@@ -26,6 +26,7 @@ export type Profile = { id: string; email: string; username: string; is_admin: b
 
 // Serialize player-initiated money movements with a restriction imposed by an operator.
 export async function lockActivePlayer(c:PoolClient,uid:string){
+  await c.query("select pg_advisory_xact_lock_shared(hashtext('banditblox coin season boundary'))");
   const result=await c.query('select id from users where id=$1 and player_active(disabled,suspended_until) for update',[uid]);
   if(!result.rowCount)throw Object.assign(new Error('Account access restricted'),{statusCode:403});
 }

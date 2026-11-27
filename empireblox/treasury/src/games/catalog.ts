@@ -31,15 +31,15 @@ export async function instantRound(uid:string,asset:string,quote:string,request:
       stake=BigInt(box.price)*unit; payout=BigInt(won.value)*unit;
       detail={case:action.case,idx:won.idx,name:won.name,value:Number(won.value),price:box.price};
     }else if(action.game==='rewards'){
-      const eligible=await c.query(`select 1 from users u join levels l on l.xp<=u.catalog_wagered
-        where u.id=$1 and l.level=$2`,[uid,action.level]);
+      const eligible=await c.query(`select 1 from reward_progress p join levels l on l.xp<=p.wagered
+        where p.user_id=$1 and l.level=$2`,[uid,action.level]);
       if(!eligible.rowCount) throw new Error('Player level is too low');
       const claim=await c.query(`insert into reward_claims values($1,$2,now()) on conflict(user_id,level) do update set claimed_at=now()
         where reward_claims.claimed_at<=now()-interval '24 hours' returning claimed_at+interval '24 hours' as next_at`,[uid,action.level]);
       if(!claim.rowCount) throw new Error('Wait until your next reward is available');
       const items=(await c.query<Item>(`select p.idx,p.weight,i.value,i.name from reward_pack_items p join upgrade_items i on i.id=p.item_id where level=$1 order by idx`,[action.level])).rows;
       const won=pickItem(items,f); stake=0n;payout=BigInt(won.value)*unit;
-      detail={level:action.level,idx:won.idx,value:Number(won.value),next_at:claim.rows[0].next_at};
+      detail={level:action.level,idx:won.idx,value:Number(won.value),next_at:new Date(claim.rows[0].next_at).toISOString()};
     }else{
       const item=(await c.query('select name,value from upgrade_items where id=$1',[action.item])).rows[0];
       const a=(await c.query('select decimals from assets where id=$1',[asset])).rows[0]!;
@@ -60,6 +60,7 @@ export async function instantRound(uid:string,asset:string,quote:string,request:
     const result={...detail,asset_id:asset,stake:stake.toString(),payout:payout.toString(),seed_hash:seed.server_seed_hash};
     await c.query(`insert into instant_rounds(user_id,request,game,asset_id,result,server_seed,client_seed,nonce,minor_per_usd)
       values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[uid,request,action.game,asset,result,seed.server_seed,seed.client_seed,seed.nonce,price.minor_per_usd]);
+    if(action.game==='rewards')await c.query("select notify_player($1,'reward.pack_claimed',$2,$3,$4)",[uid,request,asset,payout.toString()]);
     return result;
   });
 }

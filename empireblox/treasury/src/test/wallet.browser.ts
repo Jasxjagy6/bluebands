@@ -72,20 +72,21 @@ test('instant signup works with external services offline and displays the walle
   assert.equal(await page.locator('#authModal').isVisible(),false);
   assert.ok((await context.cookies()).find(c=>c.name==='eb_sess' && c.httpOnly));
 });
-test('currency menu remains visible at desktop and phone widths, and choice survives reload',async()=>{
-  for (const width of [320,390,1024,1440]) {
-    await page.setViewportSize({width,height:width===320?480:750});
-    await page.locator('#ebwCcy').click(); const box=await page.locator('#ebwMenu').boundingBox();
-    assert.ok(box && box.x>=0 && box.y>=0 && box.x+box.width<=width && box.y+box.height<=page.viewportSize()!.height,JSON.stringify({box,width,errors}));
-    assert.ok(box.width<=292 && Math.abs(box.x+box.width/2-width/2)<=1,'Currency selector must be narrow and centered');
-    await expectBelow(page,'#ebwCcy','#ebwMenu[open]');
-    if(width===390)await screenshot('playing-currency-centered-phone');
-    await page.keyboard.press('Escape');
+test('the original coin dropdown fits phones and desktop with a read-only USD value',async()=>{
+  const url=page.url();
+  for(const width of [320,390,1024,1440]){
+    await page.setViewportSize({width,height:width===320?480:750});await page.click('#ebwCcy');
+    const sheet=page.getByRole('dialog',{name:'Coin balance',exact:true});await sheet.waitFor();
+    assert.equal(await page.locator('#ebwSym').innerText(),'COINS');
+    assert.equal(await sheet.locator('[data-asset=COINS]').count(),1);assert.equal(await sheet.locator('[data-profile]').count(),0);
+    assert.match(await sheet.locator('.coin-equivalent').innerText(),/USD equivalent.*\$/s);
+    assert.ok(await sheet.locator('.coin-equivalent').isVisible());
+    const box=await sheet.boundingBox();assert.ok(box&&box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=page.viewportSize()!.height,JSON.stringify(box));
+    assert.ok(box.width<=292);await sheet.locator('.coin-equivalent').click();assert.equal(page.url(),url);
+    assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'COINS');await screenshot('classic-coin-dropdown-'+width);
+    await page.keyboard.press('Escape');assert.equal(await page.locator('#ebwCcy').getAttribute('aria-expanded'),'false');
   }
-  await page.setViewportSize({width:390,height:750});
-  await page.click('#ebwCcy'); assert.equal(await page.locator('#ebwMenu [data-asset^=USDT]').count(),1); await page.click('[data-asset="USDT"]');
-  await page.waitForFunction(()=>document.querySelector('#ebwMenu')?.hasAttribute('hidden'));
-  await page.reload(); await page.locator('#ebwCcy[aria-label*="USDT balance"]').waitFor();
+  await page.setViewportSize({width:390,height:750});await page.reload();await page.locator('#ebwCcy[aria-label*="Coin balance"]').waitFor();
 });
 test('wallet loading is circular, honors reduced motion and cannot reopen a dismissed popup',async()=>{
   let release!:()=>void;
@@ -100,8 +101,8 @@ test('wallet loading is circular, honors reduced motion and cannot reopen a dism
     await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await ring.evaluate(el=>getComputedStyle(el).animationName),'none');
     await page.keyboard.press('Escape');assert.equal(page.url(),original);
     release();delayResponse=undefined;
-    await page.click('#ebwCcy');await page.getByRole('dialog',{name:'Playing currency'}).waitFor();
-    assert.equal(await page.locator('#ebwMenu').getAttribute('data-mode'),'play');
+    await page.click('#ebwCcy');await page.getByRole('dialog',{name:'Coin balance',exact:true}).waitFor();
+    assert.equal(await page.locator('#ebwSym').innerText(),'COINS');
     await page.keyboard.press('Escape');await page.emulateMedia({reducedMotion:'no-preference'});
   }finally{release();delayResponse=undefined;await page.emulateMedia({reducedMotion:'no-preference'});}
 });
@@ -162,7 +163,7 @@ test('legacy financial links open the same wallet popup and close onto a usable 
       assert.equal(await p.locator('#home.on').isVisible(),true);
       await p.locator('#meChip').click();await p.locator('#walletContent .wallet-balances').waitFor();
       assert.equal(await p.locator('#walletTitle').innerText(),'Account overview');
-      assert.equal(await p.locator('#walletNav a').count(),7);
+      assert.equal(await p.locator('#walletNav a').count(),8);
     }
   }finally{await ctx.close();}
 });
@@ -182,6 +183,7 @@ test('profile and currency selector round displayed balances while preserving ex
   await tx(c=>post(c,'deposit','browser-fixture',[{account:'u:'+uid,asset:'ETH',delta:amount},{account:'ext:ETH',asset:'ETH',delta:-amount}]));
   for(const [asset,units] of [['USDT',9999500000000000000n],['BNB',1234550000000000000n],['POL',1234500000000000000n]] as const)
     await tx(c=>post(c,'deposit','rounding-fixture',[{account:'u:'+uid,asset,delta:units},{account:'ext:fixture',asset,delta:-units}]));
+  await tx(c=>post(c,'fixture:coins','browser-coins',[{account:'u:'+uid,asset:'COINS',delta:1000000n*10n**18n},{account:'house:fixture',asset:'COINS',delta:-1000000n*10n**18n}]));
   await page.evaluate(()=> (window as any).ebWalletRefresh());
   await page.click('#meChip');
   const expected={ETH:'900719.92547',USDT:'10',POL:'1.23',BNB:'1.2346'};
@@ -189,15 +191,15 @@ test('profile and currency selector round displayed balances while preserving ex
     const row=page.locator('.wallet-balances>div').filter({has:page.getByText(symbol,{exact:true})});
     assert.equal(await row.locator('b').innerText(),display);
   }
-  assert.equal(await page.evaluate(()=>(window as any).ebBalance()),'9999500000000000000');
-  await page.click('#ebwCcy');
+  assert.equal(await page.evaluate(()=>(window as any).ebBalance('USDT')),'9999500000000000000');
+  await page.click('#ebwDep');await page.locator('#walletSummary:visible').waitFor();
   for(const [symbol,display] of Object.entries(expected))assert.equal(await page.locator('[data-asset="'+symbol+'"] b').innerText(),display);
   await page.keyboard.press('Escape');
   assert.match(await page.locator('#walletContent').innerText(),new RegExp(username+'@test.invalid'));
   assert.match(await page.locator('#walletHistory').innerText(),/No deposits/);
   await page.keyboard.press('Escape');
-  await page.click('#ebwCcy'); await page.click('[data-profile]'); await page.locator('#walletTitle').waitFor();
-  assert.equal(await page.locator('#walletTitle').innerText(),'Account overview'); await page.keyboard.press('Escape');
+  await page.click('#meChip');await page.click('#walletNav [data-view=conversion]');await page.locator('#walletTitle').waitFor();
+  assert.equal(await page.locator('#walletTitle').innerText(),'Conversion');await page.locator('#conversionForm').waitFor(); await page.keyboard.press('Escape');
 });
 test('illustrated lobby loads real assets, fits supported screens and opens every game',async()=>{
   await page.locator('.top .logo').click();await page.locator('#home.on').waitFor();
@@ -285,7 +287,7 @@ test('reduced motion presents game results cleanly while retaining automatic wag
   const ctx=await browser.newContext({viewport:{width:390,height:750},reducedMotion:'reduce',storageState:await context.storageState()});
   try{
     const p=await ctx.newPage();p.setDefaultTimeout(7000);p.on('pageerror',e=>errors.push(e.message));
-    const hand={id:randomUUID(),version:1,asset_id:'ETH',bet:'1000000000000',insurance:'0',payout:'0',status:'playing',active:1,
+    const hand={id:randomUUID(),version:1,asset_id:'COINS',bet:'1000000000000',insurance:'0',payout:'0',status:'playing',active:1,
       dealer:[9,-1],hands:[{cards:[9,8],bet:'1000000000000'}],can_double:true,can_split:false};
     await p.route('**/api/games/blackjack/start',r=>r.fulfill({json:hand}));
     await p.route('**/api/games/blackjack/action',r=>r.fulfill({json:{...hand,version:2,status:'done',dealer:[9,7],
@@ -297,13 +299,13 @@ test('reduced motion presents game results cleanly while retaining automatic wag
       if(body.game==='cases'){
         caseItem=catalog.items.find((i:{case_id:string;top:boolean})=>i.case_id===body.case&&i.top)
           ||catalog.items.find((i:{case_id:string})=>i.case_id===body.case);
-        assert.ok(caseItem);return route.fulfill({json:{idx:caseItem.idx,asset_id:'ETH',payout:'2000000000000'}});
+        assert.ok(caseItem);return route.fulfill({json:{idx:caseItem.idx,asset_id:'COINS',payout:'2000000000000'}});
       }
       assert.equal(body.game,'upgrader');return route.fulfill({json:{roll:'25.0000',win:true,chance:50,value:123,name:'Motion fixture'}});
     });
-    const quoteReady=p.waitForResponse(r=>r.url().endsWith('/api/quote/ETH')&&r.ok());
+    const quoteReady=p.waitForResponse(r=>r.url().endsWith('/api/quote/COINS')&&r.ok());
     await p.goto(base);await p.locator('#ebwCcy').waitFor();
-    await p.locator('#ebwCcy').click();await p.locator('[data-asset=ETH]').click();await quoteReady;
+    await quoteReady;
     await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=blackjack]').click();await p.fill('#bjBet','0.000001');
     await p.locator('#bjDeal').click();await p.locator('#bjHit:not([disabled])').waitFor();
     assert.equal(await p.locator('#bjTable .deal,#bjTable [data-wait]').count(),0);
@@ -311,13 +313,13 @@ test('reduced motion presents game results cleanly while retaining automatic wag
     assert.equal(await p.locator('#bjDTot').innerText(),'10');
     await p.locator('#bjStand').click();await p.locator('#bjHands .bjres.win').waitFor();
     assert.equal(await p.locator('#bjTable .deal,#bjTable [data-wait],#bjDealer .pcard.hidden').count(),0);
-    assert.match(await p.locator('#toast').innerText(),/Win: \+0\.000001 ETH/);
+    assert.match(await p.locator('#toast').innerText(),/Win: \+0\.000001 COINS/);
     assert.equal(await p.locator('#bjDTot').innerText(),'18');await screenshot('blackjack-result-reduced-phone',p);
     await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=cases]').click();await p.locator('#caseGrid [data-case]').first().click();
     await p.locator('#cvOpen').click();await p.locator('#caseView[data-phase=landed]').waitFor({timeout:2000});
     assert.equal(await p.locator('#cvReel .hc.won').count(),1);assert.match(await p.locator('#cvReel .hc.won').innerText(),new RegExp(caseItem!.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
     assert.equal(await p.locator('#caseView .flaring,#caseView .dflare').count(),0);
-    assert.match(await p.locator('#toast').innerText(),/0\.000002 ETH/);
+    assert.match(await p.locator('#toast').innerText(),/0\.000002 COINS/);
     assert.equal(await p.locator('#cvReel').evaluate(el=>(el as HTMLElement).style.transition),'none');await screenshot('case-result-reduced-phone',p);
     await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=upgrader]').click();await p.fill('#uBet','0.00000000000001');
     await p.locator('#uGrid [data-u]').first().click();
@@ -362,10 +364,10 @@ test('battle results show their original currency and precise payouts on phone',
   const fixture={id:'ui-currency-result',mode:'1v1',case_ids:[c.id],seats:['bot:1','bot:2'],status:'rolling',results:[[item.idx],[item.idx]],payouts:[123456,0],unit:'1000000000000',asset_id:'ETH',cost:c.price,creator:'bot:1',created_at:new Date(Date.now()-600000).toISOString(),started_at:new Date(Date.now()-600000).toISOString()};
   const isolated=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce',storageState:await context.storageState()});
   try{
-    await isolated.route('**/api/me/battles/ETH',r=>r.fulfill({json:{battles:[fixture]}}));
-    await isolated.route('**/api/battles/ETH',r=>r.fulfill({json:{battles:[fixture]}}));
+    await isolated.route('**/api/me/battles/COINS',r=>r.fulfill({json:{battles:[fixture]}}));
+    await isolated.route('**/api/battles/COINS',r=>r.fulfill({json:{battles:[fixture]}}));
     const p=await isolated.newPage(),pageErrors:string[]=[];p.on('pageerror',e=>pageErrors.push(e.message));
-    await p.goto(base);await p.locator('#ebwCcy').waitFor();await p.locator('#ebwCcy').click();await p.locator('[data-asset=ETH]').click();
+    await p.goto(base);await p.locator('#ebwCcy').waitFor();
     await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=battles]').click();await p.locator('[data-open="ui-currency-result"]').click();
     await p.locator('#vGrid[data-phase=done]').waitFor();
     const winner=p.locator('#pc0');assert.match(await winner.locator('.tt').innerText(),/^\+0\.12346 ETH$/);
@@ -393,11 +395,11 @@ test('real game, chat, leaderboard and catalog entry points work without externa
   });
   assert.deepEqual(focus,{inputAnimation:'none',inputTransition:'0s',inputShadow:'none',groupAnimation:'none',groupTransition:'0s',groupShadow:'none',
     border:'rgb(138, 155, 173)',outline:'rgb(138, 155, 173)'});
-  // This opening stake is placed in ETH; explicitly choose the funded currency.
-  await page.click('#ebwCcy'); await page.click('[data-asset="ETH"]');
-  await page.locator('#ebwCcy[aria-label*="ETH on Ethereum"]').waitFor();
+  assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'COINS');
   await page.click('#bjDeal'); await page.locator('#bjDealer .pcard').first().waitFor();
   await page.click('#gamesBtn'); await page.click('[data-p=cases]'); await page.locator('.ccard').first().waitFor();
+  const uid=(await query('select id from users where username=$1',[username])).rows[0].id;
+  const ranked=await startMines(uid,'COINS','1',25,3);await revealMines(uid,(await query('select mine_positions from mines_rounds where id=$1',[ranked.id])).rows[0].mine_positions[0]);
   await page.click('#lbBtn'); await page.locator('#lbRows').getByText(username).waitFor();
   await page.click('#chatOpen'); await page.fill('#chatIn','Wallet browser smoke');await page.click('#chatSend');
   await page.locator('#msgs').getByText('Wallet browser smoke').waitFor(); await page.click('#chatClose');
@@ -409,11 +411,11 @@ test('account menu fits compact phones, supports the keyboard and opens each act
   const overview=page.locator('#walletContent');await overview.getByRole('heading',{name:'Wallet balances'}).waitFor();
   assert.equal(await overview.locator('[data-view=security]').count(),1);assert.equal(await overview.locator('[data-view=transactions]').count(),0);
   assert.equal(await page.locator('#walletNav a[href="/account/security"], #walletNav a[href="/account/transactions"]').count(),2);
-  assert.equal(await page.locator('#walletNav a').count(),7);
+  assert.equal(await page.locator('#walletNav a').count(),8);
   assert.equal(await page.locator('#walletNav [data-view=deposit],#walletNav [data-view=withdraw],.account-quick [data-view=deposit],.account-quick [data-view=withdraw]').count(),0);
   assert.ok(await page.locator('#accountPage').evaluate(el=>el.scrollWidth<=el.clientWidth));
   await page.click('#walletNav [data-view=rewards]');await page.waitForURL('**/account/rewards');
-  await page.reload();await page.getByText('Current level',{exact:true}).waitFor();
+  await page.reload();await page.locator('.account-pack-grid').waitFor();
   await page.goBack();await page.waitForURL('**/account/profile');
   await page.setViewportSize({width:390,height:750});await screenshot('account-phone');
   const profileURL=page.url();await page.click('#ebwDep');await page.click('#makeDeposit');await page.locator('#popupDepositAddress').waitFor();assert.equal(page.url(),profileURL);
@@ -428,21 +430,21 @@ test('account menu fits compact phones, supports the keyboard and opens each act
   const uid=(await query('select id from users where username=$1',[username])).rows[0].id;
   // Give the chart a settled wager from yesterday even when the UI hand remains active.
   await query(`insert into instant_rounds(user_id,request,game,asset_id,result,server_seed,client_seed,nonce,created_at)
-    values($1,$2,'upgrader','ETH',$3,'fixture','client',0,now()-interval '1 day')`,[uid,randomUUID(),{stake:'1000000000000000000',payout:'2000000000000000000'}]);
+    values($1,$2,'upgrader','COINS',$3,'fixture','client',0,now()-interval '1 day')`,[uid,randomUUID(),{stake:'1000000000000000000',payout:'2000000000000000000'}]);
   await page.click('#meChip');await page.click('#walletNav [data-view=stats]');await page.locator('.result-chart').waitFor();
-  assert.match(await page.locator('#wagerValuation').innerText(),/USDT wagered\..*historical bet/i);
+  assert.match(await page.locator('#wagerValuation').innerText(),/Results in coins.*Historical crypto bets/i);
   await choose(page,'#statsPeriod','30');await page.waitForFunction(()=>document.querySelectorAll('.chart-table tbody tr').length===30);
   const period=await page.locator('#statsPeriod').elementHandle(),entries=await page.evaluate(()=>history.length);
   await page.click('#walletNav [data-view=stats]');
   assert.equal(await page.evaluate(()=>history.length),entries);assert.equal(await page.locator('#statsPeriod').inputValue(),'30');
   assert.ok(await page.locator('#statsPeriod').evaluate((el,old)=>el===old,period));
-  await page.click('[data-metric=stake]');await page.getByRole('img',{name:'Daily amount wagered in ETH'}).waitFor();
+  await page.click('[data-metric=stake]');await page.getByRole('img',{name:'Daily amount wagered in COINS'}).waitFor();
   await page.click('.chart-card summary');assert.equal(await page.locator('.chart-table tbody tr').count(),30);
   await page.click('.chart-card summary');await page.click('[data-metric=net]');
   await page.setViewportSize({width:1280,height:850});await screenshot('statistics-desktop');
   await page.setViewportSize({width:320,height:480});await screenshot('statistics-phone');
   assert.ok(await page.locator('#walletContent').evaluate(e=>e.scrollWidth<=e.clientWidth));
-  await choose(page,'#statsAsset','USDT');await page.getByText('No settled bets in this period.').waitFor();
+  assert.deepEqual(await page.locator('#statsAsset option').evaluateAll(els=>els.map(el=>(el as HTMLOptionElement).value)),['COINS']);
   await page.keyboard.press('Escape');
 });
 
@@ -555,18 +557,14 @@ test('admin search, detailed records and an audited credit reach a player with t
     await page.click('#openInbox');await page.waitForURL('**/account/notifications');await page.getByText('0 unread',{exact:true}).waitFor();
     await screenshot('notifications-desktop');
     const uid=(await query('select id from users where username=$1',[username])).rows[0].id;
-    const round=await startMines(uid,'USDT','100',25,3,randomUUID());
-    const mines=(await query('select mine_positions from mines_rounds where id=$1',[round.id])).rows[0].mine_positions;
+    const xp=(await query('select xp from levels where level=10')).rows[0].xp;
+    const round=await startMines(uid,'COINS',xp,25,3,randomUUID());const mines=(await query('select mine_positions from mines_rounds where id=$1',[round.id])).rows[0].mine_positions;
     await revealMines(uid,mines[0],round.id);
-    await page.click('#walletNav [data-view=rewards]');const claim=page.locator('[data-claim="1"]');await claim.waitFor();
-    await screenshot('rewards-desktop');await claim.click();
-    const bronze=page.locator('#walletContent .vip-tiers details').filter({has:page.locator('summary').getByText(/Bronze/)});
-    await bronze.locator('.vip-row').filter({has:page.getByText('Rank I',{exact:true})}).getByText('Claimed',{exact:true}).waitFor();
-    await page.click('#walletNav [data-view=notifications]');await page.locator('#noticeList').getByText('Level bonus credited',{exact:true}).waitFor();
-    await page.click('#markRead');await page.getByText('0 unread',{exact:true}).waitFor();
-    await page.setViewportSize({width:320,height:650});await screenshot('notifications-phone');
-    await page.click('#walletNav [data-view=rewards]');await page.locator('.vip-summary').waitFor();
-    assert.ok(await page.locator('#walletContent').evaluate(e=>e.scrollWidth<=e.clientWidth));await screenshot('rewards-phone');
+    await page.click('#walletNav [data-view=rewards]');await page.locator('.account-pack-grid').waitFor();await screenshot('rewards-desktop');
+    await page.locator('[data-open-reward-pack="10"]').click();await page.locator('#rwOpen').click();await page.locator('#rwStatus').filter({hasText:'credited to your coin balance'}).waitFor();
+    await page.click('#meChip');await page.click('#walletNav [data-view=notifications]');await page.locator('#noticeList').getByText('Daily pack credited',{exact:true}).waitFor();
+    await page.click('#markRead');await page.getByText('0 unread',{exact:true}).waitFor();await page.setViewportSize({width:320,height:650});await screenshot('notifications-phone');
+    await page.click('#walletNav [data-view=rewards]');await page.locator('.account-pack-grid').waitFor();assert.ok(await page.locator('#walletContent').evaluate(e=>e.scrollWidth<=e.clientWidth));await screenshot('rewards-phone');
     await page.click('#noticeBell');const bounds=await page.locator('#noticePopup').boundingBox();
     assert.ok(bounds && bounds.x>=0 && bounds.x+bounds.width<=320 && bounds.y+bounds.height<=650);
     await page.keyboard.press('Escape');await page.keyboard.press('Escape');
@@ -622,7 +620,7 @@ test('the main logo returns from an account page or a game to the home entry poi
   await logo.click();await page.waitForURL(base+'/');await page.locator('#home.on').waitFor();
   await page.locator('#ebwCcy').waitFor();
 });
-test('Mines previews and cash-out receipts round ETH while the journal credits the exact payout',async()=>{
+test('Mines previews and cash-out receipts round coins while the journal credits the exact payout',async()=>{
   await page.click('#gamesBtn');await page.click('#gmenu [data-p=mines]');
   await page.fill('#mBet','0.123456789');const started=page.waitForResponse(r=>r.url().endsWith('/api/games/mines/start'));
   await page.click('#mPlay');const round=await (await started).json();
@@ -630,11 +628,11 @@ test('Mines previews and cash-out receipts round ETH while the journal credits t
   const safe=Array.from({length:25},(_,i)=>i).find(i=>!row.mine_positions.includes(i))!;
   await page.locator('#board .tile').nth(safe).click();
   const cashout=page.locator('#mPlay').filter({hasText:'Cash out'});await cashout.waitFor();
-  const preview=(await cashout.innerText()).replace('Cash out ','');assert.match(preview,/^0\.\d{1,5} ETH$/);
+  const preview=(await cashout.innerText()).replace('Cash out ','');assert.match(preview,/^0\.\d{1,3} COINS$/);
   const finished=page.waitForResponse(r=>r.url().endsWith('/api/games/mines/cashout'));
   await cashout.click();const result=await (await finished).json();
-  const units=BigInt(result.payout),rounded=(units+5000000000000n)/10000000000000n;
-  assert.notEqual(units%10000000000000n,0n);assert.equal(preview,(Number(rounded)/100000).toString()+' ETH');
+  const units=BigInt(result.payout),rounded=(units+500000000000000n)/1000000000000000n;
+  assert.notEqual(units%1000000000000000n,0n);assert.equal(preview,(Number(rounded)/1000).toString()+' COINS');
   await page.locator('#toast').getByText('Cashed out +'+preview,{exact:false}).waitFor();
   const entry=(await query("select e.delta from ledger_entries e join journals j on j.id=e.journal_id where j.kind='payout:mines' and e.account=$1 order by e.id desc limit 1",['u:'+row.user_id])).rows[0];
   assert.equal(entry.delta,result.payout);
@@ -652,6 +650,12 @@ test('mobile account navigation, fixed header and security settings fit phone vi
     assert.equal(await page.evaluate(()=>scrollY),0);assert.deepEqual(await top.boundingBox(),before);
     assert.deepEqual(await page.locator('#gamesBtn').boundingBox(),pinnedNav);
     assert.equal((await pane.boundingBox())?.y,headerBottom);
+    const accountRail=page.locator('#accountPage .account-rail');
+    assert.equal((await accountRail.boundingBox())?.y,headerBottom,'Account menu pins directly below the masthead');
+    assert.doesNotMatch(await accountRail.evaluate(el=>getComputedStyle(el).backgroundColor),/transparent|rgba\([^)]*,\s*0(?:\.0+)?\)/,'Pinned menu must hide the scrolling content behind it');
+    assert.ok(await accountRail.evaluate(el=>Number(getComputedStyle(el).zIndex)>Number(getComputedStyle(document.querySelector('#accountPage .account-main')!).zIndex)),'Menu paints above the isolated account content');
+    await page.mouse.wheel(0,-100);await page.waitForTimeout(150);
+    assert.equal((await accountRail.boundingBox())?.y,headerBottom,'Scrolling upward must keep the opaque menu pinned');
     const home=page.getByRole('link',{name:'BANDITBLOX home'}),brand=await home.boundingBox();assert.ok(brand && brand.height>=44);
     if(brand.width<=84)assert.match(await home.locator('img').evaluate(el=>getComputedStyle(el).content),/dice-gold/);
     const headerBoxes=await page.locator('.top .logo,#ebwCcy,#ebwDep,#noticeBell,#meChip').evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.left,b.right,b.width];}));
@@ -680,8 +684,8 @@ test('mobile account navigation, fixed header and security settings fit phone vi
     assert.ok(await page.locator('#'+game).evaluate(el=>el.scrollWidth<=el.clientWidth+1),'game overflows its content box');
     if(game==='cases'||game==='upgrader'){
       const values=page.locator('#'+game+' .cv');await values.first().waitFor();
-      const amounts=(await values.allTextContents()).filter(v=>v.endsWith(' ETH'));
-      assert.ok(amounts.length>0);assert.ok(amounts.every(v=>/^\d+(?:\.\d{1,5})? ETH$/.test(v)),game);
+      const amounts=(await values.allTextContents()).filter(v=>v.endsWith(' COINS'));
+      assert.ok(amounts.length>0);assert.ok(amounts.every(v=>/^[\d,]+(?:\.\d{1,3})? COINS$/.test(v)),game);
     }
     await screenshot('game-'+game+'-phone');
   }
@@ -703,9 +707,9 @@ test('phone deposit sheet fits, preserves playing currency and ledger type filte
     assert.ok(Math.abs(bounds.x+bounds.width/2-width/2)<=1);
     await screenshot('deposit-sheet-'+width);
     await sheet.locator('[data-asset="USDT"]').click();await page.locator('#popupDepositAddress').waitFor();
-    assert.equal(await page.inputValue('#popupDepositNetwork'),'USDT.ERC20');assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'ETH');
+    assert.equal(await page.inputValue('#popupDepositNetwork'),'USDT.ERC20');assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'COINS');
     await page.keyboard.press('Escape');await page.click('#meChip');await page.click('#walletNav [data-view=transactions]');await picker(page,'#transactionType').waitFor();
-    for(const [type,label] of [['bets','Stake'],['withdrawals','Withdrawal reserved'],['deposits','Deposit'],['rewards','Level bonus'],['adjustments','Balance credit']]){
+    for(const [type,label] of [['bets','Stake'],['withdrawals','Withdrawal reserved'],['deposits','Deposit'],['rewards','Reward pack'],['adjustments','Balance credit']]){
       await choose(page,'#transactionType',type!);
       await page.locator('.transaction-details summary').filter({hasText:label!}).first().waitFor();
       assert.equal(await page.inputValue('#transactionType'),type);
@@ -723,54 +727,28 @@ test('phone deposit sheet fits, preserves playing currency and ledger type filte
   assert.ok(desktopReceive.qrRight<desktopReceive.addressLeft,'Desktop QR should sit beside the address, not above it');
   assert.ok(desktopReceive.addressRight<=desktopReceive.cardRight&&desktopReceive.copyRight<=desktopReceive.cardRight&&desktopReceive.copyLeft>=desktopReceive.addressLeft,'Desktop address and copy control stay within the receive card');
   await screenshot('wallet-receive-desktop');await page.keyboard.press('Escape');
-  await page.click('#rewardsBtn');await page.locator('#vipLobby .vip-tiers').waitFor();
-  assert.equal(await page.locator('#rewards').getByText(/daily pack|open pack|loading packs/i).count(),0);
-  assert.equal(await page.locator('#vipLobby details').count(),9);
+  await page.click('#rewardsBtn');await page.locator('#rwGrid .pk').first().waitFor();
+  assert.equal(await page.locator('#rwGrid .pk').count(),10);assert.equal(await page.locator('#vipLobby,[data-claim]').count(),0);
 });
-test('currency picker preserves focus, reports failed saves and does not dismiss a newer deposit sheet',async()=>{
+test('holding the arrow previews USD and releasing restores coins while the wallet stays simplified',async()=>{
   const ctx=await browser.newContext({viewport:{width:700,height:270}}),p=await ctx.newPage();
-  let release: (()=>void)|undefined;
   try{
-    const name='pick'+randomUUID().slice(0,8);
-    const registration=await ctx.request.post(base+'/api/auth/register',{data:{username:name,email:name+'@test.invalid',password:randomUUID()}});
-    assert.equal(registration.status(),200);await p.goto(base);await p.click('#ebwCcy');
-    const sheet=p.getByRole('dialog',{name:'Playing currency'}),list=sheet.locator('.sheet-list');
-    assert.ok(await sheet.evaluate(el=>el.matches(':modal')));
-    assert.ok(await list.evaluate(el=>el.scrollHeight>el.clientHeight));
-    const last=list.locator('button').last();await p.keyboard.press('End');
-    assert.ok(await last.evaluate(el=>el===document.activeElement));
-    const row=await last.elementHandle();
-    await p.evaluate(()=>(window as any).ebWalletRefresh());
-    assert.ok(await last.evaluate((el,old)=>el===old && el===document.activeElement,row));
-    await p.keyboard.press('Home');assert.ok(await list.locator('button').first().evaluate(el=>el===document.activeElement));
-    await p.keyboard.press('Escape');assert.ok(await p.locator('#ebwCcy').evaluate(el=>el===document.activeElement));
-
-    await p.setViewportSize({width:1120,height:760});await p.emulateMedia({reducedMotion:'reduce'});await p.click('#ebwCcy');
-    assert.equal(await sheet.evaluate(el=>el.matches(':modal')),false);
-    assert.equal(await sheet.evaluate(el=>getComputedStyle(el).animationName),'none');
-    const before=await p.evaluate(()=>(window as any).ebCurrency());
-    const other=sheet.locator('[data-asset][aria-pressed=false]').first(),id=await other.getAttribute('data-asset');
-    await p.route('**/api/me/currency',r=>r.fulfill({status:503,json:{error:'Temporarily unavailable'}}),{times:1});
-    await other.click();await sheet.getByRole('status').filter({hasText:'Currency was not changed'}).waitFor();
-    assert.equal(await p.evaluate(()=>(window as any).ebCurrency()),before);
-    assert.ok(await other.evaluate(el=>el===document.activeElement && !el.hasAttribute('aria-disabled')));
-
-    let started!:()=>void;
-    const waiting=new Promise<void>(r=>started=r),hold=new Promise<void>(r=>release=r);
-    delayResponse=async url=>{if(url==='/api/me/currency'){started();await hold;}};
-    await other.click();await waiting;await sheet.getByRole('status').filter({hasText:'Saving'}).waitFor();
-    await p.keyboard.press('Escape');await p.setViewportSize({width:320,height:480});await p.click('#ebwDep');
-    const deposit=p.getByRole('dialog',{name:'Wallet',exact:true});await deposit.waitFor();
-    const focused=await deposit.locator(':focus').getAttribute('id');assert.equal(focused,'currencySheetTitle');
-    release!();await p.waitForFunction(id=>(window as any).ebCurrency()===id,id);
-    assert.ok(await deposit.isVisible());assert.equal(await deposit.locator(':focus').getAttribute('id'),focused);
-    assert.match(await deposit.locator('[data-asset=USDT] b').innerText(),/^0$/);
-    assert.equal(await deposit.evaluate(el=>getComputedStyle(el).animationName),'none');
-    await p.keyboard.press('Escape');assert.ok(await p.locator('#ebwDep').evaluate(el=>el===document.activeElement));
-    await p.emulateMedia({reducedMotion:'no-preference'});await p.click('#ebwDep');
-    await p.locator('#walletSummary:visible').waitFor();
-    await screenshot('currency-sheet-compact',p);
-  }finally{release?.();delayResponse=undefined;await ctx.close();}
+    const name='pick'+randomUUID().slice(0,8);assert.equal((await ctx.request.post(base+'/api/auth/register',{data:{username:name,email:name+'@test.invalid',password:randomUUID()}})).status(),200);
+    await p.goto(base);const trigger=p.locator('#ebwCcy');await trigger.waitFor();const url=p.url();
+    await trigger.focus();await p.keyboard.down('Space');assert.equal(await p.locator('#ebwBal').innerText(),'$0.00');assert.equal(await p.locator('#ebwSym').innerText(),'USD');
+    await p.keyboard.up('Space');const sheet=p.getByRole('dialog',{name:'Coin balance',exact:true});await sheet.waitFor();
+    assert.equal(await p.locator('#ebwSym').innerText(),'COINS');assert.equal(await sheet.locator('#coinEquivalentValue').innerText(),'$0.00');
+    const coin=sheet.locator('[data-asset=COINS]'),row=await coin.elementHandle();
+    await p.evaluate(()=>(window as any).ebWalletRefresh());assert.ok(await coin.evaluate((el,old)=>el===old&&el===document.activeElement,row));
+    await p.keyboard.press('Escape');assert.ok(await trigger.evaluate(el=>el===document.activeElement));
+    await p.setViewportSize({width:1120,height:760});await p.emulateMedia({reducedMotion:'reduce'});await trigger.click();
+    assert.equal(await sheet.evaluate(el=>el.matches(':modal')),false);assert.equal(await sheet.evaluate(el=>getComputedStyle(el).animationName),'none');
+    assert.equal(p.url(),url);await p.keyboard.press('Escape');await p.setViewportSize({width:320,height:480});await p.click('#ebwDep');
+    await p.locator('#walletSummary:visible').waitFor();const wallet=p.locator('#ebwMenu');
+    assert.equal(await wallet.locator('.wallet-view-tabs').count(),0);assert.equal(await wallet.locator('.coin-equivalent').isVisible(),false);
+    assert.equal(await wallet.locator('[data-wallet-view=deposit]').count(),1);assert.equal(await wallet.locator('[data-wallet-view=withdraw]').count(),1);
+    assert.equal(await p.evaluate(()=>(window as any).ebCurrency()),'COINS');await screenshot('classic-simplified-wallet-320',p);
+  }finally{await ctx.close();}
 });
 test('page copying and zoom shortcuts are suppressed while form editing still works',async()=>{
   const state=await page.evaluate(`(() => {

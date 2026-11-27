@@ -8,6 +8,7 @@ import { createSession,loginUser } from '../auth-user.js';
 import { hashPassword,signAdminToken } from '../authutil.js';
 import { balanceOf,creditConfirmedDeposit } from '../ledger.js';
 import { startMines,revealMines } from '../games/mines.js';
+import { convert,quoteConversion } from '../conversions.js';
 import { currentQuote } from '../games/prices.js';
 import { installMarketFixture,marketResponse,expireMarket } from './market-fixture.js';
 
@@ -57,35 +58,33 @@ test('audited adjustments are idempotent, reject overdraw and do not count as wa
   assert.equal((await get(base+'/transactions',admin)).json().rows.length,2);
   assert.deepEqual((await get('/api/me/notifications',peer)).json().rows,[]);
 });
-test('all 45 levels have increasing thresholds, settled dollars unlock each exact one-time bonus',async()=>{
-  const publicLevels=(await get('/api/reward-levels','')).json().levels;
-  assert.equal(publicLevels.length,45);
-  assert.deepEqual(publicLevels.filter((_:any,i:number)=>i%5===0).map((l:any)=>l.tier),['Bronze','Silver','Gold','Platinum','Diamond','Emerald','Ruby','Sapphire','Amethyst']);
-  assert.equal(publicLevels.at(-1).threshold_usd,883000);assert.equal(publicLevels.at(-1).bonus_usdt,'205.00');
-  assert.equal((await send('/api/me/levels/1/claim',{})).statusCode,409);
-  const r=await startMines(uid,'USDT','999.999999999999999999',25,3,randomUUID());
-  assert.equal(Number((await get('/api/me/levels')).json().wagered_usd),0);
-  const tile=(await query('select mine_positions from mines_rounds where id=$1',[r.id])).rows[0].mine_positions[0];
-  await revealMines(uid,tile,r.id);
-  const d=(await get('/api/me/levels')).json();
-  assert.equal(d.levels[1].earned,true);assert.equal(d.levels[2].earned,false);
-  const old=await money();
-  const claims=await Promise.all([send('/api/me/levels/2/claim',{}),send('/api/me/levels/2/claim',{})]);
-  assert.deepEqual(claims.map(c=>c.statusCode),[200,200]);assert.deepEqual(claims[0]!.json(),claims[1]!.json());assert.equal(await money(),old+2n*coin);
-  assert.equal((await send('/api/me/levels/3/claim',{})).statusCode,409);
-  assert.equal((await send('/api/me/levels/2/claim',{},peer)).statusCode,409);
+test('100 coin levels unlock winter daily packs; old VIP claims are retired without moving balances',async()=>{
+  const publicLevels=(await get('/api/reward-levels','')).json();assert.equal(publicLevels.program,'daily_coins');assert.equal(publicLevels.levels.length,100);
+  assert.ok(publicLevels.packs.every((p:any)=>! /Bronze|Diamond|Ruby/.test(p.name)));
+  const before=await money();assert.equal((await send('/api/me/levels/1/claim',{})).statusCode,410);assert.equal(await money(),before);
+  const converted=await quoteConversion(uid,'USDT','crypto_to_coins','1000');await convert(uid,randomUUID(),converted.id);
+  const r=await startMines(uid,'COINS','599999.999999999999',25,3,randomUUID());assert.equal((await get('/api/me/rewards')).json().wagered,'0');
+  const tile=(await query('select mine_positions from mines_rounds where id=$1',[r.id])).rows[0].mine_positions[0];await revealMines(uid,tile,r.id);
+  const progress=(await get('/api/me/rewards')).json();assert.equal(progress.packs[0].ready,true);assert.ok(progress.level>=10);assert.equal(progress.levels.length,100);
+  const old=await money('COINS');for(const level of [1,2,3,45])assert.equal((await send('/api/me/levels/'+level+'/claim',{})).statusCode,410);
+  assert.equal(await money('COINS'),old);
+  const quote=(await currentQuote('COINS')).id,payload={game:'rewards',level:10,asset:'COINS',quote,request:randomUUID()};
+  const claim=await send('/api/games/instant',payload);assert.equal(claim.statusCode,200,claim.body);assert.equal(await money('COINS'),old+BigInt(claim.json().payout));
+  const again=await send('/api/games/instant',payload);assert.deepEqual(again.json(),claim.json());
+  assert.equal((await send('/api/games/instant',{...payload,request:randomUUID()})).statusCode,400);
   assert.equal((await get(base+'/bets/mines/'+r.id,admin)).json().detail['Mine positions'].length,3);
 });
-test('native wagers use the rate fixed on entry even after a new market quote arrives',async()=>{
+test('native conversion locks the live price and later coin wagers keep the fixed coin value',async()=>{
   await send(base+'/actions',control('credit',{asset:'ETH',amount:'1'}),admin);
   await expireMarket('ETH');
-  const r=await startMines(uid,'ETH','0.05',25,3,randomUUID());
+  const converted=await quoteConversion(uid,'ETH','crypto_to_coins','0.05');assert.equal(converted.coin_amount,'60000');await convert(uid,randomUUID(),converted.id);
+  const r=await startMines(uid,'COINS','60000',25,3,randomUUID());
   eth='0.001';await expireMarket('ETH');await currentQuote('ETH');
   const t=(await query('select mine_positions from mines_rounds where id=$1',[r.id])).rows[0].mine_positions[0];
   await revealMines(uid,t,r.id);
   const value=(await query("select usd from vip_wagers where user_id=$1 and game='mines' and id=$2",[uid,r.id])).rows[0].usd;
   assert.equal(Number(value),100);
-  const before=await money();assert.equal((await send('/api/me/levels/3/claim',{})).statusCode,200);assert.equal(await money(),before+250n*10n**16n);
+  const before=await money('COINS');assert.equal((await send('/api/me/levels/3/claim',{})).statusCode,410);assert.equal(await money('COINS'),before);
 });
 test('committed deposit events wake the correct player, held deposits require confirmations, read state survives reconnect',async()=>{
   const rev=(await get('/api/me/notifications')).json().revision;
@@ -112,7 +111,7 @@ test('committed deposit events wake the correct player, held deposits require co
 test('transaction categories isolate entries before pagination for players and admins',async()=>{
   const request=(await send('/api/me/withdrawals',{request:randomUUID(),route:'USDT.ERC20',destination:'0x'+'31'.repeat(20),amount:'1'})).json();
   assert.ok(request.id);assert.equal((await send('/api/me/withdrawals/'+request.id+'/cancel',{})).statusCode,200);
-  const types:Record<string,RegExp>={bets:/^(bet|payout|refund):/,deposits:/^deposit$/,withdrawals:/^withdrawal_(hold|refund)$/,rewards:/^level_bonus$/,adjustments:/^admin_(credit|debit)$/};
+  const types:Record<string,RegExp>={bets:/^(bet|payout|refund):/,deposits:/^deposit$/,withdrawals:/^withdrawal_(hold|refund)$/,rewards:/^payout:rewards$/,conversions:/^conversion:/,adjustments:/^admin_(credit|debit)$/};
   for(const [type,pattern] of Object.entries(types)){
     const path='/transactions?type='+type,rows=(await get('/api/me'+path)).json().rows;
     assert.ok(rows.length,type);assert.ok(rows.every((n:any)=>pattern.test(n.kind)),type);

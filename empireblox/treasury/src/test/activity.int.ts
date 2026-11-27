@@ -7,6 +7,7 @@ import { pool, query, tx } from '../db.js';
 import { createSession } from '../auth-user.js';
 import { signAdminToken } from '../authutil.js';
 import { balanceOf, creditConfirmedDeposit, post } from '../ledger.js';
+import { quoteConversion,convert } from '../conversions.js';
 import { actBlackjack, startBlackjack } from '../games/blackjack.js';
 import { startMines, revealMines, cashoutMines } from '../games/mines.js';
 import { installMarketFixture } from './market-fixture.js';
@@ -30,9 +31,9 @@ before(async()=>{
 });
 after(async()=>{await app.close();await pool.end();});
 
-test('four deposit routes credit one playable USDT with exact units, once per deposit',async()=>{
+test('four deposit routes credit one crypto USDT balance with exact units, once per deposit',async()=>{
   const catalog=(await get('/api/assets')).json();
-  assert.deepEqual(catalog.currencies.filter((a:any)=>a.symbol==='USDT').map((a:any)=>a.id),['USDT']);
+  assert.deepEqual(catalog.walletCurrencies.filter((a:any)=>a.symbol==='USDT').map((a:any)=>a.id),['USDT']);
   assert.deepEqual(catalog.transferRoutes.filter((a:any)=>a.symbol==='USDT').map((a:any)=>a.chain_id).sort(),['BSC','ETH','POL','SOL']);
   for(const [chain,asset,units] of [['ETH','USDT.ERC20','1234567'],['BSC','USDT.BEP20','1'],['SOL','USDT.SPL','2000000'],['POL','USDT.POL','3000000']]){
     const dep=await query(`insert into deposits(chain_id,asset_id,user_id,address,txid,amount,block_number,status,required_conf,confirmations)
@@ -62,7 +63,7 @@ test('migration preserves old balances and preferences and can be applied again 
     assert.equal((await c.query('select display_ccy from users where id=$1',[other])).rows[0].display_ccy,'USDT');
   });
 });
-test('legacy Blackjack double draws from unified funds, settles in old hand units and retries once',async()=>{
+test('legacy Blackjack rejects additional crypto exposure but can stand and settle in old units',async()=>{
   const id=randomUUID(), before=await balance(other);
   // This hand's opening stake was charged before consolidation. Player 11 doubles to 21, dealer stands on 18.
   await query(`insert into blackjack_rounds(id,user_id,request_id,asset_id,bet,shoe,state,status,server_seed,server_seed_hash,client_seed,nonce)
@@ -70,19 +71,20 @@ test('legacy Blackjack double draws from unified funds, settles in old hand unit
     [id,other,randomUUID(),[4,9,5,7,9],{dealer:[9,7],hands:[{cards:[4,5],bet:'1000000'}],pos:4,active:0,insurance:'0',payout:'0'}]);
   const detail=await get('/api/me/bets/blackjack/'+id,users[1]);
   assert.deepEqual(detail.json().detail['Dealer cards'],[9]);assert.ok(!detail.body.includes('secret'));
-  const round=await actBlackjack(other,id,0,'double');
-  assert.equal(round.payout,'4000000');await actBlackjack(other,id,0,'double');
-  assert.equal(await balance(other),before+3n*coin);
+  await assert.rejects(actBlackjack(other,id,0,'double'),/New wagers use coins/);
+  const round=await actBlackjack(other,id,0,'stand');assert.equal(round.payout,'0');
+  await actBlackjack(other,id,0,'stand');assert.equal(await balance(other),before);
   const settled=(await get('/api/me/bets/blackjack/'+id,users[1])).json();
-  assert.deepEqual(settled.detail['Dealer cards'],[9,7]);assert.equal(settled.stake,'2000000');
+  assert.deepEqual(settled.detail['Dealer cards'],[9,7]);assert.equal(settled.stake,'1000000');
   assert.equal((await get('/api/me/bets/blackjack/'+id)).statusCode,404);
   const stats=(await get('/api/me/stats?asset=USDT&days=7',users[1])).json();
-  assert.equal(stats.days.at(-1).stake,(2n*coin).toString());assert.equal(stats.days.at(-1).payout,(4n*coin).toString());
+  assert.equal(stats.days.at(-1).stake,coin.toString());assert.equal(stats.days.at(-1).payout,'0');
 });
 test('private bets, UTC statistics and transaction history isolate owners, periods and pages',async()=>{
   const noSession=await app.inject('/api/me/stats');
   assert.equal(noSession.statusCode,401);
-  const round=await startMines(owner,'USDT','1',25,3);
+  const conversion=await quoteConversion(owner,'USDT','crypto_to_coins','1');await convert(owner,randomUUID(),conversion.id);
+  const round=await startMines(owner,'COINS','1',25,3);
   const path='/api/me/bets/mines/'+round.id;
   const active=(await get(path)).json();
   assert.equal(active.detail['Mine positions'],null);assert.equal(active.server_seed,undefined);
@@ -95,7 +97,7 @@ test('private bets, UTC statistics and transaction history isolate owners, perio
   assert.equal((await get('/api/me/bets?game=mines')).json().rows.length,1);
   assert.equal((await get('/api/me/bets?page=-1')).statusCode,400);
   for(const days of [7,30,90]){
-    const r=(await get('/api/me/stats?days='+days+'&asset=USDT')).json();
+    const r=(await get('/api/me/stats?days='+days+'&asset=COINS')).json();
     assert.equal(r.days.length,days);assert.equal(r.days[0].bets,0);assert.equal(r.days.at(-1).wins,1);
     assert.equal(r.days.at(-1).stake,coin.toString());assert.equal(r.days.at(-1).payout,result.payout);
     assert.equal(r.days.at(-1).day,new Date().toISOString().slice(0,10));

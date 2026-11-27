@@ -1,0 +1,515 @@
+/* Coin surfaces extend the existing wallet and game system. */
+:root{--acc:#ebc779;--acc2:#cba35d;--gold-grad:linear-gradient(135deg,#f4d994,#d8ac58)}
+.cv .coin{width:17px;height:17px;flex:none;vertical-align:middle}
+#ebwCcy .currency-logo{filter:drop-shadow(0 1px 5px #dca84424)}
+.wallet-overview-hint .wallet-link{font-size:inherit;text-decoration:underline;text-underline-offset:3px}
+.pass-context{line-height:1.6}
+.profile-funds .account-quick{display:flex;flex-wrap:wrap;gap:10px}
+.profile-funds .account-quick a{display:inline-flex;align-items:center;gap:8px;text-decoration:none;justify-content:center}
+.profile-funds .account-quick a svg{width:17px;height:17px}
+.withdrawal-conversion-note{line-height:1.8;margin-bottom:18px}
+
+/* Winter is an ambient layer; it never captures a click or a focus. */
+#snow{display:block;position:fixed;inset:0;z-index:24;pointer-events:none;opacity:.66}
+#snow[hidden]{display:none!important}
+.winter-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 15px;font-size:10px;color:#b3c3d4}
+.winter-strip>span{display:flex;align-items:center;gap:8px}
+.winter-dot{width:5px;height:5px;border-radius:50%;background:#bacfe5;box-shadow:0 0 10px #d6e9ff55}
+#snowToggle{border:1px solid #a3bdd522;background:#adc8e808;color:#a8bdd2;font:inherit;font-size:10px;padding:5px 10px;border-radius:20px;cursor:pointer;min-height:29px}
+#snowToggle[aria-pressed=true]{border-color:#a3bdd544;color:#d4e2ef}
+#home .lobby-welcome.winter-strip{margin:0 0 15px;min-height:20px;font-size:8px;letter-spacing:.12em}
+#home .winter-strip #snowToggle{min-height:20px;font-size:9px;line-height:1.4;padding:2px 8px;letter-spacing:0}
+#snowToggle:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+#home .lobby-feature{background:radial-gradient(ellipse at 88% 0%,#6685a81a,transparent 55%),linear-gradient(115deg,#29251f,#1b2027 62%,#162131);border-top-color:#a7c4df55}
+#home .lobby-feature::after{border-top-color:#d3e8ff24}
+
+/* Conversion */
+.conversion-rate{display:flex;align-items:center;gap:21px;padding:25px 27px;border:1px solid #ebc77938;border-radius:12px;background:radial-gradient(ellipse at 5% 0,#b9934820,transparent 60%),#18202a;margin-bottom:20px}
+.conversion-emblem{display:grid;place-items:center;flex:none;width:66px;height:66px;border-radius:50%;background:#ebc77909;border:1px solid #ebc77920}
+.conversion-emblem img{width:44px;height:44px;filter:drop-shadow(0 4px 10px #0005)}
+.conversion-rate .eyebrow,.conversion-heading .eyebrow,.conversion-guide .eyebrow,.conversion-history .eyebrow{font-size:9px;letter-spacing:.14em;color:#c4b18d}
+#accountPage .conversion-rate h2{font-size:clamp(23px,2.6vw,32px);margin:9px 0 8px;font-weight:650;letter-spacing:-.04em;line-height:1.25}
+.conversion-rate h2 span{font-size:.58em;font-weight:450;color:#bdc6d3;letter-spacing:0}
+.conversion-rate h2 em{font-style:normal;font-weight:400;font-size:.7em;color:#64788e;padding:0 9px}
+.conversion-rate p{font-size:11px;color:#9dadc1;margin:0;line-height:1.7}
+.conversion-rate-tag{margin-left:auto;flex:none;align-self:flex-start;white-space:nowrap;font-size:9px;color:#a4d8bd;background:#85d2af09;border:1px solid #85d2af25;padding:5px 8px;border-radius:5px}
+.conversion-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(245px,.9fr);gap:20px;align-items:start}
+.conversion-card{padding:27px;border:1px solid #3a475a;background:#17202b;border-radius:12px;min-width:0;box-shadow:0 14px 32px -25px #000b}
+.conversion-heading{margin-bottom:24px}
+#accountPage .conversion-heading h2{font-size:23px;font-weight:550;margin-top:9px}
+#accountPage #conversionForm{display:block;max-width:none;margin:0}
+#conversionForm>label{display:block;margin:20px 0 9px;font-size:11px;color:#b5c0ce;font-weight:500}
+#conversionForm select{width:100%;min-height:46px;background:#101822;border:1px solid #3d4a5c;border-radius:7px;font-size:12px;color:#e5ebf3}
+#conversionForm select{padding:0 35px 0 13px}
+.conversion-direction{display:flex;gap:4px;padding:4px;background:#0f1721;border:1px solid #2c394a;border-radius:8px}
+#conversionForm .conversion-direction button{flex:1;min-width:0;min-height:39px;border:1px solid transparent;border-radius:5px;background:none;color:#9caabe;font-size:11px;font-weight:550;cursor:pointer;padding:7px}
+#conversionForm .conversion-direction button[aria-pressed=true]{color:#eed3a0;background:#ebc77910;border-color:#ebc77930;box-shadow:0 2px 5px #0002}
+.conversion-input-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:22px 0 9px;color:#b5c0ce;font-size:11px}
+.conversion-input-label button{font-size:10px}
+.conversion-input{display:flex;align-items:center;gap:10px;background:#101822;border:1px solid #3d4a5c;border-radius:8px;padding-right:14px;min-width:0}
+.conversion-input:focus-within{border-color:#e5c588;box-shadow:0 0 0 2px #e5c58810}
+#conversionForm #conversionAmount{background:none;border:0;box-shadow:none;outline:none;margin:0;min-width:0;width:100%;font-size:22px;font-weight:500;padding:17px 14px;height:auto;line-height:1.3;border-radius:8px}
+#conversionSource{display:flex;align-items:center;gap:6px;flex:none;font-size:10px;color:#b8c4d3}
+#conversionSource img{width:20px;height:20px}
+.conversion-available{font-size:10px;color:#8e9fb4;margin:9px 0 20px;line-height:1.7;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.conversion-receive{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:17px 0 23px;border-top:1px solid #ffffff0a;color:#a3b1c3;font-size:11px}
+.conversion-receive strong{color:#ead2a2;font-size:12px;font-weight:500;text-align:right;overflow-wrap:anywhere;min-width:0}
+.conversion-receive>span{flex:none}
+#conversionForm>.wallet-primary{min-height:46px;width:100%;font-size:12px;border-radius:7px}
+#conversionForm>#conversionEdit{display:block;margin:13px auto 0;font-size:11px;min-height:30px}
+#conversionForm>#conversionEdit[hidden]{display:none}
+#conversionStatus{font-size:11px;line-height:1.8;margin:13px 0 0;color:#d8c49e;overflow-wrap:anywhere}
+.conversion-review{padding:17px;background:#0f1924;border:1px solid #ebc77930;border-radius:8px;margin:0 0 20px}
+#accountPage .conversion-review h3{font-size:12px;font-weight:550;margin:0 0 17px;color:#e8d2aa}
+.conversion-review dl{margin:0;display:grid;gap:12px}
+.conversion-review dl>div{display:flex;justify-content:space-between;gap:17px;align-items:flex-start;font-size:11px}
+.conversion-review dt{color:#91a3bb;flex:none}
+.conversion-review dd{margin:0;text-align:right;color:#e2e9f2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}
+.conversion-review p{font-size:9px;line-height:1.7;color:#90a0b4;margin:17px 0 0}
+.conversion-guide{padding:28px 25px;border:1px solid #ffffff0c;border-radius:12px;background:linear-gradient(155deg,#19212d,#111923)}
+#accountPage .conversion-guide h2{font-size:29px;font-weight:550;letter-spacing:-.045em;line-height:1.2;margin:13px 0 26px}
+.conversion-guide ol{padding:0;margin:0;list-style:none;display:grid;gap:24px}
+.conversion-guide li{display:flex;gap:13px}
+.conversion-guide li>span{font:500 12px/1.6 ui-monospace,monospace;color:#c8b07f;border:1px solid #ebc77922;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;flex:none}
+.conversion-guide li strong{font-size:12px;font-weight:550;line-height:1.8}
+.conversion-guide li p{font-size:10px;color:#96a8be;line-height:1.85;margin:5px 0 0}
+.conversion-guide-note{margin:26px 0 0;padding-top:20px;border-top:1px solid #ffffff0b;font-size:10px;line-height:1.8;color:#8a9db5}
+.conversion-history{margin-top:30px;padding:23px 25px;border:1px solid #354356;background:#151e29;border-radius:12px}
+.conversion-history>.wallet-heading{margin-bottom:17px;gap:15px}
+#accountPage .conversion-history h2{font-size:17px;font-weight:550;margin-top:7px}
+.conversion-history .activity-entry{gap:10px;min-width:0}
+.conversion-history .activity-entry>span{min-width:0}
+.conversion-history .activity-entry>b{min-width:0;max-width:50%;overflow-wrap:anywhere;font-size:12px;color:#cce3d7}
+.conversion-history .activity-pager:has(button:disabled+small+button:disabled){display:none}
+#conversionReceipt{position:relative;margin-top:20px;border:1px solid #85d2af35;border-radius:8px;background:#85d2af07;padding:22px 18px;overflow-wrap:anywhere}
+#conversionReceipt>.eyebrow{font-size:8px;color:#aadac2;letter-spacing:.12em}
+#accountPage #conversionReceipt h3{font-size:21px;color:#b8e2ce;font-weight:550;margin:12px 0 8px;line-height:1.4;padding-right:25px}
+#conversionReceipt p{font-size:11px;line-height:1.8;color:#adbecb;margin:0}
+#conversionReceipt>small{display:block;font-size:9px;color:#8fa99f;margin-top:15px}
+#conversionReceipt>button{margin-top:17px;width:100%;font-size:11px;min-height:39px}
+.conversion-success-mark{position:absolute;right:17px;top:18px;background:#85d2af15;color:#ade0c8;width:25px;height:25px;border-radius:50%;display:grid;place-items:center}
+
+/* Daily collection */
+#rewards .lobby-rewards{max-width:1180px;margin:0}
+.rewards-heading{position:relative;display:flex;align-items:center;justify-content:space-between;gap:25px;padding:20px 0 29px;overflow:hidden;min-height:210px}
+.rewards-heading>div{position:relative;z-index:1;min-width:0}
+.rewards-heading .eyebrow{font-size:9px;letter-spacing:.13em;color:#b3a184}
+#rewards #rewardsTitle,#leaderboard .lb-h h1{font-size:clamp(34px,4vw,52px);font-weight:650;letter-spacing:-.055em;line-height:1.07;margin:15px 0 0}
+#rewardsTitle em,#leaderboard .lb-h em{font-style:normal;color:#e9c581}
+.rewards-heading>img{object-fit:contain;width:185px;height:185px;margin-right:30px;transform:rotate(-11deg);filter:drop-shadow(0 14px 33px #0005)}
+#rewards .rewards-intro{font-size:12px;color:#a9b6c8;margin-top:15px;line-height:1.8}
+.reward-tabs{display:flex;gap:25px;margin:0 0 24px;border-bottom:1px solid #344153}
+.reward-tabs button{display:flex;align-items:center;gap:8px;position:relative;font:550 12px/1.5 Inter,system-ui,sans-serif;color:#95a5bc;background:none;border:0;padding:14px 2px 16px;cursor:pointer}
+.reward-tabs button[aria-pressed=true]{color:#ead1a2}
+.reward-tabs button[aria-pressed=true]::after{content:"";position:absolute;bottom:-1px;height:2px;background:#e7c280;left:0;right:0;border-radius:2px}
+.reward-tabs button>span{font-size:8px;padding:2px 5px;border:1px solid #ebc77926;background:#ebc77908;border-radius:4px;color:#bea77c}
+.pack-progress{display:flex;align-items:center;gap:20px;border:1px solid #3d4b5c;border-radius:11px;padding:24px;background:radial-gradient(ellipse at 0 30%,#ebc7790c,transparent 60%),#17212c;margin-bottom:28px}
+.pack-level-emblem{width:64px;height:64px;display:grid;place-items:center;flex:none;border:1px solid #ebc77944;background:linear-gradient(130deg,#ebc7791f,#ebc77906);border-radius:16px;font-size:27px;font-weight:600;color:#edce96;box-shadow:inset 0 1px #fff1}
+.pack-level-emblem svg{width:30px;height:30px}
+.pack-progress>div{flex:1;min-width:0}
+.pack-progress .eyebrow{font-size:8px;letter-spacing:.13em;color:#b5a68b}
+.pack-progress h2{font-size:18px;font-weight:550;margin:7px 0 11px}
+.pack-progress progress{display:block;appearance:none;border:0;background:#2d3948;border-radius:5px;height:4px;width:100%;max-width:480px;overflow:hidden}
+.pack-progress progress::-webkit-progress-bar{background:#2d3948}
+.pack-progress progress::-webkit-progress-value{background:linear-gradient(90deg,#a88146,#ebcb8b);border-radius:5px}
+.pack-progress progress::-moz-progress-bar{background:#ebcb8b}
+.pack-progress p{font-size:10px;color:#9eacc0;margin:10px 0 0;line-height:1.7}
+.pack-ready-count{font-size:27px;color:#dfc89d;font-weight:550;flex:none;text-align:center;border-left:1px solid #ffffff0b;padding-left:25px;min-width:100px}
+.pack-ready-count small{display:block;font-size:9px;color:#a6b3c6;font-weight:450;margin-top:6px}
+.pack-section-heading{margin:22px 0 19px}
+.pack-section-heading h2{font-size:18px;font-weight:550;margin-bottom:7px;letter-spacing:-.02em}
+.pack-section-heading p{font-size:11px;color:#94a6bd;line-height:1.8}
+.rewards-heading{border:1px solid #b8d4eb1f;border-radius:14px;padding:29px 28px 31px;margin-bottom:24px;background:radial-gradient(ellipse at 85% 0,#a2c6e91c,transparent 60%),radial-gradient(ellipse at 10% 100%,#b6935710,transparent 70%),#121b25;isolation:isolate}
+.rewards-heading::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(125deg,transparent 35%,#a5cbeb08 35.1%,transparent 35.3%,transparent 64%,#a5cbeb07 64.1%,transparent 64.3%);pointer-events:none}
+.rewards-heading::after{content:"";position:absolute;inset:0;z-index:-1;background-image:radial-gradient(circle,#dfedfc88 0 1px,transparent 1.5px),radial-gradient(circle,#dfedfc55 0 .7px,transparent 1.2px);background-size:137px 97px,191px 129px;background-position:28px 13px,49px 33px;opacity:.3;pointer-events:none}
+.pack-frost{position:absolute;left:0;right:0;top:-1px;height:18px;z-index:3;pointer-events:none;opacity:.7;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 28' preserveAspectRatio='none'%3E%3Cpath d='M0 0h300v7q-15 8-30 4t-29 2q-7 2-10 8-4-1-4-7-16 4-32-1t-34 1q-17 5-33-1t-31 0q-8 1-10 10-4-1-4-9-17 3-29-2T0 10Z' fill='%23dceaf5'/%3E%3Cpath d='M0 0h300v6q-25 4-50 1T200 8t-50-1-50 1-50-1T0 7Z' fill='%23f5faff'/%3E%3C/svg%3E") no-repeat top center/100% 100%;filter:drop-shadow(0 3px 5px #0003)}
+.account-reward-progress{display:flex;align-items:center;gap:20px;padding:24px;border:1px solid #aecde438;border-radius:10px;background:radial-gradient(ellipse at 0 0,#a7cce918,transparent 65%),#17212c;margin-bottom:28px}
+.account-reward-progress>div{min-width:0;flex:1}.account-reward-progress .eyebrow{font-size:8px;color:#aac1d5;letter-spacing:.14em}
+#accountPage .account-reward-progress h2{font-size:25px;margin:8px 0 12px;font-weight:550}.account-reward-progress h2 small{font-size:13px;color:#7f93aa;font-weight:450}
+.account-reward-progress progress{display:block;width:100%;height:4px;border:0;border-radius:5px;appearance:none;background:#2b3a4d;overflow:hidden;max-width:450px}
+.account-reward-progress progress::-webkit-progress-bar{background:#2b3a4d}.account-reward-progress progress::-webkit-progress-value{background:linear-gradient(90deg,#86a8c5,#e5c488)}.account-reward-progress progress::-moz-progress-bar{background:#e5c488}
+.account-reward-progress p{font-size:10px;color:#9dafc3;line-height:1.8;margin:10px 0 0}.account-reward-progress>strong{font-size:27px;color:#e4c991;font-weight:550;text-align:center;padding-left:23px;border-left:1px solid #ffffff0b}
+.account-reward-progress>strong small{display:block;font-size:9px;color:#a1b2c7;margin-top:7px;font-weight:450;white-space:nowrap}
+#accountPage .account-collection-title{align-items:center;gap:15px;margin-bottom:20px}.account-collection-title h2{font-size:20px;font-weight:550}.account-collection-title p{font-size:11px;color:#94a7be;line-height:1.8;margin-top:9px}.account-collection-title button{flex:none;font-size:10px;min-height:37px;padding:9px 11px}
+.account-pack-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.account-pack{min-width:0;position:relative;text-align:center;border:1px solid #7799ba36;border-top-color:#c5dded4a;border-radius:10px;background:radial-gradient(ellipse at 50% 0,#adcbe512,transparent 70%),#151f2b;padding:21px 15px 15px;overflow:hidden}
+.account-pack .eyebrow{display:block;font-size:8px;letter-spacing:.13em;color:#9ab4ca}.account-pack-emblem{display:grid;place-items:center;width:56px;height:56px;margin:20px auto 15px;border:1px solid #b1cee533;border-radius:13px;background:#afcde208;color:#a5bed7}.account-pack-emblem svg{width:28px;height:28px}
+#accountPage .account-pack h3{font-size:14px;font-weight:550;color:#d8e5ef;margin:0;line-height:1.6}.account-pack p{font-size:9px;line-height:1.8;color:#8da3bb;min-height:32px;margin:9px 0 17px}.account-pack button{width:100%;font-size:10px;min-height:39px}
+.account-pack[data-ready=true]{border-color:#e2c18669;background:radial-gradient(ellipse at 50% 0,#e2c18614,transparent 70%),#1b232d}.account-pack[data-ready=true] .account-pack-emblem{color:#e5c387;border-color:#e5c3874a;background:#e5c3870a}.account-pack[data-ready=true] p{color:#d7c69f}
+#rewards .rw-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:25px 15px}
+#rewards .pk{text-align:left;gap:10px;min-width:0}
+#rewards .pk-card{display:block;width:100%;aspect-ratio:3/3.8;padding:0;color:inherit;font:inherit;border-radius:11px;border:1px solid #e2cfaa26;box-shadow:inset 0 0 0 5px #ffffff05,inset 0 0 50px #0003;transition:transform .2s,filter .2s,border-color .2s;background:radial-gradient(ellipse at 50% 20%,#fff1,transparent 70%),linear-gradient(155deg,var(--pk1),var(--pk2));isolation:isolate}
+#rewards .pk-card::before{inset:9px;border-width:1px;border-radius:6px;border-color:#ffffff20}
+#rewards .pk-lv{font-size:11px;font-weight:550;letter-spacing:.16em;top:17px;color:#fff8}
+#rewards .pk-name{font-size:8px;letter-spacing:.13em;color:#e0d4be99;bottom:17px}
+#rewards .pk-items{left:9%;right:9%;top:23%;bottom:17%;gap:0}
+#rewards .pk-items span{width:90%;filter:drop-shadow(0 5px 7px #0007)}
+#rewards .pk-lock{background:#080e1748;align-items:center}
+#rewards .pk-lock i{border:1px solid #f0ddbd40;background:#1e2635da;backdrop-filter:blur(6px);color:#e2d3b8;width:34px;height:34px;border-radius:50%}
+#rewards .pk-lock svg{width:14px;height:14px}
+#rewards .pk.locked .pk-card{filter:saturate(.6);opacity:.8}
+#rewards .pk.cool .pk-card{filter:saturate(.6);opacity:.8}
+#rewards .pk.ready .pk-card{border-color:#e9c781a0;box-shadow:inset 0 0 0 5px #ffffff08,0 0 20px -8px #e9c78165}
+#rewards .pack-card-caption{display:flex;align-items:baseline;justify-content:space-between;gap:4px;flex-wrap:wrap}
+#rewards .pack-card-caption b{font-size:12px;color:#e4e8ef;font-weight:550}
+#rewards .pack-card-caption small{font-size:9px;color:#8f9fb5}
+#rewards .pk>.btn{min-width:0;font-size:10px;font-weight:550;min-height:37px;height:auto;border-radius:6px;padding:9px 4px}
+#rewards .pk>.btn:disabled{opacity:1!important;background:#1c2633;color:#8f9fb4;border-color:#344153;filter:none}
+#rewards .pk.ready>.btn{background:linear-gradient(130deg,#eed59b,#d8b26c);color:#29251f;border-color:#ebc77999}
+#rewards .rwv-top{margin-top:5px;gap:16px}
+#rewards .rwv-top h2{font-size:21px;font-weight:550}
+#rewards .rwv-top .btn{font-size:12px;min-width:0}
+#rewards #rwItems{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+#rewards #rwItems .ic2{min-width:0}
+#rewards #rwStatus{margin:20px 0;font-size:12px;line-height:1.8}
+
+/* The weekly podium. Amounts and prizes always use coins. */
+#leaderboard .lb-h{align-items:center;margin:0 0 22px;padding-top:17px;border-bottom:1px solid #ffffff0c;padding-bottom:28px}
+#leaderboard .lb-h h1{display:block}
+#leaderboard .lb-h>.eyebrow,#leaderboard .lb-h .eyebrow{font-size:9px;letter-spacing:.13em;color:#b5a181}
+#leaderboard .lb-h p{font-size:12px;max-width:480px;line-height:1.9;margin-top:16px}
+#leaderboard .lb-h p>strong{color:#ebc779;font-weight:550}
+#leaderboard .lb-h>button{align-self:flex-start;margin-top:15px}
+#leaderboard .lb-section-heading{margin-top:27px}
+#leaderboard .podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:17px;margin:51px auto 0;max-width:970px;padding:0 7px}
+#leaderboard .lb-leader{position:relative;isolation:isolate;min-height:230px;padding:52px 20px 0;border-radius:12px 12px 0 0;background:linear-gradient(180deg,#24303d,#18212c);border:1px solid #b9c6d436;border-top:2px solid #b5c4d4;text-align:center;overflow:visible;--medal:#b5c4d4}
+#leaderboard .lb-leader[data-rank="1"]{--medal:#e7c278;min-height:255px;background:radial-gradient(ellipse at 50% 0,#e7c27818,transparent 75%),linear-gradient(180deg,#292b2b,#1c222c);border-color:#ebc77955;border-top:2px solid #e7c278}
+#leaderboard .lb-leader[data-rank="3"]{--medal:#c98b6f;border-color:#c98b6f35;border-top-color:#c98b6f;background:linear-gradient(180deg,#2b292b,#19222d)}
+.podium-crown{position:absolute;top:-34px;left:50%;transform:translateX(-50%);width:32px;height:25px;color:var(--medal)}
+.podium-crown>svg{width:100%;height:100%;filter:drop-shadow(0 0 10px #ebc77922)}
+#leaderboard .lb-leader[data-rank="1"] .podium-crown{top:-42px;width:40px;height:32px}
+.podium-ribbon{position:absolute;top:-2px;right:15px;display:grid;place-items:center;width:25px;height:35px;padding-bottom:4px;background:var(--medal);clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);color:#19202b;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}
+#leaderboard .lb-leader>.lb-player{flex-direction:column;justify-content:center;margin:auto;gap:12px;width:100%;font-size:14px}
+#leaderboard .lb-leader .lb-avatar{width:60px;height:60px;border-radius:50%;border:2px solid var(--medal);background:#273340;box-shadow:0 0 0 5px #080e172e;overflow:hidden}
+.lb-avatar img{display:block;width:100%;height:100%;object-fit:cover}
+#leaderboard .lb-leader>.lb-player>small{position:absolute;left:14px;top:13px;font-size:8px}
+#leaderboard .lb-leader .lb-leader-wager{margin-top:16px;padding:0 0 18px;border-top:0}
+#leaderboard .lb-leader-wager small{font-size:9px;color:#94a5ba}
+#leaderboard .lb-leader-wager strong{font-size:12px;font-weight:500;margin-top:7px;color:#c9d3df;line-height:1.7}
+.podium-prize{border-top:1px solid #ffffff0a;margin:0 -20px;background:#00000015;padding:15px 10px 17px}
+.podium-prize>span{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#a5b2c4}
+.podium-prize>strong{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:8px;font-size:17px;font-weight:550;line-height:1.6;color:var(--medal);white-space:nowrap}
+.podium-prize .coin{width:19px;height:19px}
+.podium-vacancy{display:flex;flex-direction:column;align-items:center;gap:12px}
+.podium-vacancy>span{display:grid;place-items:center;width:60px;height:60px;border-radius:50%;border:1px dashed #e0d8c936;background:#aabbd008;color:#b0c0d5;font-size:24px;font-weight:400}
+.podium-vacancy>strong{font-size:12px;font-weight:450;color:#8b9ab0;line-height:1.8}
+#leaderboard .lbrow{grid-template-columns:46px minmax(0,1fr) minmax(115px,.8fr) minmax(130px,.8fr);padding:15px 18px;gap:15px}
+#leaderboard .lbrow[data-rank="1"]{background:linear-gradient(90deg,#ebc7790e,#17222e 70%)}
+#leaderboard .lbrow[data-rank="1"] .lb-rank{color:#ebc779}
+#leaderboard .lbrow[data-rank="2"] .lb-rank{color:#c5d3e3}
+#leaderboard .lbrow[data-rank="3"] .lb-rank{color:#d49a7e}
+#leaderboard .lbrow .lb-prize{color:#dbc291;display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:11px}
+.lb-prize .coin{width:15px;height:15px}
+#leaderboard .lblast{border:1px solid #354255;border-radius:10px;background:#17212b;padding:8px 20px;margin-top:25px}
+#leaderboard .lblast summary{font-size:12px;font-weight:500;color:#a9b8cb}
+#leaderboard .lblast ol{list-style:none;padding:0;margin:10px 0}
+#leaderboard .lblast li{display:flex;align-items:center;gap:12px;border-top:1px solid #ffffff0a;padding:12px 0;flex-wrap:wrap;font-size:11px;line-height:1.8}
+#leaderboard .lblast li>span{flex:1;min-width:0;overflow-wrap:anywhere;color:#d9e0ea}
+#leaderboard .lblast li>strong{display:flex;align-items:center;gap:7px;color:#ddc799;font-weight:500}
+#leaderboard .lblast li small{color:#8e9fb5;font-size:9px}
+#leaderboard .lblast .coin{width:16px;height:16px}
+
+@media(max-width:1080px){
+  .conversion-layout{grid-template-columns:minmax(0,1fr)}
+  .conversion-guide{padding:24px}.conversion-guide h2 br{display:none}
+  .conversion-guide ol{grid-template-columns:repeat(3,minmax(0,1fr));gap:19px}
+  .conversion-guide li{flex-direction:column;gap:10px}
+  #rewards .rw-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:740px){
+  .winter-strip{margin:0 0 12px;font-size:9px}
+  #snowToggle{font-size:9px;padding:4px 8px}
+  .conversion-rate{position:relative;padding:21px 18px;gap:13px;margin-bottom:14px;align-items:flex-start}
+  .conversion-emblem{width:42px;height:42px;margin-top:5px}.conversion-emblem img{width:29px;height:29px}
+  .conversion-rate .eyebrow{font-size:7px}.conversion-rate p{font-size:10px;max-width:210px}
+  #accountPage .conversion-rate h2{font-size:25px;margin:8px 0;line-height:1.5}.conversion-rate h2 em{padding:0 4px}
+  .conversion-rate-tag{position:absolute;right:12px;bottom:11px;font-size:7px;padding:3px 5px;display:none}
+  .conversion-layout{gap:14px}.conversion-card{padding:21px 17px;border-radius:10px}
+  #conversionForm .conversion-direction button{font-size:11px;min-height:40px}
+  #conversionForm #conversionAmount{font-size:23px;padding:17px 12px}#conversionForm select{font-size:16px}
+  #accountPage .conversion-heading h2{font-size:22px}.conversion-heading{margin-bottom:21px}
+  .conversion-guide{padding:22px 19px}.conversion-guide ol{grid-template-columns:minmax(0,1fr);gap:21px}.conversion-guide li{flex-direction:row;gap:13px}
+  #accountPage .conversion-guide h2{font-size:25px;margin:10px 0 24px}.conversion-guide li p{font-size:11px}.conversion-guide-note{font-size:10px}
+  .conversion-history{padding:21px 15px;margin-top:22px}.conversion-history .activity-entry>b{font-size:10px;max-width:46%}
+  .conversion-history .activity-entry strong{font-size:10px}.conversion-history .activity-entry small{font-size:8px}
+  .conversion-history .activity-entry>img{width:22px;height:22px;flex:none}.conversion-review{padding:15px 12px}
+  .conversion-review dl>div{font-size:10px;gap:12px}.conversion-receive{font-size:10px}
+  #rewards .rewards-heading{min-height:180px;padding:13px 0 24px;gap:0}.rewards-heading .eyebrow{font-size:7px;letter-spacing:.09em}
+  #rewards .rewards-heading{padding:22px 18px 26px;border-radius:11px;margin-bottom:21px;min-height:205px}.rewards-heading::after{opacity:.18}
+  #rewards #rewardsTitle,#leaderboard .lb-h h1{font-size:36px;line-height:1.1;margin-top:11px}
+  .rewards-heading>img{position:absolute;right:-25px;bottom:7px;width:142px;height:142px;opacity:.65;margin:0}
+  .rewards-heading>div{max-width:80%}#rewards .rewards-intro{font-size:10px;max-width:220px;margin-top:12px}
+  .reward-tabs{gap:25px;margin-bottom:19px}.reward-tabs button{font-size:11px;padding-bottom:15px}
+  .pack-progress{padding:18px 15px;gap:13px;flex-wrap:wrap}.pack-level-emblem{width:47px;height:47px;font-size:23px;border-radius:12px}
+  .pack-progress h2{font-size:16px}.pack-progress .eyebrow{font-size:7px}.pack-progress p{font-size:9px}.pack-progress>div{flex-basis:calc(100% - 65px)}
+  .pack-ready-count{font-size:17px;display:flex;gap:7px;align-items:center;justify-content:flex-end;width:100%;border:0;border-top:1px solid #ffffff0b;padding:12px 0 0;margin-top:2px;min-width:0}
+  .pack-ready-count small{font-size:9px;margin:0}.pack-progress>button{width:100%;font-size:11px}
+  .account-reward-progress{padding:19px 15px;gap:13px;flex-wrap:wrap}.account-reward-progress>div{flex-basis:calc(100% - 65px)}#accountPage .account-reward-progress h2{font-size:22px}.account-reward-progress>strong{border-left:0;border-top:1px solid #ffffff0b;width:100%;display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 0;font-size:18px}.account-reward-progress>strong small{margin:0}.account-reward-progress p{font-size:9px}
+  #accountPage .account-collection-title{align-items:flex-start;flex-direction:column;gap:12px}.account-collection-title h2{font-size:18px}.account-collection-title p{font-size:10px}.account-pack-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.account-pack{padding:18px 10px 11px}.account-pack-emblem{width:46px;height:46px;margin:17px auto 13px}.account-pack-emblem svg{width:23px;height:23px}#accountPage .account-pack h3{font-size:12px}.account-pack p{font-size:8px}.account-pack button{font-size:9px;min-height:38px}
+  .pack-section-heading h2{font-size:16px}.pack-section-heading p{font-size:10px;line-height:1.8}
+  #rewards .rw-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:23px 13px}#rewards .pk-lv{font-size:11px}#rewards .pk-name{font-size:8px}
+  #rewards .pack-card-caption b{font-size:12px}#rewards .pack-card-caption small{font-size:8px}#rewards .pk>.btn{min-height:39px;font-size:10px}
+  #rewards .rwv-top h2{font-size:17px}#rewards .rwv-top #rwOpen{width:100%}#rewards #rwItems{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  #leaderboard .lb-h{padding:12px 0 24px;gap:10px;margin-bottom:21px}#leaderboard .lb-h>.eyebrow,#leaderboard .lb-h .eyebrow{font-size:8px}
+  #leaderboard .lb-h>button{font-size:10px;margin-top:0;padding:9px 11px}#leaderboard .lb-h p{font-size:10px;max-width:300px;margin-top:12px}
+  #leaderboard .podium{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:0;margin-top:43px;align-items:end}
+  #leaderboard .lb-leader{display:block;min-height:201px;padding:36px 7px 0;border-radius:8px 8px 0 0}
+  #leaderboard .lb-leader[data-rank="1"]{min-height:221px}
+  .podium-ribbon{right:8px;width:19px;height:26px;font-size:8px}.podium-crown{top:-27px;width:24px;height:20px}
+  #leaderboard .lb-leader[data-rank="1"] .podium-crown{top:-34px;width:32px;height:27px}
+  #leaderboard .lb-leader>.lb-player{font-size:10px;gap:10px}#leaderboard .lb-leader .lb-avatar,.podium-vacancy>span{width:43px;height:43px}
+  #leaderboard .lb-leader>.lb-player>small{left:5px;top:7px;font-size:6px;padding:1px 3px}.podium-vacancy{gap:10px}.podium-vacancy>strong{font-size:9px;line-height:1.7;min-height:17px}
+  #leaderboard .lb-leader .lb-leader-wager{margin-top:13px;padding-bottom:14px;text-align:center}#leaderboard .lb-leader-wager small{font-size:7px}#leaderboard .lb-leader-wager strong{font-size:8px;margin-top:5px;line-height:1.7;overflow-wrap:anywhere}
+  .podium-prize{margin-inline:-7px;padding:11px 3px 13px}.podium-prize>span{font-size:6px}.podium-prize>strong{font-size:9px;gap:3px;line-height:1.7}.podium-prize .coin{width:12px;height:12px}
+  #leaderboard .lbrow{grid-template-columns:24px minmax(0,1fr) minmax(89px,.9fr);gap:7px;padding:14px 10px}#leaderboard .lbrow .wgc{display:none}#leaderboard .lbrow.hd{font-size:8px}
+  #leaderboard .lbrow .lb-prize{font-size:9px;gap:3px}#leaderboard .lbrow .lb-prize .coin{width:12px;height:12px}#leaderboard .lbrow .lb-player{font-size:10px}
+  #leaderboard .lblast{padding:7px 14px}#leaderboard .lblast li{font-size:10px}#leaderboard .lblast li small{flex-basis:100%;margin-top:-10px}
+}
+@media(min-width:741px) and (max-width:920px){#rewards .rw-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.conversion-rate-tag{display:none}#leaderboard .lbrow{grid-template-columns:35px minmax(0,1fr) 130px 140px}}
+@media(prefers-reduced-motion:reduce){#snow{display:none!important}#rewards .pk-card{transition:none}#rewards .pk-card:hover{transform:none}}
+@media(forced-colors:active){.conversion-card,.conversion-rate,.conversion-guide,.pack-progress,#rewards .pk-card,#leaderboard .lb-leader{border:1px solid CanvasText}.conversion-direction button[aria-pressed=true]{outline:1px solid Highlight}}
+
+/* Winter contrast and type: strong headings, readable copy, clear actions. */
+:root {
+  --txt:#f5f8ff;
+  --mut:#b9c9dc;
+  --dim:#a6bad1;
+  --acc:#f3ce7f;
+  --acc2:#dfb25e;
+  --line:#35465b;
+  --line2:#4d6078;
+  --winter-copy:#c2d0e2;
+  --winter-soft:#aabed6;
+  --winter-ice:#d3e8ff;
+}
+html,body {font-weight:550}
+body {color:var(--txt)}
+h1,h2,h3,h4 {font-weight:800}
+.eyebrow {font-weight:750;color:var(--winter-ice)}
+.cv {font-weight:800}
+.btn,.wallet-primary,.secondary-action,.lobby-explore,.wallet-link {font-weight:750}
+.btn.gold,.wallet-primary {color:#171b23}
+.btn.dark,.secondary-action {color:#edf4ff;border-color:#586e88}
+.btn.gold:not(:disabled):hover,.wallet-primary:not(:disabled):hover {background:#ffdc96;border-color:#ffdc96}
+input::placeholder,textarea::placeholder {color:#acbed2;font-weight:500}
+
+/* The same clear hierarchy in navigation, the lobby and the game cards. */
+.top {background:#101722f7;border-bottom-color:#a7c7ee23}
+.top .nav .gbtn,#gmenu button,.mobile-tab-label {font-weight:750;color:#c8d5e6}
+.top .nav .gbtn:is(.on,[aria-expanded=true]) {color:#ffe0a0;background:#f3ce7f12}
+.top .me-chip {font-weight:750;color:#f1f6ff}
+#home #homeTitle,#rewards #rewardsTitle,#leaderboard .lb-h h1 {font-weight:850;letter-spacing:-.045em;color:#f7faff}
+#home #homeTitle em,#rewardsTitle em,#leaderboard .lb-h em {color:#ffda90}
+#home .lobby-feature .eyebrow,#home .lobby-welcome.winter-strip {color:#edcf96;font-weight:750}
+#home .lobby-feature p,#home .lobby-wallet p {color:#c7d4e5;font-weight:550}
+#home .lobby-wallet h2 {color:#f5f8ff;font-weight:800}
+#home .lobby-wallet .eyebrow {color:#c3d9ef;font-weight:750}
+#home [data-lobby-wallet] {color:#ffe2aa;font-weight:750;border-color:#e9c37a70;background:#e9c37a0b}
+#home #lobbyGamesTitle {color:#f5f8ff;font-weight:800}
+#home .lobby-game {background:linear-gradient(160deg,#1d2a3a,#141e2b);border-color:#59708b80;box-shadow:inset 0 1px #d5e7ff0a,0 7px 20px #0002}
+#home .lobby-game:hover {border-color:#e8c784;background:linear-gradient(160deg,#27374a,#192432)}
+#home .lobby-game strong {font-weight:800;color:#f8fbff;letter-spacing:-.025em}
+#home .game-description {color:#c1d0e1;font-weight:550;font-size:12px;line-height:1.7}
+#home .game-format {color:#e6f0ff;background:#101925ef;border-color:#c3dbf236;font-weight:750}
+#home .game-card-footer {color:#b3c7df;font-weight:650;font-size:10px}
+#home .catalog-count {color:#c8d9eb;font-weight:650;border-color:#50657d}
+#home .lobby-filters button {font-weight:750;color:#becfe4}
+#home .lobby-filters button[aria-pressed=true] {color:#ffe2a7;background:#38404a;border-color:#91784d}
+.lobby-search input {font-weight:600;color:#f0f6ff}
+.lobby-service b {font-weight:750;color:#e4ecf8}
+.lobby-service small {font-weight:550;color:#b2c6dd}
+#home .lobby-footnote {opacity:1}
+#home .lobby-footnote p {color:#adbed3;font-weight:550}
+.chat-h .chat-title {color:#f4f8ff;font-weight:800}
+.chat-h .eyebrow,.chat-meta {color:#acbfd6;font-weight:650}
+.chat-empty,.msg .bub {color:#d1ddeb;font-weight:550}
+.msg .who .n {font-weight:750;color:#e9f1ff}
+.msg .who time {color:#a4b8d1}
+.chat-meta .rules {font-weight:650;color:#c6d7eb}
+
+/* Game geometry, result timing, amounts and focus behavior stay native. */
+:is(#mines,#blackjack,#cases,#battles,#upgrader,#pickModal,#borrowModal,#fairModal) {
+  --txt:#f4f8ff;--mut:#bbcce0;--dim:#a9bfd7;--acc:#f0cb80;
+  --game-info:#c0d9f4;
+  font-weight:550;
+}
+:is(#mines,#blackjack,#cases,#battles,#upgrader,#pickModal,#borrowModal,#fairModal) :is(h1,h2,h3,h4) {font-weight:800;color:#f5f8ff}
+:is(#mines,#blackjack,#cases,#battles,#upgrader,#pickModal,#borrowModal,#fairModal) :is(.btn,.cv) {font-weight:800}
+:is(#mines,#blackjack,#cases,#battles,#upgrader) :is(.lbl,.fl,.side label) {color:#d9e5f5;font-weight:700}
+:is(#mines,#blackjack,#cases,#battles,#upgrader) :is(.seg button,.tabs button,.amt button,.fsel) {font-weight:750}
+:is(#mines,#blackjack,#cases,#battles,#upgrader) .amt input {font-weight:750;color:#f5f8ff}
+:is(#mines,#blackjack,#cases,#battles,#upgrader) :is(.hint,.ph p,.mut,.small) {color:#b4c8df;font-weight:550}
+#cases .ccard b,#upgrader .ucard b,#battles .brow b {font-weight:800}
+.wager-feedback {font-weight:650;color:#f0cd94}
+
+/* Coins and financial forms: emphasize amounts without changing precision. */
+#ebwBal,#ebwMenu .pass-amount strong,#accountPage .balance-value strong {font-weight:800}
+#ebwSym {font-weight:750;color:#becfe4}
+#ebwCcy {color:#f7faff}
+#ebwMenu .sheet-heading h2,#noticePopup h2,#authModal .auth-heading h2 {color:#f5f9ff;font-weight:800}
+#ebwMenu .wallet-sheet-eyebrow {color:#edcf99;font-weight:750}
+#ebwMenu .wallet-view-tabs button {font-weight:750;color:#c5d3e5}
+#ebwMenu .wallet-view-tabs button[aria-current] {color:#ffe0a0;background:#f3ce7f13;border-color:#f3ce7f60}
+#ebwMenu :is(.pass-label,.pass-tag,.pass-context,.sheet-columns,.wallet-overview-hint) {font-weight:650;color:#c0d0e2}
+#ebwMenu .sheet-list strong {font-weight:800;color:#f1f6ff}
+#ebwMenu .sheet-list small {font-weight:600;color:#afc2d9}
+#ebwMenu .sheet-list b {font-weight:750;color:#f5f8ff}
+#walletPopupPane :is(label,.deposit-field-label,.receive-state-heading,.withdraw-balance) {font-weight:700;color:#d6e3f3}
+#walletPopupPane :is(.wallet-muted,.deposit-selection-note,.wallet-facts,.receipt-note) {color:#b8cce2;font-weight:550}
+#accountPage {font-weight:550;--wallet-text:#f4f8ff;--wallet-muted:#b9cbdf;--wallet-border:#41536b}
+#accountPage .account-title h1 {font-weight:800;color:#f6f9ff}
+#accountPage .account-title p {color:#c1d0e4;font-weight:550}
+#accountPage #walletNav a {color:#bfcfe3;font-weight:700}
+#accountPage #walletNav a[aria-current] {color:#ffe0a0;background:#e5c17b12}
+#accountPage :is(h2,h3,.wallet-identity h2) {font-weight:750;color:#f3f8ff}
+#accountPage :is(label,.balance-label,.profile-eyebrow,.profile-level-name,.bet-facts dt) {font-weight:700;color:#c5d7ed}
+#accountPage :is(.wallet-muted,.wallet-empty,.profile-panel-description,.profile-balance-context,.account-crumb,.activity-entry small) {font-weight:550;color:#b2c6de}
+#accountPage :is(.stats-grid dd,.activity-entry>b,.wallet-balances b) {font-weight:750}
+#accountPage .rail-identity strong {font-weight:750}
+#accountPage .profile-level strong {color:#f2d69e;font-weight:750}
+#accountPage .profile-level small {color:#b5c9df;font-weight:550}
+#accountPage :is(.conversion-rate h2,.conversion-heading h2,.conversion-guide h2,.conversion-history h2,#conversionReceipt h3) {font-weight:800}
+.conversion-rate h2 span {color:#d3dfef;font-weight:650}
+.conversion-rate h2 em {color:#b4cce7;font-weight:650}
+.conversion-rate p,.conversion-guide li p,.conversion-guide-note,.conversion-available {color:#b8cce3;font-weight:550}
+#conversionForm>label,.conversion-input-label {color:#d2e2f4;font-weight:700}
+#conversionForm .conversion-direction button {font-weight:750;color:#becfe5}
+#conversionForm .conversion-direction button[aria-pressed=true] {color:#ffe0a0}
+#conversionForm #conversionAmount {font-weight:750}
+#conversionSource,.conversion-receive strong,.conversion-guide li strong {font-weight:750}
+.conversion-receive>span,.conversion-review dt {color:#bfd2e9;font-weight:650}
+.conversion-review dd {font-weight:750;color:#f1f6ff}
+.conversion-review p {color:#b0c5de;font-weight:550}
+#conversionStatus {font-weight:650;color:#f2d39a}
+#noticePopup .notice-entry strong,.account-alert strong {font-weight:750;color:#f6f9ff}
+#noticePopup :is(header p,.notice-entry small,.notice-entry time) {color:#b5c9df;font-weight:550}
+
+/* The winter collection keeps readable levels even on locked packs. */
+.rewards-heading .eyebrow,#leaderboard .lb-h .eyebrow {color:#e7d0a6;font-weight:750}
+#rewards .rewards-intro,#leaderboard .lb-h p {color:#c5d5e9;font-weight:550}
+.pack-section-heading h2,#rewards .rwv-top h2 {color:#f5f8ff;font-weight:800}
+.pack-section-heading p,.pack-progress p {color:#bbcee5;font-weight:550}
+.pack-progress h2 {color:#f4f8ff;font-weight:800}
+.pack-progress .eyebrow {color:#d5dfed;font-weight:750}
+.pack-level-emblem,.pack-ready-count {font-weight:800;color:#ffdda0}
+.pack-ready-count small {font-weight:650;color:#bdd0e7}
+#rewards .pk.locked .pk-card,#rewards .pk.cool .pk-card {opacity:1;filter:saturate(.78)}
+#rewards .pk-lv {color:#edf6ff;font-size:12px;font-weight:800;letter-spacing:.1em;text-shadow:0 1px 3px #0008}
+#rewards .pk-name {color:#eadbbd;font-size:9px;font-weight:750}
+#rewards .pack-card-caption b {font-weight:800;color:#f3f8ff}
+#rewards .pack-card-caption small {color:#b5c9e0;font-weight:650}
+#rewards .pk>.btn {font-weight:750}
+#rewards .pk>.btn:disabled {color:#bdcee3;border-color:#465c76}
+.account-reward-progress .eyebrow,.account-pack .eyebrow {color:#bfd7f0;font-weight:750}
+#accountPage .account-reward-progress h2 {font-weight:800}
+.account-reward-progress p,.account-collection-title p,.account-pack p {color:#b7cce3;font-weight:550}
+#accountPage .account-pack h3 {font-weight:800;color:#eef5ff}
+.account-pack[data-ready=true] p {color:#f2d8a6;font-weight:650}
+#leaderboard :is(.lb-metric>strong,.lb-personal strong,.lb-leader-wager strong) {font-weight:800}
+#leaderboard :is(.lb-metric>span,.lb-metric>small,.lb-section-heading>span,.lb-method) {color:#b7cbe2;font-weight:550}
+#leaderboard #lbPeriod {font-weight:750;color:#e7effa}
+#leaderboard .lb-season>p {color:#b5cae1;font-weight:600}
+#leaderboard .cdown b {font-weight:800;color:#ffdda0}
+#leaderboard .cdown span {font-weight:700;color:#c1d3e9}
+#leaderboard .lb-section-heading h2 {font-weight:800;color:#f5f9ff}
+#leaderboard .lb-player {font-weight:750;color:#f0f6ff}
+#leaderboard .lb-leader-wager small,.podium-prize>span {font-weight:700;color:#c2d4e9}
+.podium-prize>strong {font-weight:800}
+#leaderboard .lbrow.hd {color:#c4d6ee;font-weight:750}
+#leaderboard .lbrow>b {font-weight:750}
+#leaderboard .lbrow .lb-prize {color:#ffe0a0;font-weight:800}
+.site-footer {color:#a6bed8;font-weight:550}
+
+@media(max-width:740px) {
+  #home .game-description {font-size:11px}
+  #home .game-card-footer {font-size:9px}
+  #rewards .rewards-heading .eyebrow {font-size:8px}
+  #rewards .pk-lv {font-size:11px}
+  .rewards-heading .eyebrow {letter-spacing:.09em}
+  #leaderboard .podium-prize>strong {font-size:clamp(8.5px,2.5vw,11px)}
+  /* The rail used to inherit background:none over its sticky position. Give
+     the whole strip an opaque paint layer, above an isolated content layer. */
+  #accountPage .account-rail {
+    position:sticky;
+    top:0;
+    z-index:20;
+    isolation:isolate;
+    background:#101925;
+    border-bottom:1px solid #526b884f;
+    border-radius:0;
+    box-shadow:0 5px 12px -6px #000b;
+  }
+  #accountPage #walletNav {background:#101925}
+  #accountPage .account-main {position:relative;z-index:0}
+  #accountPage #walletNav a {color:#c0d1e7}
+  #accountPage #walletNav a[aria-current] {color:#ffe0a0;background:#f3ce7f0c}
+}
+
+/* Financial alerts read like account receipts, using neutral metal tones. */
+#accountAlert {
+  width:min(414px,calc(100vw - 32px));
+  background:linear-gradient(115deg,#1b2635,#141d2a 76%);
+  border:1px solid #63788f9c;
+  border-radius:12px;
+  box-shadow:0 18px 54px #0008,inset 0 1px #ffffff0b;
+}
+#accountAlert[data-tone=success],#accountAlert[data-tone=pending],#accountAlert[data-tone=info] {
+  background:linear-gradient(115deg,#1b2635,#141d2a 76%);
+  border-color:#63788f9c;
+}
+#accountAlert>.notice-open {padding:19px 44px 19px 18px;align-items:flex-start;gap:13px}
+#accountAlert .alert-icon {
+  margin-top:26px;width:34px;height:34px;border-radius:9px;
+  background:#d1e1f608;border:1px solid #b5c8dd33;color:#d5e3f5;
+}
+#accountAlert[data-flow=credit] .alert-icon {background:#e4c98a09;border-color:#e4c98a42;color:#f0d69f}
+#accountAlert[data-flow=debit] .alert-icon {background:#c4d4e80b;border-color:#acbfd947;color:#dae7f9}
+#accountAlert[data-tone=pending] .alert-icon {background:#e4c98a08;border-color:#d9be8938;color:#e6cd9f}
+#accountAlert .alert-icon svg {width:18px;height:18px;stroke-width:1.7}
+#accountAlert .alert-copy {flex:1;min-width:0}
+#accountAlert .alert-topline {display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:10px;padding-right:3px}
+#accountAlert .alert-kicker {margin:0;font-size:9px;font-weight:750;line-height:1.5;letter-spacing:.13em;color:#b2c5de}
+#accountAlert .alert-type {font-size:9px;font-weight:750;line-height:1.5;letter-spacing:.1em;padding:2px 6px;border:1px solid #9fb7d234;border-radius:4px;color:#d2e1f4;background:#b4c9e406;white-space:nowrap}
+#accountAlert[data-flow=credit] .alert-type {color:#f5dca9;border-color:#d8bd8747;background:#d8bd8708}
+#accountAlert strong {color:#f7faff;font-size:13px;font-weight:750;line-height:1.5;letter-spacing:-.012em}
+#accountAlert .alert-amount {display:flex;align-items:center;flex-wrap:nowrap;gap:6px;margin-top:7px;color:#f4f8ff;overflow-wrap:anywhere}
+#accountAlert .alert-amount .currency-logo {width:18px;height:18px;flex:none;align-self:flex-start;margin-top:5px}
+#accountAlert .alert-value {flex:1;min-width:0;overflow-wrap:anywhere}
+#accountAlert .alert-number {font-size:21px;font-weight:800;line-height:1.4;letter-spacing:-.035em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#accountAlert .alert-currency {font-size:10px;font-weight:750;letter-spacing:.04em;color:#bbcee7}
+#accountAlert[data-financial=false] .alert-amount {font-size:11px;font-weight:600;color:#c6d5e8;line-height:1.7}
+#accountAlert .alert-meta {display:block;margin:6px 0 0;font-size:10px;font-weight:550;line-height:1.7;color:#adbed4;overflow-wrap:anywhere}
+#accountAlert .alert-bottomline {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px 12px;margin-top:12px;padding-top:10px;border-top:1px solid #9eb6d51a}
+#accountAlert .alert-detail {font-size:10px;font-weight:550;line-height:1.6;color:#b9c9dd}
+#accountAlert .alert-action {font-size:10px;font-weight:750;line-height:1.6;color:#f0d59b;white-space:nowrap}
+#accountAlert .notice-dismiss {right:8px;top:8px;width:30px;height:30px;border:1px solid #a4b8d222;border-radius:7px;color:#c6d5e8;background:#c5d6eb06;font-size:19px}
+#accountAlert .notice-dismiss:hover {background:#c5d6eb12;color:#fff;border-color:#a4b8d24a}
+#accountAlert .alert-timer {height:2px;background:linear-gradient(90deg,#d5bc88,#aec6df)}
+#noticePopup .notice-entry[data-kind] .notice-icon {color:#d0e0f4;background:#b9cee708;border-color:#9db4d135}
+#noticePopup .notice-entry[data-kind="balance.credit"] .notice-icon,#noticePopup .notice-entry[data-kind="deposit.credited"] .notice-icon {color:#e9d1a1;background:#d7be8808;border-color:#d7be8838}
+#toast {background:#192433;border-color:#5a708b;color:#edf4ff;font-weight:650;box-shadow:0 14px 45px #0007}
+#toast.win {background:#192433;border-color:#baa1729c;color:#f3dfb8}
+#toast.lose {background:#192433;border-color:#a78c9b8c;color:#efdde6}
+body:has(#accountAlert:not([hidden])) #toast.show {bottom:calc(240px + var(--mobile-tabs,0px))}
+@media(max-width:740px) {
+  #accountAlert {right:12px;width:calc(100vw - 24px);border-radius:10px}
+  #accountAlert>.notice-open {padding:17px 43px 17px 15px;gap:11px}
+  #accountAlert .alert-icon {width:31px;height:31px;margin-top:26px;border-radius:8px}
+  #accountAlert .alert-topline {gap:6px}
+  #accountAlert .alert-kicker {font-size:9px;letter-spacing:.1em}
+  #accountAlert .alert-type {font-size:9px;padding:2px 5px}
+  #accountAlert .alert-number {font-size:19px}
+  #accountAlert .alert-currency {font-size:10px}
+  #accountAlert .alert-meta {font-size:9px}
+  #accountAlert .alert-detail,#accountAlert .alert-action {font-size:9px}
+  #accountAlert .notice-dismiss {width:32px;height:32px;right:7px;top:7px}
+}
+
+/* Read-only USD balance detail in the original coin dropdown. */
+#ebwMenu .coin-equivalent {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:5px 10px;padding:12px 14px;background:#121c29;border-top:1px solid #35465b}
+#ebwMenu .coin-equivalent[hidden] {display:none!important}
+#ebwMenu .coin-equivalent>span {margin:0;color:#bdcfe4;font-size:11px;font-weight:650}
+#ebwMenu .coin-equivalent>strong {color:#f1d59c;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+#ebwMenu .coin-equivalent>small {grid-column:1/-1;color:#a5bad3;font-size:9px;line-height:1.6}
+#ebwCcy[data-usd-preview] #ebwSym {color:#d7e6f6}
+#ebwCcy[data-usd-preview] .currency-logo {filter:none}

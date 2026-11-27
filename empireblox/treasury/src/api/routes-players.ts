@@ -2,24 +2,16 @@ import { lockActivePlayer } from '../auth-user.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAdmin, requireUser } from './guards.js';
-import { pool, query, tx } from '../db.js';
+import { query, tx } from '../db.js';
 import { balanceOf, getUserBalances, post } from '../ledger.js';
 import { parseAmount } from '../money.js';
-import type { PoolClient } from 'pg';
+import { coinRewards } from '../games/rewards.js';
 
 const uidParam=z.object({uid:z.string().uuid()});
 const paging=z.object({page:z.coerce.number().int().min(0).max(100000).default(0)});
 const statusSql="case when disabled then 'banned' when suspended_until>now() then 'suspended' else 'active' end";
 const profileColumns=`id,email,username,created_at,display_ccy,suspended_until,${statusSql} as status`;
 const pages=(rows:unknown[])=>({rows:rows.slice(0,20),more:rows.length>20});
-const turnover=`select coalesce(sum(usd),0) as usd,trim_scale(coalesce(sum(usdt),0)) as usdt,
-  count(*) filter(where unpriced_usd)::int as unpriced,count(*) filter(where unpriced_usdt)::int as unpriced_usdt from vip_wagers where user_id=$1`;
-async function rewards(uid:string,db:Pick<PoolClient,'query'>=pool){
-  const {rows:[total]}=await db.query(turnover,[uid]);
-  const levels=(await db.query(`select l.*,l.threshold_usd<=$2::numeric as earned,c.claimed_at
-    from vip_levels l left join vip_claims c on c.level=l.level and c.user_id=$1 order by l.level`,[uid,total.usd])).rows;
-  return {wagered_usd:total.usd,wagered_usdt:total.usdt,unpriced:total.unpriced,unpriced_usdt:total.unpriced_usdt,levels};
-}
 
 const common={request:z.string().uuid(),reason:z.string().trim().min(1).max(300)};
 const adjustment=z.object({...common,action:z.enum(['credit','debit']),asset:z.string().min(1).max(32),amount:z.string().max(60)});
@@ -28,27 +20,11 @@ const control=z.union([adjustment,z.object({...common,action:z.enum(['ban','rest
   z.object({...common,action:z.enum(['hold_deposit','release_deposit']),deposit:z.string().regex(/^\d{1,18}$/)})]);
 class ControlError extends Error {}
 export async function playerManagement(app:FastifyInstance){
-  app.get('/api/reward-levels',async()=>({levels:(await query('select * from vip_levels order by level')).rows}));
+  app.get('/api/reward-levels',async()=>({program:'daily_coins',levels:(await query('select level,xp::text from levels order by level')).rows,packs:(await query('select * from reward_packs order by level')).rows}));
   app.register(async r=>{
     r.addHook('preHandler',requireUser);
-    r.get('/api/me/levels',req=>rewards(req.userId!));
-    r.post('/api/me/levels/:level/claim',async(req,reply)=>{
-      const {level}=z.object({level:z.coerce.number().int().min(1).max(45)}).parse(req.params);
-      const result=await tx(async c=>{
-        await lockActivePlayer(c,req.userId!);
-        const prior=(await c.query('select journal_id from vip_claims where user_id=$1 and level=$2',[req.userId,level])).rows[0];
-        if(prior)return prior;
-        const {rows:[total]}=await c.query(turnover,[req.userId]);
-        const reward=(await c.query('select bonus_usdt from vip_levels where level=$1 and threshold_usd<=$2::numeric',[level,total.usd])).rows[0];
-        if(!reward)return null;
-        const amount=parseAmount(reward.bonus_usdt,18),ref=req.userId+'/'+level;
-        const journal=await post(c,'level_bonus',ref,[{account:'house:rewards',asset:'USDT',delta:-amount},{account:'u:'+req.userId,asset:'USDT',delta:amount}]);
-        await c.query('insert into vip_claims(user_id,level,journal_id) values($1,$2,$3)',[req.userId,level,journal]);
-        await c.query("select notify_player($1,'reward.claimed',$2,'USDT',$3)",[req.userId,String(level),amount.toString()]);
-        return {journal_id:journal};
-      });
-      return result??reply.code(409).send({error:'This level is not available to claim'});
-    });
+    r.get('/api/me/levels',req=>coinRewards(req.userId!));
+    r.post('/api/me/levels/:level/claim',async(_req,reply)=>reply.code(410).send({error:'The old VIP bonus program is retired. Open daily coin reward packs instead.'}));
   });
   app.register(async r=>{
     r.addHook('preHandler',requireAdmin);
@@ -63,10 +39,10 @@ export async function playerManagement(app:FastifyInstance){
       const {uid}=uidParam.parse(req.params);
       const user=(await query(`select ${profileColumns},is_admin from users where id=$1`,[uid])).rows[0];
       if(!user)return reply.code(404).send({error:'Player unavailable'});
-      const [balances,activity,vip,addresses]=await Promise.all([getUserBalances(uid),query(`select count(*)::int as bets,
+      const [balances,activity,rewards,addresses]=await Promise.all([getUserBalances(uid),query(`select count(*)::int as bets,
         count(*) filter(where status in ('cashed','done','rolling','lost') and payout>stake)::int as wins from player_bets where user_id=$1 and stake>0`,[uid]),
-        rewards(uid),query('select chain_id,address from deposit_addresses where user_id=$1 order by chain_id',[uid])]);
-      return {user,balances,activity:activity.rows[0],vip,addresses:addresses.rows};
+        coinRewards(uid),query('select chain_id,address from deposit_addresses where user_id=$1 order by chain_id',[uid])]);
+      return {user,balances,activity:activity.rows[0],rewards,addresses:addresses.rows};
     });
     r.get('/api/admin/users/:uid/deposits',async req=>{
       const {uid}=uidParam.parse(req.params),p=paging.extend({pending:z.enum(['true','false']).default('false')}).parse(req.query);

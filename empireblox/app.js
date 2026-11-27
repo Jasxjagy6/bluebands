@@ -1,3 +1,4 @@
+import './assets/snow.js';
 /* Treasury owns accounts, balances and crypto games. */
 import { soundEnabled, playSound } from './assets/wallet/feedback.js';
 import { walletSession, sessionState, walletCatalog, paintUnread, displayAmount } from './wallet.js';
@@ -6,13 +7,13 @@ const $ = id => document.getElementById(id);
 const fmt = v => Math.round(+v || 0).toLocaleString();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const COIN = '<svg class="coin" viewBox="0 0 20 20" aria-hidden="true"><ellipse cx="10" cy="15.2" rx="7.4" ry="2.6" fill="#b97a07"/><rect x="2.6" y="12.6" width="14.8" height="2.6" fill="#d9960f"/><ellipse cx="10" cy="12.6" rx="7.4" ry="2.6" fill="#f7c948"/><ellipse cx="9.4" cy="10.4" rx="7.4" ry="2.6" fill="#b97a07"/><rect x="2" y="7.8" width="14.8" height="2.6" fill="#d9960f"/><ellipse cx="9.4" cy="7.8" rx="7.4" ry="2.6" fill="#f7c948"/><ellipse cx="10.4" cy="5.6" rx="7.4" ry="2.6" fill="#b97a07"/><rect x="3" y="3" width="14.8" height="2.6" fill="#d9960f"/><ellipse cx="10.4" cy="3" rx="7.4" ry="2.6" fill="#ffd95e"/><ellipse cx="8.6" cy="2.5" rx="3.2" ry=".9" fill="#fff3b8" opacity=".75"/></svg>';
+const COIN = '<img class="coin" src="/assets/wallet/coin.svg" alt="" aria-hidden="true">';
 const fmtS = v => { v = Number(v) || 0; const A = Math.abs(v); return A >= 1e9 ? +(v / 1e9).toFixed(2) + 'B' : A >= 1e6 ? +(v / 1e6).toFixed(2) + 'M' : A >= 1e5 ? +(v / 1e3).toFixed(1) + 'K' : fmt(v); };
 let quote = null, quoteRequest = 0, lastAsset = null;
 function catalogMoney(value, price = quote, positive = false) {
   const units = Math.round(Number(value) || 0);
-  const amount = price ? currencyText(BigInt(units)*BigInt(price.unit),price.asset_id) : '—';
-  return `<span class="cv">${positive ? '+' : ''}${esc(amount)}</span>`;
+  const amount = price ? currencyText(BigInt(units)*BigInt(price.unit),price.asset_id) : window.ebAsset?.('COINS')?currencyText(BigInt(units)*10n**18n,'COINS'):'—';
+  return `<span class="cv">${!price||price.asset_id==='COINS'?COIN:''}${positive ? '+' : ''}${esc(amount)}</span>`;
 }
 const cv = catalogMoney;
 const cvS = cv;
@@ -137,7 +138,7 @@ function showPage(p) {
   document.querySelectorAll('#gmenu [data-p]').forEach(x => x.classList.toggle('on', x.dataset.p === p));
   $('gamesBtn').classList.toggle('on', GAME_PAGES.includes(p)); $('rewardsBtn').classList.toggle('on', p === 'rewards'); $('lbBtn').classList.toggle('on', p === 'leaderboard');
   if (p === 'leaderboard' && typeof loadLb === 'function') loadLb();
-  if(p==='rewards')void window.ebLobbyRewards?.();
+  if(p==='rewards')void window.ebDailyRewards?.();
   document.querySelectorAll('.page').forEach(x => x.classList.toggle('on', x.id === p));
   $('pageScroll').scrollTop=0;
   gamesMenu(false);
@@ -212,7 +213,7 @@ async function api(path, method = 'GET', body) {
   if (!r.ok) throw Object.assign(new Error(d.error || ('Error ' + r.status)), {status:r.status,need2fa:d.need2fa===true});
   return d;
 }
-// Currency helpers backed by the wallet module (selected real currency).
+// Currency helpers backed by the wallet module (playing coin balance).
 const ccySym = id => window.ebCurrencyLabel(id);
 const fmtMinor = (minor, id) => window.ebFormat(minor, id);
 const currencyText = (minor,id) => displayAmount(minor,window.ebAsset(id))+' '+ccySym(id);
@@ -231,6 +232,7 @@ function adjustStake(input, op) {
 }
 function wagerProblem(amount,asset=window.ebCurrency()){
   if(!me)return '';
+  if(asset!=='COINS')return 'Finish this legacy round without adding a crypto stake';
   if(amount==null||amount<=0n)return 'Enter a valid bet amount';
   const balance=window.ebBalance(asset);
   if(balance==null)return 'Updating your balance…';
@@ -537,7 +539,7 @@ function openCase(id) {
   $('cvIcon').innerHTML = cpic(cur); $('cvName').textContent = cur.name;
   $('cvMeta').textContent = `${cur.items.length} items` + (cur.tops.length ? ` · gold dice ${(cur.ttot / cur.tot * 100).toFixed(2)}%` : '');
   $('cvOpen').innerHTML = `Open for ${cv(cur.price)}`;
-  wagerButton($('cvOpen'),pricedAmount(cur.price),spinning,window.ebCurrency(),quote?'':'Updating the market price…');
+  wagerButton($('cvOpen'),pricedAmount(cur.price),spinning,window.ebCurrency(),quote?'':'Updating coin prices…');
   $('cvItems').innerHTML = cur.items.slice().sort((a, b) => b.v - a.v).map(i => `<div class="ic2 ${i.top ? 'tp' : ''}" style="--rc:${RC[i.r]}">${i.top ? '<span class="tpb" title="Behind the gold dice">' + DICE_ART + '</span>' : ''}<span class="odds">${(i.w / cur.tot * 100).toFixed(2)}%</span><span class="art">${pic(i)}</span><b>${esc(i.n)}</b>${cv(i.v)}</div>`).join('');
   idleH($('cvReel'), cur);
 }
@@ -557,7 +559,7 @@ $('cvOpen').onclick = async () => {
     $('caseView').dataset.phase='landed';
     toast(`You unboxed <b>${esc(w.n)}</b> · ${currencyText(r.payout,r.asset_id)}`);
   } catch (e) { $('caseView').dataset.phase=$('cvReel').parentElement.dataset.phase='error';toast(esc(niceErr(e)), 'lose'); }
-  spinning = false; wagerButton($('cvOpen'),pricedAmount(cur.price),false,window.ebCurrency(),quote?'':'Updating the market price…'); $('cvBack').disabled = false;
+  spinning = false; wagerButton($('cvOpen'),pricedAmount(cur.price),false,window.ebCurrency(),quote?'':'Updating coin prices…'); $('cvBack').disabled = false;
   $('caseView').setAttribute('aria-busy','false');
 };
 
@@ -830,7 +832,7 @@ function renderCreate() {
   $('bFoot').innerHTML = `${draft.cases.length} case${draft.cases.length === 1 ? '' : 's'} · ${cv(cost)}${draft.borrow ? ` <span class="mut">· you pay ${cv(pay)}</span>` : ''}`;
   $('bBorrow').hidden = !draft.borrow; if (draft.borrow) borrowPanel($('bBorrow'), cost, draft.borrow, v => { draft.borrow = v; renderCreate(); });
   $('bMake').disabled = !draft.cases.length || busy;
-  wagerButton($('bMake'),pricedAmount(pay),!draft.cases.length||busy,window.ebCurrency(),quote?'':'Updating the market price…');
+  wagerButton($('bMake'),pricedAmount(pay),!draft.cases.length||busy,window.ebCurrency(),quote?'':'Updating coin prices…');
   $('bMake').textContent = 'Create battle';
 }
 /* volatility = how spread out a case's pulls are (0 calm … 1 wild) */
@@ -1193,7 +1195,7 @@ function renderUpg(result) {
   const p = $('uPlay');
   if (U.mode === 'auto') { p.className = 'btn big ' + (U.running ? 'redb' : 'gold'); p.textContent = U.running ? 'Stop autobet' : 'Start autobet'; p.disabled = false; }
   else { p.className = 'btn big gold'; p.textContent = uSpinning ? 'Rolling…' : 'Play'; p.disabled = uSpinning; }
-  wagerButton(p,minorInput($('uBet').value),p.disabled,window.ebCurrency(),!quote?'Updating the market price…':!uSel?'Select an item to upgrade to':uChance()<=0?'Pick an item worth more than your bet':'',U.running||uSpinning);
+  wagerButton(p,minorInput($('uBet').value),p.disabled,window.ebCurrency(),!quote?'Updating coin prices…':!uSel?'Select an item to upgrade to':uChance()<=0?'Pick an item worth more than your bet':'',U.running||uSpinning);
   const lock = uSpinning || U.running;
   ['uBet', 'uCustom', 'uCount'].forEach(id => $(id).disabled = lock);
   document.querySelectorAll('#uMult button,#uDir button,#uMode button,[data-ub]').forEach(b => b.disabled = lock);
@@ -1380,7 +1382,7 @@ async function bjSend(endpoint, args) {
 $('bjDeal').onclick = () => {
   if (!requireAuth()) return;
   const bet = $('bjBet').value.trim();
-  if (!(minorInput(bet) > 0n)) return toast('Enter a valid bet in the selected currency', 'lose');
+  if (!(minorInput(bet) > 0n)) return toast('Enter a valid bet in coins', 'lose');
   $('bjDealer').innerHTML = ''; $('bjHands').innerHTML = ''; BJ = null;
   bjSend('start', { asset:window.ebCurrency(), bet, request:requestId() });
 };
@@ -1403,7 +1405,7 @@ window.addEventListener('eb-currency', () => {
   updM(); $('bjCurrency').textContent = ccySym(BJ && BJ.status !== 'done' ? BJ.asset_id : undefined);
   if(BJ&&BJ.status!=='done')bjRender(BJ);else wagerButton($('bjDeal'),minorInput($('bjBet').value),bjBusy);
   if(!uSpinning)renderUpg();
-  if(cur&&!spinning)wagerButton($('cvOpen'),pricedAmount(cur.price),false,window.ebCurrency(),quote?'':'Updating the market price…');
+  if(cur&&!spinning)wagerButton($('cvOpen'),pricedAmount(cur.price),false,window.ebCurrency(),quote?'':'Updating coin prices…');
   if(!$('bCreate').hidden)renderCreate();
   lobbySig='';if(vs)vs.sig='';
 });
@@ -1554,14 +1556,20 @@ async function loadLb() {
     LB=data;lbEnd=Date.parse(data.ends_at);
     const top=data.top.map((r,i)=>({...r,rank:r.rank||String(i+1)}));
     const mine=data.me||top.find(r=>r.user_id===me?.id);
-    const member=r=>`<button type="button" class="lb-player" data-uid="${esc(r.user_id)}"><span class="lb-avatar" aria-hidden="true">${esc(r.username.slice(0,1).toUpperCase())}</span><span>${esc(r.username)}</span>${r.user_id===me?.id?'<small>You</small>':''}</button>`;
-    $('lbRows').innerHTML=top.map(r=>`<div class="lbrow${r.user_id===me?.id?' lb-own-row':''}" role="listitem"><span class="lb-rank">${esc(r.rank.padStart(2,'0'))}</span>${member(r)}<b class="r">${esc(currencyText(r.wagered,asset))}</b></div>`).join('')||'<div class="lbempty"><strong>No standings yet</strong><p>No qualifying wagers in this currency this week.</p></div>';
+    const prize=r=>data.prizes?.[Number(r.rank)-1]||'0';
+    const member=r=>`<button type="button" class="lb-player" data-uid="${esc(r.user_id)}"><span class="lb-avatar" aria-hidden="true">${BACON}</span><span>${esc(r.username)}</span>${r.user_id===me?.id?'<small>You</small>':''}</button>`;
+    $('lbRows').innerHTML=top.map(r=>`<div class="lbrow${r.user_id===me?.id?' lb-own-row':''}" data-rank="${esc(r.rank)}" role="listitem"><span class="lb-rank">${esc(r.rank.padStart(2,'0'))}</span>${member(r)}<b class="r wgc">${esc(currencyText(r.wagered,asset))}</b><b class="r lb-prize">${BigInt(prize(r))?COIN+esc(currencyText(prize(r),asset)):'—'}</b></div>`).join('')||'<div class="lbempty"><strong>The race starts with you.</strong><p>Settle your first coin wager to enter this week’s standings.</p></div>';
     $('lbRows').setAttribute('role','list');
-    $('lbPodium').innerHTML=top.slice(0,3).map((r,i)=>`<article class="lb-leader" data-rank="${i+1}"><div class="lb-leader-top"><span class="lb-place">${String(i+1).padStart(2,'0')}</span><span>${['Leading the week','Second place','Third place'][i]}</span>${i===0?IC.trophy:''}</div>${member(r)}<div class="lb-leader-wager"><small>Wagered this week</small><strong>${esc(currencyText(r.wagered,asset))}</strong></div></article>`).join('');
+    $('lbPodium').innerHTML=[1,0,2].map(i=>{
+      const r=top[i],reward=data.prizes?.[i]||'0';
+      return `<article class="lb-leader${r?'':' lb-place-open'}" data-rank="${i+1}"><span class="podium-crown" aria-hidden="true">${i===0?IC.crown:IC.trophy}</span><div class="podium-ribbon">${String(i+1).padStart(2,'0')}</div>${r?member(r):'<div class="podium-vacancy"><span>?</span><strong>Your place awaits</strong></div>'}<div class="lb-leader-wager"><small>Wagered this week</small><strong>${esc(currencyText(r?.wagered||'0',asset))}</strong></div><div class="podium-prize"><span>Weekly prize</span><strong>${COIN}${esc(currencyText(reward,asset))}</strong></div></article>`;
+    }).join('');
+    $('lbLast').hidden=!data.last_week?.length;
+    $('lbLastList').innerHTML=(data.last_week||[]).map(r=>`<li><span>${esc(r.username)}</span><strong>${COIN}${esc(currencyText(r.prize,asset))}</strong><small>Rank #${esc(r.rank)}</small></li>`).join('');
     $('lbParticipants').textContent=data.participants??String(top.length);$('lbTotal').textContent=currencyText(data.total_wagered??top.reduce((s,r)=>s+BigInt(r.wagered),0n),asset);
     const end=new Date(lbEnd),start=new Date(data.starts_at||lbEnd-7*86400000),date=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'});
     $('lbPeriod').textContent=date(start)+' – '+date(end)+' · UTC';
-    $('lbMe').innerHTML=me?`<section class="lb-personal"><span class="lb-personal-icon">${IC.trophy}</span><div><span class="eyebrow">Your position this week</span><strong>${mine?'#'+esc(mine.rank):'Unranked'}</strong><p>${mine?'Your rank across all qualifying players.':'No qualifying wagers in this currency this week.'}</p></div><div class="lb-personal-wager"><small>Your wagers</small><strong>${esc(currencyText(mine?.wagered||'0',asset))}</strong></div></section>`:'';
+    $('lbMe').innerHTML=me?`<section class="lb-personal"><span class="lb-personal-icon">${IC.trophy}</span><div><span class="eyebrow">Your position this week</span><strong>${mine?'#'+esc(mine.rank):'Unranked'}</strong><p>${mine?'Your rank across all qualifying players.':'No settled coin wagers this week.'}</p></div><div class="lb-personal-wager"><small>Your wagers</small><strong>${esc(currencyText(mine?.wagered||'0',asset))}</strong></div></section>`:'';
     $('lbUpdated').textContent='Updated '+new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})+' · Refreshes every 30s';tickLb();
   }catch{
     if(seq!==lbSequence||asset!==window.ebCurrency())return;
@@ -1582,7 +1590,7 @@ setInterval(tickLb, 1000);
 setInterval(() => { if ($('leaderboard').classList.contains('on')) loadLb(); }, 30000);
 $('leaderboard').onclick = e => { const u = e.target.closest('[data-uid]'); if (u) openProfile(u.dataset.uid); };
 
-// Historical pack contents are used to verify previously settled outcomes.
+// Daily pack contents also verify previously settled outcomes.
 let PACKS=[];
 function loadPacks(data) {
   PACKS = data.packs.map(pk => {
@@ -1593,6 +1601,88 @@ function loadPacks(data) {
     return { level: pk.level, name: pk.name, items, tot: items.reduce((s, x) => s + x.w, 0), top: items.slice().sort((a, b) => b.v - a.v)[0] };
   });
 }
+
+const PK_THEME = {10:['#4b6676','#162631'],20:['#526a80','#182837'],30:['#4b617a','#192335'],40:['#4e7b8b','#142d3b'],50:['#646a81','#27243b'],60:['#41695f','#142b28'],70:['#547794','#1a2e49'],80:['#4e7887','#1b2b44'],90:['#4b527e','#1a1d37'],100:['#8b7956','#302b20']};
+let CLAIMS = {}, rwCur = null, rwSpinning = false, rewardWagered=0, rewardReady=false, claimsSequence=0, rwAttempt=null;
+async function loadClaims() {
+  const seq=++claimsSequence,owner=me?.id;rewardReady=false;CLAIMS={};rewardWagered=0;
+  if(!owner){renderRewards();updRwBtn();return;}
+  try{
+    const data=await api('/api/me/rewards');if(seq!==claimsSequence||owner!==me?.id)return;
+    data.claims.forEach(c=>CLAIMS[c.level]=Date.parse(c.claimed_at)+86400000);rewardWagered=Number(data.wagered);rewardReady=true;$('packStatus').textContent='';
+  }catch{if(seq!==claimsSequence||owner!==me?.id)return;$('packStatus').innerHTML='Could not load your reward progress. <button type="button" class="wallet-link" data-retry-packs>Try again</button>';}
+  renderRewards();updRwBtn();
+}
+window.ebDailyRewards=loadClaims;
+const myLevel = () => me && rewardReady ? levelInfo(rewardWagered).level : 0;
+const left = ms => { const m = Math.max(1, Math.ceil(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
+function packState(pk) {
+  if (!me) return { cls: 'locked', btn: '<button class="btn dark" data-signin="1">Sign in to open</button>' };
+  if (!rewardReady) return {cls:'locked',btn:'<button class="btn dark" disabled>Checking progress…</button>'};
+  if (myLevel() < pk.level) return { cls: 'locked', btn: `<button class="btn dark" disabled>Reach level ${pk.level}</button>` };
+  const next = CLAIMS[pk.level];
+  if (next && next > Date.now()) return { cls: 'cool', btn: `<button class="btn dark" disabled>Opens in ${left(next - Date.now())}</button>` };
+  return { cls: 'ready', btn: `<button class="btn gold" data-pk="${pk.level}">Open</button>` };
+}
+function renderRewards() {
+  const info=levelInfo(rewardWagered),next=PACKS.find(p=>p.level>info.level),ready=PACKS.filter(p=>packState(p).cls==='ready').length;
+  $('packProgress').innerHTML=me?`<span class="pack-level-emblem">${rewardReady?info.level:'—'}</span><div><span class="eyebrow">Your player level</span><h2>${rewardReady?'Level '+info.level:'Checking your progress'}</h2><progress max="100" value="${rewardReady?info.pct:0}" aria-label="Progress to next level"></progress><p>${rewardReady?(next?fmt(Math.max(0,Number(LV.find(l=>l.level===next.level)?.xp||0)-rewardWagered))+' coins in settled wagers to your next pack':'Every pack unlocked'): 'Your progress is saved to your account.'}</p></div><strong class="pack-ready-count">${ready}<small>ready to open</small></strong>`:`<span class="pack-level-emblem">${IC.gift}</span><div><span class="eyebrow">Made for your next milestone</span><h2>Play. Level up. Collect.</h2><p>Sign in to track your progress and unlock daily reward packs.</p></div><button type="button" class="btn gold" data-reward-login>Sign in</button>`;
+  if (!PACKS.length || $('rwList').hidden) return;
+  $('rwGrid').innerHTML = PACKS.map(pk => {
+    const st = packState(pk), [c1, c2] = PK_THEME[pk.level] || ['#444', '#222'];
+    const show = pk.items.slice().sort((a, b) => b.v - a.v).slice(0, 4);
+    return `<div class="pk ${st.cls}"><button type="button" class="pk-card" data-pack-view="${pk.level}" aria-label="Preview level ${pk.level} ${esc(pk.name)}" style="--pk1:${c1};--pk2:${c2}" title="See what's inside"><span class="pack-frost" aria-hidden="true"></span><span class="pk-lv">LEVEL ${pk.level}</span><div class="pk-items">${show.map(it => `<span>${pic(it)}</span>`).join('')}</div>${st.cls === 'locked' ? `<span class="pk-lock"><i>${IC.lock}</i></span>` : ''}<span class="pk-name">${esc(pk.name)}</span></button><div class="pack-card-caption"><b>${esc(pk.name)}</b><small>Level ${pk.level}</small></div>${st.btn}</div>`;
+  }).join('');
+}
+function showRw(view) { $('rwList').hidden = view; $('rwView').hidden = !view; }
+function openPackView(level) {
+  rwCur = PACKS.find(p => p.level === level); if (!rwCur) return;
+  showRw(true); $('rwName').textContent = `Level ${rwCur.level} reward`;
+  $('rwItems').innerHTML = rwCur.items.slice().sort((a, b) => b.v - a.v).map(i => `<div class="ic2" style="--rc:${RC[i.r]}"><span class="odds">${(i.w / rwCur.tot * 100).toFixed(2)}%</span><span class="art">${pic(i)}</span><b>${esc(i.n)}</b>${cv(i.v)}</div>`).join('');
+  idleH($('rwReel'), rwCur); updRwBtn();
+}
+function updRwBtn() {
+  if (!rwCur) return;
+  const st = packState(rwCur), b = $('rwOpen');
+  b.className = 'btn ' + (!me || st.cls === 'ready' ? 'gold' : 'dark');
+  b.disabled = rwSpinning || st.cls !== 'ready' && !!me && !rwAttempt;
+  b.textContent = rwSpinning ? 'Opening…' : rwAttempt ? 'Check reward claim' : !me ? 'Sign in to open' : st.cls === 'ready' ? 'Open pack (free)' : myLevel() < rwCur.level ? `Reach level ${rwCur.level}` : `Opens in ${left(CLAIMS[rwCur.level] - Date.now())}`;
+}
+$('rwGrid').onclick = e => {
+  if (e.target.closest('[data-signin]')) return openAuth('login');
+  const o = e.target.closest('[data-pk]'); if (o) { openPackView(+o.dataset.pk); $('rwOpen').click(); return; }
+  const v = e.target.closest('[data-pack-view]'); if (v) openPackView(+v.dataset.packView);
+};
+$('rwBack').onclick = () => { if (rwSpinning) return; showRw(false); renderRewards(); };
+$('rwOpen').onclick = async () => {
+  if (!requireAuth() || rwSpinning || !rwCur || (!rwAttempt&&packState(rwCur).cls!=='ready')) return;
+  if(!rwAttempt&&!requireQuote())return;
+  const owner=me.id,pk=rwCur;
+  if(rwAttempt&&rwAttempt.owner!==owner)rwAttempt=null;
+  rwAttempt ||= {owner,payload:{...pricedBet(),game:'rewards',level:pk.level}};
+  rwSpinning=true;updRwBtn();$('rwBack').disabled=true;$('rwStatus').textContent='';
+  try{
+    const r=await api('/api/games/instant','POST',rwAttempt.payload);rwAttempt=null;
+    if(owner!==me?.id)return;
+    CLAIMS[pk.level]=Date.parse(r.next_at);const won=pk.items.find(i=>i.idx===r.idx);if(!won)throw new Error('Reward receipt unavailable. Check your account history.');
+    await hspin($('rwReel'),pk,won,3600);if(owner!==me?.id)return;
+    void window.ebWalletRefresh?.();confetti(false);toast(`Daily reward: <b>${esc(won.n)}</b> +${esc(currencyText(r.payout,r.asset_id))}`,'win');
+    $('rwStatus').textContent=won.n+' · '+currencyText(r.payout,r.asset_id)+' credited to your coin balance.';
+  }catch(e){
+    if(e.status>=400&&e.status<500)rwAttempt=null;
+    if(owner===me?.id){$('rwStatus').textContent=rwAttempt?'Could not confirm the reward. Retry to check the same claim.':niceErr(e);toast(niceErr(e),'lose');}
+  }finally{rwSpinning=false;$('rwBack').disabled=false;updRwBtn();}
+};
+window.ebOpenDailyRewards=level=>{
+  cancelPageTransition();showPage('rewards');
+  if(level)openPackView(level);else{showRw(false);renderRewards();}
+};
+$('packProgress').onclick=e=>{if(e.target.closest('[data-reward-login]'))openAuth('login');};
+$('packStatus').onclick=e=>{if(e.target.closest('[data-retry-packs]'))void loadClaims();};
+window.addEventListener('eb-session-ended',()=>{CLAIMS={};rewardWagered=0;rewardReady=false;rwAttempt=null;renderRewards();updRwBtn();});
+
+setInterval(() => { if ($('rewards').classList.contains('on')) { renderRewards(); updRwBtn(); } }, 30000);
+
 
 /* ---------- levels, profiles, tips, transactions ---------- */
 let LV = [];
@@ -1622,7 +1712,7 @@ $('pmClose').onclick=()=>{++profileSeq;$('profModal').hidden=true;};
 function pricedBet(){return {asset:quote.asset_id,quote:quote.id,request:requestId()};}
 function requireQuote(){
   if(quote && quote.asset_id===window.ebCurrency() && Date.parse(quote.expires_at)>Date.now()) return true;
-  void refreshQuote();toast('Updating the market price. Review the price before placing your bet.');return false;
+  void refreshQuote();toast('Updating coin prices. Review the price before placing your bet.');return false;
 }
 async function refreshQuote(){
   const asset=window.ebCurrency(), seq=++quoteRequest;
@@ -1652,9 +1742,9 @@ renderAuth(); renderChatInput(); renderCaseGrid(); renderChat(); renderLobby(tru
   try {
     const data=await api('/api/catalog');
     LV=data.levels.map(r=>({level:r.level,xp:Number(r.xp)}));
-    loadCases(data);loadUpgradeItems(data.upgrades);loadPacks(data);
+    loadCases(data);loadUpgradeItems(data.upgrades);loadPacks(data);void window.ebDailyRewards?.();
   } catch { $('caseGrid').textContent=$('uGrid').textContent='Could not load the catalog. Refresh to try again.'; }
   await Promise.all([loadBattles(), loadChat()]);
 })();
 setInterval(()=>{if(!document.hidden){void loadChat();if($('battles').classList.contains('on'))void loadBattles();}},5000);
-setInterval(()=>{if(!document.hidden){void refreshQuote(); if($('rewards').classList.contains('on'))void window.ebLobbyRewards?.();}},60000);
+setInterval(()=>{if(!document.hidden){void refreshQuote(); if($('rewards').classList.contains('on'))void window.ebDailyRewards?.();}},60000);

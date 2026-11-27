@@ -11,7 +11,7 @@ import { debitStake, creditPayout, InsufficientFunds } from '../bet.js';
 import { installMarketFixture } from './market-fixture.js';
 
 installMarketFixture();
-const ASSET = 'USDT';
+const ASSET = 'COINS';
 let uid: string;
 
 test('setup: make a throwaway user', async () => {

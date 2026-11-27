@@ -6,12 +6,15 @@ import { requireUser } from './guards.js';
 import { currentQuote, instantRound } from '../games/catalog.js';
 import { createBattle, battleAction, listBattles } from '../games/battles.js';
 import { MarketUnavailable } from '../games/prices.js';
+import { coinLeaderboard } from '../games/leaderboard.js';
+import { coinRewards } from '../games/rewards.js';
 
 const asset=z.string().min(1).max(32), pct=z.number().int().min(0).max(90);
 const priced=z.object({asset,quote:z.string().uuid(),request:z.string().uuid()});
 const instant=z.discriminatedUnion('game',[
   priced.extend({game:z.literal('cases'),case:z.string().min(1).max(64)}),
-  priced.extend({game:z.literal('upgrader'),item:z.number().int().positive(),bet:z.string().min(1).max(40),over:z.boolean()})
+  priced.extend({game:z.literal('upgrader'),item:z.number().int().positive(),bet:z.string().min(1).max(40),over:z.boolean()}),
+  priced.extend({game:z.literal('rewards'),level:z.number().int().min(10).max(100).refine(n=>n%10===0)})
 ]);
 function failed(reply:FastifyReply,e:unknown){
   if((e as {statusCode?:number}).statusCode===403)return reply.code(403).send({error:'Account access restricted'});
@@ -44,6 +47,7 @@ export async function lobbyRoutes(app:FastifyInstance){
   app.get('/api/leaderboard/:asset',async req=>{
     const p=z.object({asset}).parse(req.params);
     const uid=req.cookies.eb_sess?await verifySession(req.cookies.eb_sess):null;
+    if(p.asset==='COINS')return coinLeaderboard(uid);
     const rows=await query(`with week as (select date_trunc('week',now() at time zone 'UTC') at time zone 'UTC' as starts_at),
       totals as (select u.id as user_id, u.username,(-sum(e.delta * power(10::numeric, case when $1='USDT' then 18-a.decimals else 0 end)))::numeric(100,0) as units from ledger_entries e
       join journals j on j.id=e.journal_id join users u on e.account='u:'||u.id::text
@@ -62,8 +66,7 @@ export async function lobbyRoutes(app:FastifyInstance){
   app.get('/api/battles/:asset',async req=>({battles:await listBattles(z.object({asset}).parse(req.params).asset)}));
   app.register(async r=>{
     r.addHook('preHandler',requireUser);
-    r.get('/api/me/rewards',async req=>({claims:(await query('select level,claimed_at from reward_claims where user_id=$1',[req.userId])).rows,
-      wagered:(await query('select catalog_wagered from users where id=$1',[req.userId])).rows[0].catalog_wagered}));
+    r.get('/api/me/rewards',req=>coinRewards(req.userId!));
     r.get('/api/me/battles/:asset',async req=>({battles:await listBattles(z.object({asset}).parse(req.params).asset,req.userId)}));
     r.post('/api/games/instant',async(req,reply)=>{
       const b=instant.safeParse(req.body);if(!b.success)return reply.code(400).send({error:'Check the bet details'});

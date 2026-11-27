@@ -1,9 +1,10 @@
 import { bindSoundToggle, playSound } from './assets/wallet/feedback.js';
+import { mountConversion } from './assets/wallet/conversion.js';
 /* Player wallet. Account data and currency preferences live on the treasury. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const icons = { ETH: 'eth', BNB: 'bnb', POL: 'matic', USDT: 'usdt', BTC: 'btc', SOL: 'sol', TRX: 'trx' };
+const icons = { COINS: 'coin', USD: 'usd', ETH: 'eth', BNB: 'bnb', POL: 'matic', USDT: 'usdt', BTC: 'btc', SOL: 'sol', TRX: 'trx' };
 function logo(symbol) {
   return icons[symbol] ? `<img class="currency-logo" src="/assets/wallet/${icons[symbol]}.svg" alt="">` : '';
 }
@@ -16,26 +17,29 @@ function human(amount, decimals) {
 
 // A withdrawal route is not proof that the same network can receive a deposit.
 const directNetworks = {USDT:{ETH:'USDT.ERC20',BSC:'USDT.BEP20',POL:'USDT.POL'},ETH:{ETH:'ETH'},BNB:{BSC:'BNB'},POL:{POL:'POL'},SOL:{SOL:'SOL'}};
-const currencyNames = {USDT:'Tether',ETH:'Ethereum',BNB:'BNB',POL:'Polygon',SOL:'Solana',BTC:'Bitcoin',TRX:'TRON'};
+const currencyNames = {COINS:'BANDITBLOX coins',USDT:'Tether',ETH:'Ethereum',BNB:'BNB',POL:'Polygon',SOL:'Solana',BTC:'Bitcoin',TRX:'TRON'};
 const directId=(symbol,chain)=>Object.hasOwn(directNetworks,symbol) && Object.hasOwn(directNetworks[symbol],chain)?directNetworks[symbol][chain]:null;
 const intakeReady=r=>r?.enabled===true && r.available===true;
-let assets = [], routes = [], directRoutes = [], chains = [], denominations = [], user = null, balances = new Map();
+let assets = [], walletAssets = [], routes = [], directRoutes = [], chains = [], denominations = [], user = null, balances = new Map();
 let refreshId = 0, accountVersion = 0, currencySaving = null, walletFresh = false;
 let catalogRequest, catalogLoaded = false, addressVersion = 0, historyVersion = 0;
 let depositAsset = null, directSymbol = '', directChain = '', depositsPaused = true;
 let view = 'profile';
+let balancePreview=false,coinRate={coins:6000n,usdt:10n};
 export let sessionState = 'checking';
-const meta = id => assets.find(a => a.id === id) || routes.find(a=>a.id===id) || balances.get(id) || denominations.find(a=>a.id===id);
+const meta = id => assets.find(a => a.id === id) || walletAssets.find(a=>a.id===id) || routes.find(a=>a.id===id) || balances.get(id) || denominations.find(a=>a.id===id);
 const current = () => assets.find(a => a.id === user?.display_ccy) || assets[0];
 const network = id => chains.find(c => c.id === id)?.display_name || id;
-const displayPlaces={USDT:3,ETH:5,POL:2,BNB:4};
+const displayPlaces={COINS:3,USDT:3,ETH:5,POL:2,BNB:4};
 export function displayAmount(amount,asset){
   if(!asset)return '—';
   const units=BigInt(amount),places=Math.min(asset.decimals,displayPlaces[asset.symbol]??asset.decimals);
   const scale=10n**BigInt(asset.decimals-places),absolute=units<0n?-units:units;
   const rounded=(absolute+scale/2n)/scale;
   if(absolute>0n && rounded===0n)return human(units,asset.decimals);
-  return human(units<0n?-rounded:rounded,places);
+  const value=human(units<0n?-rounded:rounded,places);
+  if(asset.symbol!=='COINS')return value;
+  const [whole,fraction]=value.split('.');return whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')+(fraction?'.'+fraction:'');
 }
 const amountOf=a=>displayAmount(balances.get(a.id)?.amount||'0',a);
 
@@ -48,8 +52,9 @@ async function api(path, options = {}) {
 }
 function catalog() {
   if (!catalogRequest) catalogRequest = api('/assets').then(d => {
-    assets = d.currencies; routes = d.transferRoutes; chains = d.chains; denominations=d.denominations; catalogLoaded = true;
+    assets = d.currencies; walletAssets = d.walletCurrencies || []; routes = d.transferRoutes; chains = d.chains; denominations=d.denominations; catalogLoaded = true;
     directRoutes = Array.isArray(d.directRoutes) ? d.directRoutes.filter(r=>typeof r?.id==='string' && directId(r.symbol,r.chain_id)===r.id && r.kind===(r.symbol==='USDT'?'token':'native')) : [];
+    if(/^\d+$/.test(d.coinRate?.coins) && /^\d+$/.test(d.coinRate?.usdt) && BigInt(d.coinRate.coins)>0n && BigInt(d.coinRate.usdt)>0n)coinRate={coins:BigInt(d.coinRate.coins),usdt:BigInt(d.coinRate.usdt)};
     depositsPaused = d.deposits_paused !== false;
   }).catch(err => { directRoutes=[]; depositsPaused=true; throw err; }).finally(() => { catalogRequest = null; });
   return catalogRequest;
@@ -62,15 +67,14 @@ header.insertAdjacentHTML('afterbegin', `<div id="ebwPill" hidden>
   <button type="button" class="header-icon" id="noticeBell" aria-label="Notifications" title="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="noticePopup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17c2-2 2-4 2-7a5 5 0 0 1 10 0c0 3 0 5 2 7zM10 20a2 2 0 0 0 4 0"/></svg></button>`);
 document.body.insertAdjacentHTML('beforeend', `<dialog class="currency-menu" id="ebwMenu" hidden aria-labelledby="currencySheetTitle" aria-describedby="currencySheetHint">
     <header class="sheet-heading"><button type="button" data-wallet-back hidden aria-label="Back to wallet">‹</button><span class="wallet-sheet-emblem" aria-hidden="true"><img src="/assets/dice-gold.png" alt=""></span><div><span class="wallet-sheet-eyebrow">BANDITBLOX / MY WALLET</span><h2 id="currencySheetTitle" tabindex="-1"></h2><p id="currencySheetHint"></p></div><button type="button" data-close-sheet aria-label="Close currency selector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
-    <nav class="wallet-view-tabs" aria-label="Wallet views" hidden><button type="button" data-wallet-view="balances" aria-current="page">Balances</button><button type="button" data-wallet-view="deposit">Deposit</button><button type="button" data-wallet-view="withdraw">Withdraw</button></nav>
     <div id="walletPopupLoading" class="wallet-popup-loading" role="status" hidden><span class="wallet-loading-ring" aria-hidden="true"></span><span id="walletLoadingLabel">Loading wallet…</span></div>
     <div id="walletSummary" hidden><div class="wallet-pass"><svg class="pass-blocks" viewBox="0 0 108 92" aria-hidden="true" fill="none" stroke="currentColor"><path d="m10 51 21-12 21 12v24L31 87 10 75Zm0 0 21 12 21-12M31 63v24m21-36 21-12 21 12v24L73 87 52 75m0-24 21 12 21-12M73 63v24M31 15 52 3l21 12v24L52 51 31 39Zm0 0 21 12 21-12M52 27v24"/></svg>
-      <div class="pass-topline"><span class="pass-label">Playing balance</span><span class="pass-tag">Your balance</span></div><div class="pass-amount"><strong id="walletSummaryBalance"></strong><span id="walletSummarySymbol"></span></div><p class="pass-context">Your selected currency for new bets</p></div>
-      <div class="wallet-money-actions"><button type="button" id="makeDeposit" data-wallet-view="deposit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg><span>Deposit</span><span class="money-action-arrow" aria-hidden="true">↗</span></button><button type="button" id="makeWithdrawal" data-wallet-view="withdraw"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M4 16v4h16v-4"/></svg><span>Withdraw</span></button></div><p class="wallet-overview-hint">Choose a balance below to view deposit details.</p></div><div id="walletPopupPane" hidden></div>
-    <label class="wallet-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m12 12 5 5"/></svg><input type="search" id="walletSearch" aria-label="Search playing currencies" placeholder="Search currencies" autocomplete="off" spellcheck="false" aria-controls="playingCurrencyList"></label>
+      <div class="pass-topline"><span class="pass-label">Playing balance</span><span class="pass-tag">Your balance</span></div><div class="pass-amount"><strong id="walletSummaryBalance"></strong><span id="walletSummarySymbol"></span></div><p class="pass-context">All games use coins · 6,000 coins = 10 USDT</p></div>
+      <div class="wallet-money-actions"><button type="button" id="makeDeposit" data-wallet-view="deposit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg><span>Deposit</span><span class="money-action-arrow" aria-hidden="true">↗</span></button><button type="button" id="makeWithdrawal" data-wallet-view="withdraw"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M4 16v4h16v-4"/></svg><span>Withdraw</span></button></div><p class="wallet-overview-hint"><button type="button" class="wallet-link" data-open-conversion>Convert crypto ↔ coins</button> to play or withdraw.</p></div><div id="walletPopupPane" hidden></div>
+    <label class="wallet-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m12 12 5 5"/></svg><input type="search" id="walletSearch" aria-label="Search balances" placeholder="Search balances" autocomplete="off" spellcheck="false" aria-controls="playingCurrencyList"></label>
     <div class="sheet-columns" aria-hidden="true"><span>Currency</span><span>Available balance</span></div><div class="sheet-list" id="playingCurrencyList"></div>
     <div class="sheet-feedback"><span role="status"></span><button type="button" data-retry-currencies hidden>Try again</button></div>
-    <button type="button" class="menu-profile" data-profile>View profile &amp; balances <span aria-hidden="true">&rarr;</span></button></dialog>
+    <div class="menu-profile coin-equivalent" data-coin-equivalent role="status" aria-live="polite" aria-atomic="true"><span>USD equivalent</span><strong id="coinEquivalentValue">—</strong><small>6,000 coins = $10.00 USD</small></div></dialog>
   <dialog id="noticePopup" aria-labelledby="popupHeading"><header><div><div class="popup-title"><h2 id="popupHeading">Notifications</h2><span id="popupUnread" hidden></span></div><p>Recent account activity</p></div><button type="button" id="closeNotices" aria-label="Close notifications" autofocus>×</button></header>
   <div class="notice-preferences"><span>Account alerts &amp; game audio</span><button id="noticeSound" class="sound-toggle" type="button"></button></div><div class="popup-feed"></div><p class="popup-status" role="status"></p><footer><button id="readPopup" class="wallet-link" disabled>Mark all as read</button><a href="/account/notifications" id="openInbox">View inbox <span aria-hidden="true">&rarr;</span></a></footer></dialog>
   <aside id="accountAlert" class="account-alert" hidden aria-live="polite"></aside>`);
@@ -86,22 +90,44 @@ function routeSection(){
   return match && (Object.hasOwn(accountSections,match[1])||['deposit','withdraw'].includes(match[1])?match[1]:'profile');
 }
 
+// Read-only USD display at the site's 1 USDT = $1 display rate.
+function usdEquivalent(a=current()){
+  if(!a||!walletFresh||a.id!=='COINS')return '—';
+  const raw=BigInt(balances.get(a.id)?.amount||'0'),negative=raw<0n;
+  const numerator=(negative?-raw:raw)*coinRate.usdt;
+  const denominator=10n**BigInt(a.decimals)*coinRate.coins;
+  const cents=(numerator*100n+denominator/2n)/denominator;
+  return (negative?'−':'')+(numerator>0n&&cents===0n?'<$0.01':'$'+(cents/100n).toLocaleString('en-US')+'.'+(cents%100n).toString().padStart(2,'0'));
+}
+function renderBalanceDisplay(){
+  const a=current(),equivalent=balancePreview&&a?.id==='COINS';
+  const usd=usdEquivalent(a),amount=a&&walletFresh?(equivalent?usd:amountOf(a)):null;
+  $('#ebwIco').innerHTML=a?logo(equivalent?'USD':a.symbol):'';
+  $('#ebwSym').textContent=equivalent?'USD':a?.symbol||'';
+  $('#ebwBal').textContent=amount??'—';
+  trigger.toggleAttribute('data-usd-preview',equivalent);
+  trigger.title=amount===null?'Balance unavailable':equivalent?`${amount} USD equivalent · Release to show coins`:`${amount} ${a.symbol} available · Hold to preview USD · Open balance details`;
+  trigger.setAttribute('aria-label',(equivalent?'USD equivalent, ':'Coin balance, ')+(amount??'unavailable')+(equivalent?'. Release to show coins':` ${a?.symbol||''}. Open balance details`));
+  const detail=$('#coinEquivalentValue');if(detail&&detail.textContent!==usd)detail.textContent=usd;
+}
+function startBalancePreview(){
+  if(!walletFresh||current()?.id!=='COINS'||balancePreview)return;
+  balancePreview=true;renderBalanceDisplay();
+}
+function resetBalancePreview(){
+  if(!balancePreview)return;balancePreview=false;renderBalanceDisplay();
+}
+
 function renderHeader() {
   header.hidden = !user;
   $('#noticeBell').hidden=!user;
   $('#ebwPill').hidden = !user;
   describePlus();
-  const a = current();
-  $('#ebwIco').innerHTML = a ? logo(a.symbol) : '';
-  $('#ebwSym').textContent = a?.symbol || '';
-  const amount=a && walletFresh?amountOf(a):null;
-  $('#ebwBal').textContent=amount ?? '—';
-  trigger.title=amount!==null?`${amount} ${a.symbol} available`:'Balance unavailable';
-  trigger.setAttribute('aria-label', a ? `Choose currency, ${a.symbol} ${a.id==='USDT'?'balance':'on '+network(a.chain_id)}, ${trigger.title}` : 'Choose currency');
+  renderBalanceDisplay();
   if (menu.open) renderMenu();
-  const available=$('#withdrawAvailable'),asset=assets.find(a=>a.id===withdrawCurrency);
+  const available=$('#withdrawAvailable'),asset=walletAssets.find(a=>a.id===withdrawCurrency);
   if(available && asset)available.textContent=(walletFresh?amountOf(asset):'—')+' '+asset.symbol;
-  const popupAvailable=$('#popupWithdrawAvailable'),popupAsset=assets.find(a=>a.id===popupWithdraw)||a;
+  const popupAvailable=$('#popupWithdrawAvailable'),popupAsset=walletAssets.find(a=>a.id===popupWithdraw)||walletAssets[0];
   if(popupAvailable && popupAsset)popupAvailable.textContent=(walletFresh?amountOf(popupAsset):'—')+' '+popupAsset.symbol;
   window.dispatchEvent(new Event('eb-currency'));
 }
@@ -110,6 +136,7 @@ function applyAccount(data) {
   sessionState = 'ready';
   if (user?.id !== data?.user?.id) {
     accountVersion++;
+    balancePreview=false;
     currencySaving = null;
     closeMenu();
     stopNotifications();
@@ -120,8 +147,7 @@ function applyAccount(data) {
   balances = new Map((data?.balances || []).map(b => [b.asset_id, b]));
   walletFresh = Boolean(user);
   renderHeader();
-  if(changed)$('#vipLobby')?.replaceChildren();
-  if(changed && $('#rewards')?.classList.contains('on'))void window.ebLobbyRewards?.();
+  if(changed && $('#rewards')?.classList.contains('on'))void window.ebDailyRewards?.();
   if(changed && user){startNotifications();if(routeSection())open(routeSection(),false);}
   if(!user && routeSection())showSignedOut();
   if(changed && !user)window.dispatchEvent(new Event('eb-session-ended'));
@@ -167,7 +193,7 @@ function closeMenu(focus=false){
   const opener=sheetTrigger();
   ++sheetVersion;
   if(menu.open)menu.close();menu.hidden=true;
-  trigger.setAttribute('aria-expanded','false');describePlus();
+  resetBalancePreview();trigger.setAttribute('aria-expanded','false');describePlus();
   sheetList.replaceChildren();$('#walletSearch').value='';sheetStatus.textContent='';sheetError='';
   walletTab='balances';moneyPane.replaceChildren();moneyPane.hidden=true;
   menu.removeAttribute('data-loading');menu.removeAttribute('aria-busy');$('#walletPopupLoading').hidden=true;
@@ -204,7 +230,7 @@ function renderMenu(){
   let found=0;
   // Update live balances in place so a refresh cannot discard a focused row or its scroll position.
   const rows=new Map(Array.from(sheetList.children,b=>[b.dataset.asset,b]));
-  const visibleAssets=sheetMode==='wallet'?[...assets,...Array.from(balances.values()).filter(b=>!assets.some(a=>a.id===b.asset_id)&&BigInt(b.amount)>0n).map(b=>({id:b.asset_id,symbol:b.symbol,decimals:b.decimals,chain_id:b.chain_id}))]:assets;
+  const visibleAssets=sheetMode==='wallet'?[...assets,...walletAssets,...Array.from(balances.values()).filter(b=>![...assets,...walletAssets].some(a=>a.id===b.asset_id)&&BigInt(b.amount)>0n).map(b=>({id:b.asset_id,symbol:b.symbol,decimals:b.decimals,chain_id:b.chain_id}))]:assets;
   visibleAssets.forEach((a,i)=>{
     let b=rows.get(a.id);
     if(!b){
@@ -213,7 +239,7 @@ function renderMenu(){
     }
     if(sheetList.children[i]!==b)sheetList.insertBefore(b,sheetList.children[i]||null);
     rows.delete(a.id);
-    b.querySelector('small').textContent=a.id==='USDT'?'Tether':network(a.chain_id);
+    b.querySelector('small').textContent=a.id==='COINS'?'Playing balance':a.id==='USDT'?'Tether':network(a.chain_id);
     b.querySelector('b').textContent=walletFresh?amountOf(a):'—';
     b.querySelector('.sheet-mark').textContent=sheetMode==='wallet'?'›':a.id===chosen?.id?'✓':'';
     if(sheetMode==='wallet')b.removeAttribute('aria-pressed');else b.setAttribute('aria-pressed',String(a.id===chosen?.id));
@@ -240,12 +266,11 @@ function openSheet(mode,next,asset){
   if(menu.open && sheetMode===mode && !next){closeMenu(true);return;}
   closeNoticePopup();closeMenu();sheetMode=mode;const opener=sheetTrigger(),wallet=mode==='wallet';
   menu.dataset.mode=mode;
-  menu.querySelector('.wallet-view-tabs').hidden=!wallet;
-  $('#currencySheetTitle').textContent=wallet?'Wallet':'Playing currency';
-  $('#currencySheetHint').textContent=wallet?'':'Choose the balance to use for new bets.';
+  $('#currencySheetTitle').textContent=wallet?'Wallet':'Coin balance';
+  $('#currencySheetHint').textContent=wallet?'':'All games use coins. Hold the arrow to preview USD.';
   menu.querySelector('[data-close-sheet]').setAttribute('aria-label',wallet?'Close wallet':'Close currency selector');
   $('#walletSummary').hidden=!wallet;
-  for(const el of menu.querySelectorAll('.wallet-search,[data-profile]'))el.hidden=wallet;
+  for(const el of menu.querySelectorAll('.wallet-search,[data-coin-equivalent]'))el.hidden=wallet;
   menu.querySelector('[data-wallet-back]').hidden=true;menu.dataset.view='balances';sheetList.hidden=false;menu.querySelector('.sheet-columns').hidden=false;
   menu.hidden=false;
   if(wallet)startWalletLoading('Loading wallet…');else renderMenu();
@@ -268,9 +293,6 @@ function startWalletLoading(label){
 async function walletView(next,asset=current()){
   if(!menu.open||sheetMode!=='wallet'||!user)return;
   const seq=++sheetVersion;walletTab=next;menu.dataset.view=next;moneyPane.replaceChildren();
-  for(const tab of menu.querySelectorAll('.wallet-view-tabs button')){
-    if(tab.dataset.walletView===next)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');
-  }
   const home=next==='balances';moneyPane.hidden=home;$('#walletSummary').hidden=!home;sheetList.hidden=!home;
   menu.querySelector('.sheet-columns').hidden=!home;sheetStatus.parentElement.hidden=true;menu.querySelector('[data-wallet-back]').hidden=home;
   $('#currencySheetTitle').textContent=home?'Wallet':next==='deposit'?'Deposit':'Withdraw';
@@ -281,7 +303,7 @@ async function walletView(next,asset=current()){
     await Promise.all([catalog(),new Promise(resolve=>setTimeout(resolve,matchMedia('(prefers-reduced-motion:reduce)').matches?0:260))]);
     if(seq!==sheetVersion||!menu.open)return;
     if(next==='deposit'){
-      const symbol=asset?.symbol||'USDT';moneyPane.dataset.currency=symbol;moneyPane.dataset.network=Object.keys(directNetworks[symbol]||{})[0]||'';
+      const symbol=asset?.id==='COINS'?'USDT':asset?.symbol||'USDT';moneyPane.dataset.currency=symbol;moneyPane.dataset.network=Object.keys(directNetworks[symbol]||{})[0]||'';
       renderDeposit(moneyPane);
     }else if(next==='withdraw'){popupWithdraw=asset?.id;await showWithdraw(seq,moneyPane);}
   }catch(err){
@@ -298,6 +320,14 @@ async function popupWithdrawal(){
   return walletView('withdraw',meta(popupWithdraw)||current());
 }
 trigger.onclick=()=>openSheet('play');
+trigger.onpointerdown=e=>{if(e.button===0)startBalancePreview();};
+trigger.onpointerleave=trigger.onblur=resetBalancePreview;
+trigger.onkeydown=e=>{if(!e.repeat&&(e.key===' '||e.key==='Enter'))startBalancePreview();};
+trigger.onkeyup=e=>{if(e.key===' '||e.key==='Enter')resetBalancePreview();};
+window.addEventListener('pointerup',resetBalancePreview,true);
+window.addEventListener('pointercancel',resetBalancePreview,true);
+window.addEventListener('blur',resetBalancePreview);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)resetBalancePreview();});
 $('#walletSearch').oninput=()=>{sheetList.scrollTop=0;renderMenu();};
 phoneWallet.addEventListener('change',()=>{if(menu.open && sheetMode==='play')closeMenu(true);else positionMenu();});
 menu.addEventListener('cancel',e=>{e.preventDefault();closeMenu(true);});
@@ -326,9 +356,8 @@ menu.onclick = async e => {
     catch(err){b.disabled=false;b.textContent=err.message;}return;
   }
   if(b.hasAttribute('data-retry-currencies'))return sheetMode==='wallet'?walletView('balances'):loadSheetCatalog();
-  if(b.hasAttribute('data-profile')){closeMenu();return open('profile');}
   if(!b.dataset.asset || b.disabled)return;
-  if(sheetMode==='wallet')return walletView('deposit',meta(b.dataset.asset));
+  if(sheetMode==='wallet'){if(b.dataset.asset==='COINS'){closeMenu();return open('conversion');}return walletView('deposit',meta(b.dataset.asset));}
   if(currencySaving)return;
   if(b.dataset.asset===user.display_ccy)return closeMenu(true);
   const version=accountVersion,sheet=sheetVersion;
@@ -378,15 +407,16 @@ function notice(message, retry) {
   return `<div class="wallet-notice" role="status"><span>${esc(message)}</span>${retry ? `<button type="button" class="wallet-link" data-retry="${retry}">Try again</button>` : ''}</div>`;
 }
 export const accountSections = {
-  profile: 'Profile',
+  profile: 'Profile', conversion:'Conversion',
   stats: 'Statistics', transactions: 'Transactions', bets: 'Bet history', rewards:'Rewards', notifications:'Notifications', security:'Security'
 };
 const sectionDescriptions={
-  profile:'Your balances, deposit receipts and account details.',
-  stats:'Review settled results by currency and time period.',
+  profile:'Your coin balance, crypto wallet and account details.',
+  conversion:'Convert crypto to coins, or coins back to crypto, at the same base rate.',
+  stats:'Review your settled results in coins by time period.',
   transactions:'Deposits, wagers, payouts and balance adjustments.',
   bets:'Your bets, outcomes and individual round details.',
-  rewards:'Wager progress and earned level bonuses.',
+  rewards:'Your winter collection, daily packs and coin wager progress.',
   notifications:'Account updates and receipts in one place.',
   security:'Manage your authenticator, password and active sessions.'
 };
@@ -398,6 +428,7 @@ const paths = {
   clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5v5l3 2',
   pause: 'M9 5v14M15 5v14',
   stats: 'M4 20h16M6 16v-4m6 4V5m6 11V9',
+  conversion: 'M3 8h16m-4-4 4 4-4 4M21 16H5m4-4-4 4 4 4',
   transactions: 'M3 8h16m-4-4 4 4-4 4M21 16H5m4-4-4 4 4 4',
   bets: 'M5 3h14v18l-3-2-4 2-4-2-3 2ZM8 8h8m-8 5h5',
   security:'M12 3 4 6v5c0 5 4 8 8 10 4-2 8-5 8-10V6ZM9 12l2 2 4-5',
@@ -420,8 +451,9 @@ function transactionRef(b){
 }
 function flowName(kind){
   const [type,game]=kind.split(':');
+  if(type==='conversion')return game==='crypto_to_coins'?'Converted to coins':'Converted to crypto';
   if(gameNames[game])return (gameNames[game]+' · '+({bet:'Stake',payout:'Payout',refund:'Refund'}[type]||type));
-  return {level_bonus:'Level bonus',admin_credit:'Balance credit',admin_debit:'Balance deduction',deposit:'Deposit',withdrawal_hold:'Withdrawal reserved',withdrawal_refund:'Withdrawal returned',withdrawal_sent:'Withdrawal sent'}[kind]||kind.replaceAll('_',' ');
+  return {leaderboard_prize:'Weekly leaderboard prize',level_bonus:'Level bonus',admin_credit:'Balance credit',admin_debit:'Balance deduction',deposit:'Deposit',withdrawal_hold:'Withdrawal reserved',withdrawal_refund:'Withdrawal returned',withdrawal_sent:'Withdrawal sent'}[kind]||kind.replaceAll('_',' ');
 }
 function amountText(amount,dec,symbol){return amount==null||symbol==null?'Account security':human(amount,dec)+' '+symbol;}
 function tabs(){
@@ -447,8 +479,8 @@ function revealActiveTab(){
   if(phoneWallet.matches)scroller.scrollLeft+=Math.min(0,link.left-box.left)+Math.max(0,link.right-box.right);
   else scroller.scrollTop+=Math.min(0,link.top-box.top)+Math.max(0,link.bottom-box.bottom);
 }
-function currencyOptions(selected){
-  return assets.map(a=>`<option value="${esc(a.id)}" ${a.id===selected?'selected':''}>${esc(a.symbol)}</option>`).join('');
+function currencyOptions(selected,crypto=false){
+  return (crypto?walletAssets:assets).map(a=>`<option value="${esc(a.id)}" ${a.id===selected?'selected':''}>${esc(a.symbol)}</option>`).join('');
 }
 function explorerLink(chain,txid){
   if(!txid)return '';
@@ -482,16 +514,16 @@ function statChart(days,dec,symbol){
     <details><summary>Daily results</summary><table class="chart-table"><thead><tr><th>Date (UTC)</th><th>Bets</th><th>Wagered</th><th>Net result</th></tr></thead><tbody>${days.map(d=>`<tr><td>${esc(d.day)}</td><td>${d.bets}</td><td>${esc(displayAmount(d.stake,{symbol,decimals:dec}))}</td><td>${esc(displayAmount(BigInt(d.payout)-BigInt(d.stake),{symbol,decimals:dec}))}</td></tr>`).join('')}</tbody></table></details></section>`;
 }
 async function showStats(seq){
-  const d=await api('/me/stats?asset='+encodeURIComponent(statsAsset||'USDT')+'&days='+statsDays);
+  const d=await api('/me/stats?asset='+encodeURIComponent(statsAsset||'COINS')+'&days='+statsDays);
   if(seq!==activitySeq)return;
   const t={stake:0n,payout:0n,bets:0,wins:0,usdt:0n,unpriced:0};
   for(const day of d.days){
     t.stake+=BigInt(day.stake);t.payout+=BigInt(day.payout);t.bets+=day.bets;t.wins+=day.wins;
-    const [whole,fraction='']=day.wagered_usdt.split('.');t.usdt+=BigInt(whole+fraction.padEnd(18,'0'));t.unpriced+=day.unpriced_usdt;
+    t.unpriced+=day.unpriced_usdt||0;
   }
   const money=n=>gameAmount(n,d),net=t.payout-t.stake;
   $('#activityResults').innerHTML=`<dl class="stats-grid">${[['Net result',money(net),net>0n?'positive':net<0n?'negative':''],['Wagered',money(t.stake)],['Bets settled',t.bets],['Winning bets',t.wins]].map(([l,v,tone])=>`<div><dt>${l}</dt><dd class="${tone||''}">${esc(v)}</dd></div>`).join('')}</dl>`+
-    (t.bets?`<p class="wallet-muted" id="wagerValuation">At bet placement: <strong>${human(t.usdt,18)} USDT</strong> wagered.${t.unpriced?` ${t.unpriced} historical ${t.unpriced===1?'bet has':'bets have'} an incomplete USDT valuation.`:''}</p>`+statChart(d.days,d.decimals,d.symbol):'<p class="wallet-empty">No settled bets in this period.</p>');
+    (t.bets?`<p class="wallet-muted" id="wagerValuation">Results in coins. Historical crypto bets use their recorded value at placement.</p>`+statChart(d.days,d.decimals,d.symbol):'<p class="wallet-empty">No settled bets in this period.</p>');
   if(!t.bets)return;
   const switchChart=e=>{
     const button=e.target.closest('[data-metric]');
@@ -527,7 +559,7 @@ async function showBet(seq){
   $('#walletContent').innerHTML=`<button class="wallet-link" data-back-bets>← Bet history</button><div class="wallet-heading bet-heading"><h2>${esc(gameNames[b.game])}</h2><b class="wallet-status" data-state="${esc(b.status)}">${esc(states[b.status]||b.status)}</b></div>
     <dl class="bet-facts">${facts.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
 }
-const transactionTypes={all:'All transactions',deposits:'Deposits',withdrawals:'Withdrawals',bets:'Bets',rewards:'Rewards',adjustments:'Balance adjustments'};
+const transactionTypes={all:'All transactions',deposits:'Deposits',withdrawals:'Withdrawals',conversions:'Conversions',bets:'Bets',rewards:'Rewards',adjustments:'Balance adjustments'};
 function transactionFilter(){
   return `<div class="transaction-toolbar"><label for="transactionType">Transaction type</label><select id="transactionType">${Object.entries(transactionTypes).map(([key,label])=>`<option value="${key}" ${key===transactionType?'selected':''}>${label}</option>`).join('')}</select></div>`;
 }
@@ -604,9 +636,10 @@ async function refreshWithdrawalHistory(){
 async function showWithdraw(seq,host=$('#walletContent')){
   const pop=host===moneyPane, live=()=>pop?menu.open&&walletTab==='withdraw'&&seq===sheetVersion:seq===activitySeq&&host.isConnected;
   const elId=id=>pop?'popup'+id[0].toUpperCase()+id.slice(1):id,get=id=>host.querySelector('#'+elId(id));
-  const a=assets.find(a=>a.id===(pop?popupWithdraw:withdrawCurrency))||current(),options=routes.filter(r=>r.enabled&&r.symbol===a?.symbol),d=await api('/me/withdrawals');
+  const a=walletAssets.find(a=>a.id===(pop?popupWithdraw:withdrawCurrency))||walletAssets[0],options=routes.filter(r=>r.enabled&&r.symbol===a?.symbol),d=await api('/me/withdrawals');
   if(!live())return;
-  const chooseCurrency=`<label>Currency<select id="${elId('withdrawCurrency')}">${currencyOptions(a?.id)}</select></label>`;
+  if(pop)popupWithdraw=a?.id;else withdrawCurrency=a?.id;
+  const chooseCurrency=`<label>Currency<select id="${elId('withdrawCurrency')}">${currencyOptions(a?.id,true)}</select></label>`;
   const form=a&&options.length?`<div class="withdraw-balance">${logo(a.symbol)}<span>Available to withdraw</span><b id="${elId('withdrawAvailable')}">${esc(walletFresh?amountOf(a):'—')} ${esc(a.symbol)}</b></div>
     <form id="${elId('withdrawForm')}" class="withdraw-form"><div class="withdraw-fields"><div class="wallet-fields">${chooseCurrency}<label>Network<select name="route">${options.map(r=>`<option value="${esc(r.id)}">${esc(network(r.chain_id))}</option>`).join('')}</select></label></div>
     <label>Destination address<input name="destination" required maxlength="100" autocomplete="off" spellcheck="false"></label>
@@ -614,7 +647,7 @@ async function showWithdraw(seq,host=$('#walletContent')){
     <p class="wallet-muted">Confirming reserves the amount for manual review. You can cancel until review begins.</p>
     </div><section id="${elId('withdrawReview')}" hidden aria-labelledby="${elId('reviewTitle')}"><h3 id="${elId('reviewTitle')}" tabindex="-1">Review withdrawal</h3><div id="${elId('reviewDetails')}"></div></section>
     <div class="withdraw-actions"><button class="secondary-action" type="button" id="${elId('withdrawEdit')}" hidden>Edit details</button><button class="wallet-primary" type="submit">Review withdrawal</button></div><p id="${elId('withdrawStatus')}" role="status"></p></form>`:`<div class="withdraw-form">${chooseCurrency}</div>`+notice('No withdrawal network is available for this currency.');
-  host.innerHTML=form+`<details class="popup-withdrawal-history"><summary>Withdrawal history</summary><section id="${elId('withdrawalRecords')}" aria-label="Withdrawal receipts"></section></details>`;
+  host.innerHTML=`<p class="wallet-muted withdrawal-conversion-note">Convert coins back to crypto before withdrawing. <button type="button" class="wallet-link" data-open-conversion>Convert coins →</button></p>`+form+`<details class="popup-withdrawal-history"><summary>Withdrawal history</summary><section id="${elId('withdrawalRecords')}" aria-label="Withdrawal receipts"></section></details>`;
   renderWithdrawalHistory(d,get('withdrawalRecords'));
   get('withdrawCurrency').onchange=e=>{if(pop){popupWithdraw=e.target.value;void popupWithdrawal();}else{withdrawCurrency=e.target.value;void activity('#withdrawCurrency');}};
   const el=get('withdrawForm');if(!el)return;
@@ -654,59 +687,18 @@ async function showWithdraw(seq,host=$('#walletContent')){
     }catch(err){status.textContent=err.message;}finally{busy=false;submit.disabled=edit.disabled=false;}
   };
 }
-const rewardSymbol=l=>`<span class="level-symbol" aria-hidden="true">${esc(l.symbol)}</span>`;
-const usd=n=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,minimumFractionDigits:0}).format(Number(n));
-const levelName=l=>l?l.tier+' '+l.rank:'Unranked';
-function levelPanel(data,account=false){
-  const {levels}=data,total=Number(data.wagered_usd||0),currentLevel=levels.filter(l=>l.earned).at(-1);
-  const next=levels.find(l=>!l.earned),claimable=levels.filter(l=>l.earned&&!l.claimed_at);
-  const pct=next?Math.max(0,Math.min(100,100*(total-(currentLevel?.threshold_usd||0))/(next.threshold_usd-(currentLevel?.threshold_usd||0)))):100;
-  const tiers=[...new Set(levels.map(l=>l.tier))];
-  return `<section class="vip-summary"><div class="vip-heading"><span class="vip-medal" aria-hidden="true">${currentLevel?rewardSymbol(currentLevel):'◇'}</span>
-    <div><small>Current level</small><h2>${levelName(currentLevel)}</h2></div></div><div class="vip-progress"><b>${usd(total)} wagered</b><span>${next?'Next · '+rewardSymbol(next)+' '+levelName(next):'Highest level reached'}</span></div>
-    <progress max="100" value="${pct}" aria-label="Progress to next level"></progress>
-    <p>${next?usd(Math.max(0,next.threshold_usd-total))+' to the next level · '+next.bonus_usdt+' USDT bonus':'All 45 levels earned.'}</p></section>
-    ${data.unpriced?'<p class="wallet-muted">Historical wagers without a recorded exchange rate are excluded.</p>':''}
-    ${claimable.length?`<section class="claims-list"><h3>Available to claim</h3>${claimable.map(l=>`<div><span>${rewardSymbol(l)} ${levelName(l)}</span><button class="wallet-primary" data-claim="${l.level}">Claim ${l.bonus_usdt} USDT</button></div>`).join('')}</section>`:''}
-    <div role="status" class="claim-status"></div><div class="wallet-heading"><h3>Reward levels</h3></div>
-    <div class="vip-tiers">${tiers.map(tier=>{const group=levels.filter(l=>l.tier===tier);return `<details ${tier===(next||currentLevel)?.tier?'open':''}><summary><span>${rewardSymbol(group[0])} ${esc(tier)}</span><small>${group.filter(l=>l.earned).length} / ${group.length}${account?' earned':''}</small></summary>
-      ${group.map(l=>account?`<div class="vip-row"><strong>Rank ${esc(l.rank)}</strong><span>${usd(l.threshold_usd)} wagered</span><b>${esc(l.bonus_usdt)} USDT<small>${l.claimed_at?'Claimed':l.earned?'Ready to claim':l.level===next?.level?'Next level':''}</small></b></div>`:`<div class="vip-row"><strong>${rewardSymbol(l)} ${levelName(l)}</strong><span>${usd(l.threshold_usd)} wager</span><b>${l.claimed_at?'Claimed':l.bonus_usdt+' USDT'}</b></div>`).join('')}</details>`;}).join('')}</div>
-    <p class="wallet-muted">Settled paid bets count toward lifetime wager. Each level bonus can be claimed once.</p>`;
-}
+const coinCount=value=>String(value??'0').replace(/\B(?=(\d{3})+(?!\d))/g,',');
 async function showRewards(seq){
-  const d=await api('/me/levels');if(seq!==activitySeq)return;
-  $('#walletContent').innerHTML=d.levels.length?levelPanel(d,true):'<p class="wallet-empty">No reward levels are available.</p>';
+  const d=await api('/me/rewards');if(seq!==activitySeq)return;
+  const next=d.packs.find(p=>!p.earned),remaining=next?String(BigInt(next.wager_required)-BigInt(d.wagered)):'0';
+  $('#walletContent').innerHTML=`<section class="account-reward-progress"><span class="pack-level-emblem">${d.level}</span><div><span class="eyebrow">Your winter collection</span><h2>Level ${d.level} <small>/ 100</small></h2><progress max="100" value="${d.progress}" aria-label="Progress to next player level"></progress><p>${next?coinCount(remaining)+' coins in settled wagers to your next pack':'Every pack unlocked. Your collection is complete.'}</p></div><strong>${d.ready_count}<small>packs ready</small></strong></section><div class="wallet-heading account-collection-title"><div><h2>Daily coin rewards</h2><p>One free pack every 10 levels. Open each unlocked pack once every 24 hours.</p></div><button type="button" class="secondary-action" data-open-reward-collection>Explore collection →</button></div><div class="account-pack-grid">${d.packs.map(p=>`<article class="account-pack" data-ready="${p.ready}" data-earned="${p.earned}"><span class="eyebrow">Level ${p.level}</span><span class="account-pack-emblem">${accountIcon(p.earned?'rewards':'security')}</span><h3>${esc(p.name)}</h3><p>${p.ready?'Ready to open':p.earned?'Opens '+esc(timeOf(p.next_at)):coinCount(p.wager_required)+' coins wagered to unlock'}</p><button type="button" class="${p.ready?'wallet-primary':'secondary-action'}" data-open-reward-pack="${p.level}">${p.ready?'Open pack':'Preview pack'}</button></article>`).join('')}</div><p class="wallet-muted">Pack rewards go straight to your server-stored coin balance. Free rewards and cancelled battles do not increase wager progress.</p>`;
 }
-let lobbyRewardsSeq=0;
-window.ebLobbyRewards=async()=>{
-  const el=$('#vipLobby');if(!el)return;
-  const seq=++lobbyRewardsSeq,version=accountVersion;
-  if(!el.childElementCount)el.innerHTML=placeholder('Loading reward levels');
-  try{
-    const d=await api(user?'/me/levels':'/reward-levels');
-    if(seq!==lobbyRewardsSeq||version!==accountVersion)return;
-    el.innerHTML=levelPanel(d)+(user?'':'<button class="wallet-primary" data-login>Sign in to track your progress</button>');
-  }catch{if(seq===lobbyRewardsSeq)el.innerHTML='<button class="wallet-link" data-level-retry>Reload rewards</button>';}
-};
-document.addEventListener('click',async e=>{
-  if(e.target.closest('#vipLobby [data-login]'))return window.dispatchEvent(new Event('eb-login'));
-  if(e.target.closest('[data-level-retry]'))return window.ebLobbyRewards();
-  const button=e.target.closest('[data-claim]');if(!button)return;
-  const panel=button.closest('#walletContent,#vipLobby'),status=panel.querySelector('.claim-status'),version=accountVersion;
-  button.disabled=true;
-  try{
-    await api('/me/levels/'+button.dataset.claim+'/claim',{method:'POST'});
-    if(version!==accountVersion)return;
-    await refresh();
-    if(panel.id==='vipLobby')await window.ebLobbyRewards();else if(view==='rewards'&&!accountPage.hidden)await activity();
-    panel.querySelector('.claim-status')?.replaceChildren('Bonus credited to your USDT balance.');
-  }catch(err){status.textContent=err.message;button.disabled=false;}
-});
 
 const notificationNames={
   'deposit.pending':'Deposit detected','deposit.credited':'Deposit credited','deposit.orphaned':'Deposit removed from the chain',
   'withdrawal.requested':'Withdrawal requested','withdrawal.reviewing':'Withdrawal in review','withdrawal.approved':'Withdrawal approved',
-  'withdrawal.sent':'Withdrawal sent','withdrawal.cancelled':'Withdrawal funds returned','reward.claimed':'Level bonus credited',
+  'withdrawal.sent':'Withdrawal sent','withdrawal.cancelled':'Withdrawal funds returned','reward.claimed':'Historical level bonus credited','reward.pack_claimed':'Daily pack credited',
+  'conversion.completed':'Conversion completed','leaderboard.prize':'Weekly prize credited',
   'balance.credit':'Balance credited','balance.debit':'Balance deducted',
   'security.2fa_enabled':'Authenticator enabled','security.2fa_disabled':'Authenticator disabled',
   'security.password_changed':'Password changed','security.password_recovered':'Password recovered',
@@ -740,10 +732,16 @@ function announceNotice(n,count){
   try{const delivered=localStorage.getItem(key);if(delivered&&BigInt(delivered)>=BigInt(revision))return;localStorage.setItem(key,revision);}catch{}
   announcedNotices.add(id+':'+revision);
   if(announcedNotices.size>200)announcedNotices.delete(announcedNotices.values().next().value);
-  const alert=$('#accountAlert'),credited=n.kind==='deposit.credited'||n.kind==='balance.credit'||n.kind==='reward.claimed';
-  const pending=n.kind==='deposit.pending';alert.dataset.tone=credited?'success':pending?'pending':'info';
-  const detail=pending&&n.required_conf!=null?'Awaiting '+n.required_conf+' confirmations':credited?'Available in your wallet':'View your account for details';
-  alert.innerHTML=`<button type="button" class="notice-open" aria-label="${esc(notificationNames[n.kind]||'Account update')}. View notifications"><span class="alert-icon">${accountIcon(credited?'deposit':pending?'clock':'notifications')}</span><span class="alert-copy"><span class="alert-kicker">${credited?'Wallet update':'Account activity'}</span><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><small>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?' · '+esc(network(n.chain_id)):''}${count>1?' · '+count+' new updates':''}</small><span class="alert-detail">${esc(detail)}</span></span></button><button type="button" class="notice-dismiss" aria-label="Dismiss notification">×</button><span class="alert-timer" aria-hidden="true"></span>`;
+  const alert=$('#accountAlert'),credited=['deposit.credited','balance.credit','reward.claimed','conversion.completed','leaderboard.prize','reward.pack_claimed'].includes(n.kind);
+  const pending=n.kind==='deposit.pending',deducted=n.kind==='balance.debit';
+  const financial=n.amount!=null&&Number.isInteger(n.decimals)&&typeof n.symbol==='string';
+  const flow=deducted?'debit':credited?'credit':pending?'pending':'update';
+  const type=deducted?'Debit':credited?'Credit':pending?'Pending':n.kind.startsWith('security.')?'Security':'Update';
+  alert.dataset.tone=credited?'success':pending?'pending':'info';alert.dataset.flow=flow;alert.dataset.financial=String(financial);
+  const detail=pending&&n.required_conf!=null?'Awaiting '+n.required_conf+' confirmations':credited?'Available in your wallet':deducted?'Balance adjustment recorded':'View your account for details';
+  const metadata=[n.chain_id?network(n.chain_id):financial?'Account balance':null,n.created_at?timeOf(n.created_at):null,count>1?count+' new updates':null].filter(Boolean).join(' · ');
+  const value=financial?`${logo(n.symbol)}<span class="alert-value"><span class="alert-number">${credited&&BigInt(n.amount)>0n?'+':''}${esc(human(n.amount,n.decimals))}</span> <span class="alert-currency">${esc(n.symbol)}</span></span>`:esc(amountText(n.amount,n.decimals,n.symbol));
+  alert.innerHTML=`<button type="button" class="notice-open" aria-label="${esc(notificationNames[n.kind]||'Account update')}. View notifications"><span class="alert-icon">${accountIcon(deducted?'withdraw':credited?'deposit':pending?'clock':'notifications')}</span><span class="alert-copy"><span class="alert-topline"><span class="alert-kicker">${financial?'Wallet activity':'Account activity'}</span><span class="alert-type">${type}</span></span><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><span class="alert-amount">${value}</span><small class="alert-meta">${esc(metadata)}</small><span class="alert-bottomline"><span class="alert-detail">${esc(detail)}</span><span class="alert-action">View activity <span aria-hidden="true">→</span></span></span></span></button><button type="button" class="notice-dismiss" aria-label="Dismiss notification">×</button><span class="alert-timer" aria-hidden="true"></span>`;
   alert.hidden=false;alert.querySelector('.notice-open').onclick=()=>{alert.hidden=true;clearTimeout(noticeTimer);open(n.kind.startsWith('security.')?'security':'notifications');};
   alert.querySelector('.notice-dismiss').onclick=()=>{alert.hidden=true;clearTimeout(noticeTimer);};
   alert.onpointerenter=alert.onfocusin=pauseNoticeDismiss;alert.onpointerleave=alert.onfocusout=resumeNoticeDismiss;
@@ -766,7 +764,7 @@ async function startNotifications(){
         void refresh();
         if(!accountPage.hidden && view==='notifications')await updateInbox(fresh,signal);
         if(!accountPage.hidden && view==='transactions' && !pageIndex && !$('#walletContent details[open]'))void showList(activitySeq).catch(()=>{});
-        if(!accountPage.hidden && view==='rewards' && fresh.rows[0]?.kind==='reward.claimed')void showRewards(activitySeq).catch(()=>{});
+        if(!accountPage.hidden && view==='rewards' && fresh.rows[0]?.kind==='reward.pack_claimed')void showRewards(activitySeq).catch(()=>{});
         if(!accountPage.hidden && view==='withdraw')void refreshWithdrawalHistory();
       }else {revision=d.revision;if(popup.open && popupThrough!=='0'){
         $('#readPopup').disabled=popupReading || !unread;
@@ -780,7 +778,7 @@ async function startNotifications(){
   }
 }
 function notificationList(rows){
-  return rows.map(n=>`<article class="notice-entry" data-kind="${esc(n.kind)}" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><span class="notice-icon">${accountIcon(n.kind.startsWith('deposit')?'deposit':n.kind.startsWith('withdrawal')?'withdraw':n.kind.startsWith('security.')?'security':n.kind==='reward.claimed'?'rewards':'transactions')}</span>
+  return rows.map(n=>`<article class="notice-entry" data-kind="${esc(n.kind)}" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><span class="notice-icon">${accountIcon(n.kind.startsWith('deposit')?'deposit':n.kind.startsWith('withdrawal')?'withdraw':n.kind.startsWith('security.')?'security':n.kind.startsWith('reward.')?'rewards':'transactions')}</span>
     <div><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><p>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?' · '+esc(network(n.chain_id)):''}</p>
     ${n.kind==='deposit.pending' && n.required_conf!=null?`<small>Awaiting ${esc(n.required_conf)} confirmations</small>`:''}${n.txid?`<details><summary>Transaction ID</summary>${explorerLink(n.chain_id,n.txid)}</details>`:''}</div><time>${esc(timeOf(n.created_at))}</time></article>`).join('');
 }
@@ -971,6 +969,12 @@ async function renderSection(reloadCatalog=false){
   }
   if(mode==='profile'){renderProfile();void profileLevel();}
   else if(mode==='security'){renderSecurity();return;}
+  else if(mode==='conversion'){
+    if(!catalogLoaded){await catalog();if(!host.isConnected)return;}
+    const owner=accountVersion;
+    mountConversion(host,{api,esc,logo,assets:walletAssets,balance:id=>balances.get(id)?.amount||'0',fresh:()=>walletFresh,refresh,userId:user.id,
+      live:()=>host.isConnected&&accountVersion===owner,onWithdraw:id=>open('withdraw',true,id)});return;
+  }
   else {
     if(mode==='stats')statsAsset=current()?.id;
     if(mode==='withdraw')withdrawCurrency=current()?.id;
@@ -986,7 +990,7 @@ function renderDeposit(host=$('#walletContent')) {
     host.innerHTML=`<section id="${elem('directDeposit')}" class="direct-form" aria-label="Deposit details">${popup?'':`<header class="direct-heading"><span class="direct-emblem">${accountIcon('deposit')}</span><h2>Deposit</h2></header>`}
       <div class="wallet-fields"><label><span class="deposit-field-label"><span class="deposit-step" aria-hidden="true">1</span>Currency</span><span class="wallet-select"><span id="${elem('directCurrencyIcon')}"></span><select id="${elem('depositSymbol')}" data-searchable aria-label="Deposit currency"></select></span></label>
       <label><span class="deposit-field-label"><span class="deposit-step" aria-hidden="true">2</span>Network</span><span class="wallet-select"><select id="${elem('depositNetwork')}" aria-label="Deposit network"></select></span></label></div>
-      <p class="deposit-selection-note">${accountIcon('transactions')}Your playing currency stays unchanged.</p>
+      <p class="deposit-selection-note">${accountIcon('transactions')}Crypto deposits credit your crypto balance. Convert to coins to play.</p>
       <div id="${elem('addressResult')}" aria-live="polite"></div></section>`;
   }
   const select=(symbol,chain)=>{
@@ -1069,7 +1073,7 @@ function renderProfile() {
       <div><span class="profile-eyebrow">Player account</span><h2></h2><p></p></div></div>
       <div class="profile-reference"><div class="profile-member"><small>Member since</small><strong></strong></div><div class="profile-account-id"><small>Account ID</small><code></code></div></div><a href="/account/security" data-view="security" class="profile-security"></a></div>
       <section class="profile-funds" aria-label="Playing balance"><div><span class="balance-label">Available balance</span><div class="balance-value"></div><p class="profile-balance-context"></p></div>
-      <div class="account-quick"><button type="button" class="wallet-primary" data-open-wallet>${accountIcon('deposit')}Open wallet</button></div></section>
+      <div class="account-quick"><a class="secondary-action" href="/account/conversion" data-view="conversion">${accountIcon('conversion')}Convert coins</a><button type="button" class="wallet-primary" data-open-wallet>${accountIcon('deposit')}Open wallet</button></div></section>
       <section class="profile-ledger" aria-labelledby="balancesHeading"><div class="wallet-heading"><div><h3 id="balancesHeading">Wallet balances</h3><p class="profile-panel-description">Each currency is shown separately.</p></div><span class="profile-currency-count"></span></div>
       <div id="profileBalanceStatus"></div><div class="profile-balance-columns" aria-hidden="true"><span>Currency</span><span>Available</span></div><div class="wallet-balances" role="list" aria-labelledby="balancesHeading"></div></section>
       <aside id="profileLevel" aria-label="Reward progress"></aside></div>`;
@@ -1081,31 +1085,25 @@ function renderProfile() {
   host.querySelector('.profile-account-id code').textContent=user.id;
   const security=host.querySelector('.profile-security');security.dataset.protected=String(Boolean(user.totp_enabled));
   security.innerHTML=`${accountIcon('security')}<span><strong>${user.totp_enabled?'Authenticator enabled':'Protect your account'}</strong><small>${user.totp_enabled?'Review security & sessions':'Set up two-factor authentication'}</small></span><span aria-hidden="true">↗</span>`;
-  const all = new Map(assets.map(a => [a.id, a]));
+  const all = new Map([...assets,...walletAssets].map(a => [a.id, a]));
   for (const b of balances.values()) if (!all.has(b.asset_id)) all.set(b.asset_id, { ...b, id: b.asset_id });
   const selected=current(),display=selected && walletFresh?amountOf(selected):'—';
   host.querySelector('.balance-value').innerHTML=`${selected?logo(selected.symbol):''}<strong>${esc(display)}</strong> <span>${esc(selected?.symbol)}</span>`;
-  host.querySelector('.profile-balance-context').textContent=selected?'Playing currency · '+(selected.id==='USDT'?'Tether':network(selected.chain_id)):'Choose a playing currency in the header.';
+  host.querySelector('.profile-balance-context').textContent=selected?'All games use coins · 6,000 coins = 10 USDT':'Coin balance unavailable.';
   host.querySelector('.profile-currency-count').textContent=all.size+' '+(all.size===1?'currency':'currencies');
   const status=$('#profileBalanceStatus'),list=host.querySelector('.wallet-balances');
   if(walletFresh)status.replaceChildren();
   else if(!status.firstChild)status.innerHTML=notice('Balance update unavailable.', 'balance');
   if(!all.size && !catalogLoaded && catalogRequest){loading(list,'Loading wallet balances');return;}
   list.removeAttribute('aria-busy');
-  list.innerHTML=[...all.values()].map(a => `<div role="listitem"${a.id===selected?.id?' data-playing="true"':''}>${logo(a.symbol)}<span><strong>${esc(a.symbol)}</strong><small>${a.id==='USDT'?'Tether':esc(network(a.chain_id))}${a.id===selected?.id?' <span class="profile-playing-badge">Playing currency</span>':''}</small></span><b>${esc(walletFresh ? amountOf(a) : '—')}</b></div>`).join('') ||
+  list.innerHTML=[...all.values()].map(a => `<div role="listitem"${a.id===selected?.id?' data-playing="true"':''}>${logo(a.symbol)}<span><strong>${esc(a.symbol)}</strong><small>${a.id==='COINS'?'Site currency':a.id==='USDT'?'Tether':esc(network(a.chain_id))}${a.id===selected?.id?' <span class="profile-playing-badge">Playing balance</span>':''}</small></span><b>${esc(walletFresh ? amountOf(a) : '—')}</b></div>`).join('') ||
     (catalogLoaded?'<p class="wallet-muted">No currencies available.</p>':notice('Could not load currencies.', 'balance'));
 }
 async function profileLevel(){
   const el=$('#profileLevel');loading(el,'Loading level progress','level');
   try{
-    const d=await api('/me/levels');if(!el.isConnected)return;
-    if(!d.levels.length){el.innerHTML='<p class="wallet-empty">No reward levels are available.</p>';return;}
-    const currentLevel=d.levels.filter(l=>l.earned).at(-1),next=d.levels.find(l=>!l.earned);
-    const threshold=currentLevel?.threshold_usd||0,remaining=next?next.threshold_usd-threshold:1;
-    const percent=next?Math.min(100,Math.max(0,100*(Number(d.wagered_usd)-threshold)/remaining)):100;
-    const claims=d.levels.filter(l=>l.earned&&!l.claimed_at).length;
-    el.innerHTML=`<a href="/account/rewards" data-view="rewards" class="profile-level"><span class="profile-eyebrow">Reward progress</span><div><span class="profile-level-name">${currentLevel?rewardSymbol(currentLevel):accountIcon('rewards')} ${currentLevel?levelName(currentLevel):'Level rewards'}</span><strong>${claims?claims+' to claim':'View rewards'} <span aria-hidden="true">›</span></strong></div>
-      <progress max="100" value="${percent}" aria-label="Level progress"></progress><small>${next?usd(Math.max(0,next.threshold_usd-Number(d.wagered_usd)))+' in wagers to '+esc(levelName(next)):'Highest level reached'}</small></a>`;
+    const d=await api('/me/rewards');if(!el.isConnected)return;
+    el.innerHTML=`<a href="/account/rewards" data-view="rewards" class="profile-level"><span class="profile-eyebrow">Daily coin rewards</span><div><span class="profile-level-name">${accountIcon('rewards')} Level ${d.level} / 100</span><strong>${d.ready_count?d.ready_count+' packs ready':'View collection'} <span aria-hidden="true">›</span></strong></div><progress max="100" value="${d.progress}" aria-label="Level progress"></progress><small>${d.next_level?coinCount(d.to_next)+' coins to level '+d.next_level:'Highest player level reached'}</small></a>`;
   }catch(err){
     if(!el.isConnected)return;
     if(err.status===401)return applyAccount(null);
@@ -1275,6 +1273,12 @@ function describePlus(){
   plus.setAttribute('aria-expanded',String(menu.open && sheetMode==='wallet'));plus.setAttribute('aria-controls','ebwMenu');
 }
 describePlus();phoneWallet.addEventListener('change',describePlus);
+document.addEventListener('click',e=>{
+  if(e.target.closest('[data-open-conversion]')){e.preventDefault();closeMenu();open('conversion');}
+  const pack=e.target.closest('[data-open-reward-pack]');
+  if(pack)window.ebOpenDailyRewards?.(Number(pack.dataset.openRewardPack));
+  else if(e.target.closest('[data-open-reward-collection]'))window.ebOpenDailyRewards?.();
+});
 window.ebOpenWallet = open;
 window.ebOpenDeposit = () => open('deposit');
 window.addEventListener('focus', () => { if (user) void refresh(); });

@@ -9,7 +9,7 @@ import { startMines, revealMines, cashoutMines, activeMines, minesPayout } from 
 import { installMarketFixture } from './market-fixture.js';
 
 installMarketFixture();
-const ASSET = 'USDT';
+const ASSET = 'COINS';
 let uid: string;
 const SEED = 'a'.repeat(64), CLIENT = 'client-seed', SIZE = 25, MINES = 3;
 

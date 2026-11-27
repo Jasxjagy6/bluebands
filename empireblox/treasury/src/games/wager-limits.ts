@@ -31,11 +31,11 @@ export function usdtValue(amount:bigint,q:Pair):Fraction {
   return {num:amount*10n**18n*usdt,den:base};
 }
 export function checkLimits(limits:Limits,stake:Fraction,prior:Fraction[]=[]):void {
-  if (stake.num<BigInt(limits.min_units)*stake.den) throw new Error(`Minimum bet is ${formatAmount(BigInt(limits.min_units),18)} USDT`);
+  if (stake.num<BigInt(limits.min_units)*stake.den) throw new Error(`Minimum bet is ${formatAmount(BigInt(limits.min_units)*600n,18)} coins`);
   if (limits.max_units!==null) {
     // At most the blackjack opener, insurance, split, and doubles per hand.
     let {num,den}=stake;
     for (const p of prior) { num=num*p.den+p.num*den; den*=p.den; }
-    if (num>BigInt(limits.max_units)*den) throw new Error(`Maximum bet is ${formatAmount(BigInt(limits.max_units),18)} USDT per player per round`);
+    if (num>BigInt(limits.max_units)*den) throw new Error(`Maximum bet is ${formatAmount(BigInt(limits.max_units)*600n,18)} coins per player per round`);
   }
 }

@@ -19,6 +19,8 @@ import { activityRoutes } from './routes-activity.js';
 import { lobbyRoutes } from './routes-lobby.js';
 import { custodyAdminRoutes } from './routes-custody.js';
 import { sweepAdminRoutes } from './routes-sweeps.js';
+import { conversionRoutes } from './routes-conversions.js';
+import { settleCoinSeasons } from '../games/leaderboard.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -87,9 +89,15 @@ export async function buildServer() {
   await app.register(playerManagement);
   await app.register(notificationRoutes);
   await app.register(userRoutes);
+  await app.register(conversionRoutes);
   await app.register(adminRoutes);
   await app.register(custodyAdminRoutes);
   await app.register(sweepAdminRoutes);
+
+  let seasonTimer:ReturnType<typeof setInterval>|undefined;
+  const settle=()=>settleCoinSeasons().catch(()=>app.log.error('Coin season settlement failed; it will retry'));
+  app.addHook('onReady',async()=>{await settle();seasonTimer=setInterval(()=>void settle(),60_000);seasonTimer.unref();});
+  app.addHook('onClose',async()=>{clearInterval(seasonTimer);});
 
   return app;
 }

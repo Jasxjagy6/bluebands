@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../db.js';
 import { formatAmount, parseAmount } from '../money.js';
+import { COINS,COIN_SCALE,COIN_BASE } from '../coins.js';
 
 type Db = Pick<PoolClient,'query'>;
 export type Quote = {id:string;asset_id:string;unit:string;quoted_at:Date;expires_at:Date;minor_per_usd:string;usdt_per_usd:string};
@@ -66,13 +67,20 @@ async function fetchRates(endpoint:string) {
 const pending=new Map<string,ReturnType<typeof fetchRates>>();
 
 export async function marketQuote(db:Db,asset:string):Promise<Quote> {
-  const a=(await db.query<{symbol:string;decimals:number}>('select symbol,decimals from playing_assets where id=$1',[asset])).rows[0];
+  const a=(await db.query<{symbol:string;decimals:number}>('select symbol,decimals from assets where id=$1 and (id=\'COINS\' or id in(select id from wallet_assets))',[asset])).rows[0];
   if (!a) throw new Error('Currency unavailable');
   // The stable cutoff can use the (asset_id, expires_at) archive index; the
   // live predicate still checks the wall clock, not transaction start time.
   const cached=(await db.query<Quote>(`select q.* from game_quotes q where q.asset_id=$1 and q.expires_at>statement_timestamp() and ${live}
     order by q.expires_at desc limit 1`,[asset])).rows[0];
   if (cached) return cached;
+  // Games use the site's fixed denomination, independently of market uptime.
+  // Only crypto/coin conversion needs a live external cross rate.
+  if(asset===COINS){
+    return (await db.query<Quote>(`insert into game_quotes(asset_id,unit,minor_per_usd,usdt_per_usd,quoted_at,expires_at)
+      select $1,$2,$3,1,t,t+interval '2 minutes' from (select clock_timestamp() as t) clock returning *`,
+      [COINS,COIN_SCALE.toString(),COIN_BASE.toString()])).rows[0]!;
+  }
   const endpoint=a.symbol==='TRX'?kraken:coinbase;
   let load=pending.get(endpoint);
   if (!load) {load=fetchRates(endpoint).finally(()=>pending.delete(endpoint));pending.set(endpoint,load);}

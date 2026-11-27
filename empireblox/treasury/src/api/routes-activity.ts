@@ -12,7 +12,7 @@ import { parseAmount } from '../money.js';
 import { supportedAssets, validSolOwner } from '../chains/receive.js';
 
 const page=z.object({page:z.coerce.number().int().min(0).max(100000).default(0),asset:z.string().max(32).optional(),game:z.enum(['mines','blackjack','cases','upgrader','battles','rewards']).optional()});
-const transactionKinds=z.enum(['all','deposits','withdrawals','bets','rewards','adjustments']);
+const transactionKinds=z.enum(['all','deposits','withdrawals','conversions','bets','rewards','adjustments']);
 const transactionPage=page.extend({type:transactionKinds.default('all')});
 const limit=20;
 const usdtFilter="(a.id=$2 or (a.symbol='USDT' and $2='USDT'))";
@@ -42,7 +42,8 @@ function historyRoutes(r:FastifyInstance,prefix:string,owner:(req:import('fastif
         and ($4='all' or $4=case
           when j.kind='deposit' then 'deposits'
           when j.kind in ('withdrawal_hold','withdrawal_refund','withdrawal_sent') then 'withdrawals'
-          when j.kind in ('level_bonus','payout:rewards') then 'rewards'
+          when j.kind like 'conversion:%' then 'conversions'
+          when j.kind in ('level_bonus','payout:rewards','leaderboard_prize') then 'rewards'
           when split_part(j.kind,':',1) in ('bet','payout','refund') then 'bets'
           when j.kind in ('admin_credit','admin_debit') then 'adjustments' end)
         order by e.id desc limit 21 offset $3`,[owner(req),p.asset??null,p.page*limit,p.type]);
@@ -62,9 +63,21 @@ function historyRoutes(r:FastifyInstance,prefix:string,owner:(req:import('fastif
       return row??reply.code(404).send({error:'Bet unavailable'});
     });
     r.get(prefix+'/stats',async(req,reply)=>{
-      const p=z.object({asset:z.string().max(32).default('USDT'),days:z.coerce.number().refine(n=>[7,30,90].includes(n)).default(7)}).parse(req.query);
+      const p=z.object({asset:z.string().max(32).default('COINS'),days:z.coerce.number().refine(n=>[7,30,90].includes(n)).default(7)}).parse(req.query);
       const asset=(await query('select symbol,decimals from assets where id=$1',[p.asset])).rows[0];
       if(!asset)return reply.code(400).send({error:'Unknown currency'});
+      if(p.asset==='COINS'){
+        const days=(await query(`with days as (select ((now() at time zone 'UTC')::date-i)::date as day from generate_series(0,$2::int-1) i),
+          rounds as (select (w.created_at at time zone 'UTC')::date as day,w.stake_coins as stake,w.payout_coins as payout
+            from coin_wagers w where w.user_id=$1 and w.stake_coins is not null
+            and w.created_at>=(((now() at time zone 'UTC')::date-($2::int-1))::timestamp at time zone 'UTC'))
+          select to_char(d.day,'YYYY-MM-DD') as day,count(r.stake)::int as bets,
+            count(*) filter(where r.payout>r.stake)::int as wins,
+            coalesce(sum(stake),0)::numeric(100,0)::text as stake,coalesce(sum(payout),0)::numeric(100,0)::text as payout,
+            coalesce(sum(stake),0)::numeric(100,0)::text as wagered_coins
+          from days d left join rounds r on r.day=d.day group by d.day order by d.day`,[owner(req),p.days])).rows;
+        return {asset_id:'COINS',...asset,days};
+      }
       const rows=await query(`with days as (select ((now() at time zone 'UTC')::date - i)::date as day from generate_series(0,$3::int-1) i),
         rounds as (select (b.created_at at time zone 'UTC')::date as day,b.stake*power(10::numeric,$4-a.decimals) as stake,
           b.payout*power(10::numeric,$4-a.decimals) as payout,b.usdt,b.unpriced_usdt from vip_wagers b join assets a on a.id=b.asset_id

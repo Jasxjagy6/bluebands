@@ -2,6 +2,7 @@ import { after,before,test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID,randomBytes } from 'node:crypto';
 import { pool,query,tx } from '../db.js';
+import { debitStake } from '../bet.js';
 import { post,balanceOf } from '../ledger.js';
 import { currentQuote,quoteUnit,instantRound } from '../games/catalog.js';
 import { createBattle,battleAction,listBattles } from '../games/battles.js';
@@ -12,7 +13,7 @@ import { startMines, revealMines } from '../games/mines.js';
 import { installMarketFixture,expireMarket } from './market-fixture.js';
 
 installMarketFixture();
-const u=randomUUID(),v=randomUUID(),asset='USDT',unit=quoteUnit('1',18),app=await buildServer();
+const u=randomUUID(),v=randomUUID(),asset='COINS',unit=10n**18n,app=await buildServer();
 let quote='',cookie='';
 const balance=(uid:string)=>tx(c=>balanceOf(c,'u:'+uid,asset));
 const priced=()=>({asset,quote,request:randomUUID()});
@@ -115,7 +116,8 @@ test('weekly ranking includes an authenticated position beyond the top 50 and ex
       await query("insert into users(id,username,email,pass_hash) values($1,$2,$3,'fixture')",[uid,'rank'+randomBytes(6).toString('hex'),uid+'@rank.invalid']);
       await tx(async c=>{
         await post(c,'deposit',randomUUID(),[{account:'ext:ranking-fixture',asset,delta:-amount},{account:'u:'+uid,asset,delta:amount}]);
-        await post(c,'bet:ranking-fixture',randomUUID(),[{account:'u:'+uid,asset,delta:-amount},{account:'house:ranking-fixture',asset,delta:amount}]);
+        const ref=randomUUID();await debitStake(c,uid,asset,amount,'ranking-fixture',ref);
+        await c.query("insert into coin_settlements(user_id,game,round_id) values($1,'ranking-fixture',$2)",[uid,ref]);
       });
     }
     const uid=players.at(-1)!,amount=10n**71n,ref=randomUUID();

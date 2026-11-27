@@ -1211,14 +1211,14 @@ function renderUsers(v){
 async function renderPlayerRecord(host,root,d,seq,loadTab){
   const u=d.user;
   if(playerTab==='Overview'){
-    const level=d.vip.levels.filter(l=>l.earned).at(-1);
-    host.innerHTML='<h3>Account details</h3>'+facts([['Player ID',u.id],['Registered',when(u.created_at)],['Suspended until',u.suspended_until?when(u.suspended_until):null],['Player moderator',u.is_admin?'Yes':'No'],['Settled wager (USDT)',d.vip.wagered_usdt],['VIP progress (USD)',d.vip.wagered_usd],['Level',level?level.symbol+' '+level.tier+' '+level.rank:'Unranked'],['Bets placed',d.activity.bets],['Winning bets',d.activity.wins]])+
+    const rewards=d.rewards;
+    host.innerHTML='<h3>Account details</h3>'+facts([['Player ID',u.id],['Registered',when(u.created_at)],['Suspended until',u.suspended_until?when(u.suspended_until):null],['Player moderator',u.is_admin?'Yes':'No'],['Settled wager (coins)',rewards.wagered],['Player level',rewards.level+' / 100'],['Daily packs ready',rewards.ready_count],['Bets placed',d.activity.bets],['Winning bets',d.activity.wins]])+
       '<h3>Available balances</h3>'+ (d.balances.length?facts(d.balances.map(b=>[b.symbol,fmt(b.amount,b.decimals)])):'<p class="mut">No available balances.</p>')+
       '<h3>Deposit addresses</h3>'+(d.addresses.length?facts(d.addresses.map(a=>[a.chain_id,a.address])):'<div class="empty-state"><p>No addresses issued.</p>'+setupAction()+'</div>');return;
   }
   if(playerTab==='Controls'){
     const catalog=await api('/api/assets');if(seq!==userEpoch)return;
-    const currencies=[...new Set([...catalog.currencies.map(a=>a.id),...d.balances.map(a=>a.asset_id)])];
+    const currencies=[...new Set([...catalog.currencies.map(a=>a.id),...(catalog.walletCurrencies||[]).map(a=>a.id),...d.balances.map(a=>a.asset_id)])];
     host.innerHTML=`<h3>Balance adjustment</h3><form class="control-form" id="adjustPlayer"><label>Direction<select name="action"><option value="credit">Add balance</option><option value="debit">Deduct balance</option></select></label><label>Currency<select name="asset">${currencies.map(a=>`<option>${esc(a)}</option>`).join('')}</select></label>
       <label>Amount<input name="amount" required inputmode="decimal" placeholder="0.00"></label><label>Reason<input name="reason" required maxlength="300"></label><button class="pri">Review adjustment</button><p role="status"></p></form>
       <h3>Account access</h3><form class="control-form" id="restrictPlayer"><label>Action<select name="action"><option value="suspend">Suspend until a date</option><option value="ban">Ban indefinitely</option><option value="restore">Restore access</option></select></label>

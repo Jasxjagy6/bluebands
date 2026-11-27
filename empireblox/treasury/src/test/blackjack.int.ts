@@ -8,7 +8,7 @@ import { hashSeed, shuffle } from '../fair.js';
 import { installMarketFixture } from './market-fixture.js';
 
 installMarketFixture();
-const uid=randomUUID(), asset='USDT', client='blackjack-test';
+const uid=randomUUID(), asset='COINS', client='blackjack-test';
 const balance=()=>tx(c=>balanceOf(c,'u:'+uid,asset));
 before(async()=>{
   await query("insert into users(id,email,username,pass_hash) values($1,$2,$3,'x')",[uid,uid+'@test.invalid','b'+randomBytes(5).toString('hex')]);

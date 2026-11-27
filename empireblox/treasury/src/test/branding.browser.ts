@@ -9,8 +9,8 @@ import { chromium, type Browser, type Page } from 'playwright';
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const origin='https://branding.test.invalid';
 const logoPath='/assets/banditblox-logo.svg';
-const user={id:'11111111-2222-4333-8444-555555555555',username:'Institutional_User20',email:'brand@fixture.invalid',created_at:'2026-11-26T12:00:00Z',display_ccy:'ETH',is_admin:false};
-const asset={id:'ETH',symbol:'ETH',chain_id:'ETH',decimals:18,enabled:true,available:true};
+const user={id:'11111111-2222-4333-8444-555555555555',username:'Institutional_User20',email:'brand@fixture.invalid',created_at:'2026-11-26T12:00:00Z',display_ccy:'COINS',is_admin:false};
+const asset={id:'COINS',symbol:'COINS',chain_id:'ETH',decimals:18,enabled:true,available:true};
 let browser:Browser;
 before(async()=>{browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,args:['--host-resolver-rules=MAP * ~NOTFOUND']});});
 after(()=>browser?.close());
@@ -25,13 +25,14 @@ async function fixture(t:TestContext,admin=false){
     if(req.method()!=='GET'){writes.push(path);return route.fulfill({status:405,json:{error:'Branding fixture is read-only'}});}
     if(path.startsWith('/api/')){
       if(path==='/api/assets')return route.fulfill({json:{currencies:[asset],denominations:[asset],transferRoutes:[asset],directRoutes:[asset],chains:[],deposits_paused:false,withdrawals_paused:false}});
-      if(path==='/api/auth/me')return route.fulfill({json:{user,balances:[{...asset,asset_id:'ETH',amount:'1234567890123456789'}]}});
+      if(path==='/api/auth/me')return route.fulfill({json:{user,balances:[{...asset,asset_id:'COINS',amount:'1234567890123456789'}]}});
       if(path==='/api/catalog')return route.fulfill({json:{levels:[],cases:[],items:[],upgrades:[],packs:[],rewardItems:[]}});
-      if(path==='/api/battles/ETH'||path==='/api/me/battles/ETH')return route.fulfill({json:{battles:[]}});
-      if(path.startsWith('/api/quote/'))return route.fulfill({json:{id:'brand-quote',asset_id:'ETH',unit:'1000000000000',expires_at:'2030-01-01T00:00:00Z'}});
+      if(path==='/api/battles/COINS'||path==='/api/me/battles/COINS')return route.fulfill({json:{battles:[]}});
+      if(path.startsWith('/api/quote/'))return route.fulfill({json:{id:'brand-quote',asset_id:'COINS',unit:'1000000000000',expires_at:'2030-01-01T00:00:00Z'}});
       if(path==='/api/me/notifications/changes'||path==='/api/chat'&&url.search)return route.abort();
       if(path==='/api/chat')return route.fulfill({json:{messages:[]}});
       if(path==='/api/me/notifications')return route.fulfill({json:{revision:'0',unread:0,more:false,rows:[]}});
+      if(path==='/api/me/rewards')return route.fulfill({json:{packs:[],levels:[],claims:[],wagered:'0',level:1,next_level:2,to_next:'6000',progress:0,ready_count:0}});
       if(path==='/api/me/levels'||path==='/api/reward-levels')return route.fulfill({json:{levels:[],wagered_usd:'0',unpriced:false}});
       if(path==='/api/me/deposits')return route.fulfill({json:{deposits:[]}});
       if(path==='/api/games/mines/active'||path==='/api/games/blackjack/active')return route.fulfill({json:{round:null}});
