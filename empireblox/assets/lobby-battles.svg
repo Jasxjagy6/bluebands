@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320" viewBox="0 0 640 320" fill="none">
+  <defs><linearGradient id="bg" x1="100" y1="40" x2="540" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#29394b"/><stop offset=".5" stop-color="#242c37"/><stop offset="1" stop-color="#47343a"/></linearGradient><linearGradient id="steel" x1="220" y1="65" x2="389" y2="231" gradientUnits="userSpaceOnUse"><stop stop-color="#d3d8d9"/><stop offset=".5" stop-color="#657783"/><stop offset="1" stop-color="#b6c2c9"/></linearGradient></defs>
+  <path fill="url(#bg)" d="M0 0h640v320H0z"/>
+  <path d="m320 0-36 91 52 53-45 72 29 104" stroke="#b6bec7" stroke-opacity=".1" stroke-width="2"/>
+  <path d="m87 48 204 111L88 278M553 48 349 159l203 119" stroke="#bdc8d5" stroke-opacity=".08" stroke-width="24"/>
+  <ellipse cx="320" cy="269" rx="160" ry="18" fill="#0f1821" fill-opacity=".4"/>
+  <g fill="url(#steel)" stroke="#bac6cd" stroke-width="1.5" stroke-linejoin="round"><path d="m219 65 24 8 132 132-16 16L227 89Z"/><path d="m421 65-24 8-132 132 16 16L413 89Z"/></g>
+  <path d="m348 213 28-28m-6 23 22 22m-128-45 28 28m-22-5-22 22" stroke="#bba482" stroke-width="9" stroke-linecap="round"/>
+  <g transform="translate(177 125) rotate(-9 62 60)">
+    <path d="m0 26 61-29 64 29-64 32Z" fill="#91b7cf" stroke="#b2d1e2"/><path d="M0 26v73l61 31V58Z" fill="#537f9c" stroke="#9fc4d9"/><path d="m61 58 64-32v73l-64 31Z" fill="#36566e" stroke="#8aafc6"/>
+    <path d="m7 40 54 27 56-28" stroke="#233c51" stroke-width="9"/><path d="m39 51 13 6v27l-13-6Z" fill="#cbd8dc"/>
+  </g>
+  <g transform="translate(337 125) rotate(9 62 60)">
+    <path d="m0 26 61-29 64 29-64 32Z" fill="#c3989e" stroke="#d9b8b9"/><path d="M0 26v73l61 31V58Z" fill="#9c6975" stroke="#cba3aa"/><path d="m61 58 64-32v73l-64 31Z" fill="#694953" stroke="#b38a92"/>
+    <path d="m7 40 54 27 56-28" stroke="#50313f" stroke-width="9"/><path d="m39 51 13 6v27l-13-6Z" fill="#dfc9c4"/>
+  </g>
+  <circle cx="320" cy="173" r="28" fill="#1c252f" stroke="#68717b"/>
+  <text x="320" y="180" fill="#e7dfce" font-family="Arial,sans-serif" font-size="20" font-weight="800" font-style="italic" text-anchor="middle">VS</text>
+</svg>

@@ -5,13 +5,10 @@ import { getOrCreateAddress } from '../derive.js';
 import { getUserBalances } from '../ledger.js';
 import { supportedAssets } from '../chains/receive.js';
 import { requireUser } from './guards.js';
-import { config } from '../config.js';
 
 export async function depositSetup() {
-  const {rows:[setup]}=await query(`select (select value #>> '{}' from settings where key='deposit_provider') as deposit_provider,
-    (select value from settings where key='deposits_paused') is distinct from 'false'::jsonb as deposits_paused,
-    exists(select 1 from secrets where name='oxapay:merchant') as merchant_configured`);
-  return {...setup,oxapay_ready:!!config.publicOrigin && setup.merchant_configured};
+  const {rows:[setup]}=await query(`select (select value from settings where key='deposits_paused') is distinct from 'false'::jsonb as deposits_paused`);
+  return setup;
 }
 
 export async function userRoutes(app: FastifyInstance): Promise<void> {
@@ -23,9 +20,13 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     const assets = await query(`select a.id,a.chain_id,a.symbol,a.kind,a.decimals,a.min_deposit::text,(a.enabled and n.enabled) as enabled
       from assets a join chains n on n.id=a.chain_id where ${supportedAssets} order by a.chain_id,a.kind desc,a.symbol`);
     const currencies=await query(`select id,symbol,decimals,kind,chain_id,min_deposit::text from playing_assets order by (id='USDT') desc,symbol`);
+    const direct=await query(`select a.id,a.chain_id,a.symbol,a.kind,a.decimals,a.min_deposit::text,(a.enabled and n.enabled) as enabled,
+      (a.enabled and h.ready) as available from custody_launch_assets a join chains n on n.id=a.chain_id
+      join custody_network_readiness h on h.chain_id=n.id order by a.symbol,n.id`);
     const denominations=await query('select id,symbol,decimals,chain_id from assets');
-    const {deposit_provider,deposits_paused,oxapay_ready}=await depositSetup();
-    return {deposit_provider,deposits_paused,oxapay_ready,chains:chains.rows,assets:assets.rows.filter(a=>a.enabled),transferRoutes:assets.rows,currencies:currencies.rows,denominations:denominations.rows};
+    const {deposits_paused}=await depositSetup();
+    return {deposits_paused,chains:chains.rows,assets:assets.rows.filter(a=>a.enabled),transferRoutes:assets.rows,
+      directRoutes:direct.rows.map(a=>({...a,available:!deposits_paused && a.available})),currencies:currencies.rows,denominations:denominations.rows};
   });
 
   // Everything below needs a signed-in player.
@@ -50,7 +51,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       const chainId = params.data.chain.toUpperCase();
 
       const setup=await depositSetup();
-      if(setup.deposit_provider!=='direct')return reply.code(503).send({error:'Direct deposit addresses are paused. Use hosted checkout.'});
       if(setup.deposits_paused)return reply.code(503).send({error:'Deposits are temporarily paused'});
 
       try {
@@ -60,8 +60,8 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
           [chainId],
         );
         const assets = await query(
-          `select a.id,a.symbol,a.kind,a.decimals,a.min_deposit::text from assets a join chains n on n.id=a.chain_id
-             where a.chain_id=$1 and a.enabled and n.enabled and ${supportedAssets} order by a.kind desc,a.symbol`,
+          `select a.id,a.symbol,a.kind,a.decimals,a.min_deposit::text from custody_launch_assets a join chains n on n.id=a.chain_id
+             where a.chain_id=$1 and a.enabled and n.enabled order by a.kind desc,a.symbol`,
           [chainId],
         );
         return {

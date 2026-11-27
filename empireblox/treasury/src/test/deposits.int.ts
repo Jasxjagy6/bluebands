@@ -10,6 +10,7 @@ import { setSecret } from '../vault.js';
 import { EvmWatcher } from '../chains/evm.js';
 import { creditConfirmedDeposit } from '../ledger.js';
 import { getOrCreateAddress } from '../derive.js';
+import { publicCustodyFixture } from './custody-public-fixture.js';
 
 const app = await buildServer(), watcher = new EvmWatcher('ETH');
 const key = HDNodeWallet.fromSeed(randomBytes(32)).neuter();
@@ -64,15 +65,15 @@ async function register() {
   return {uid:r.json().user.id,cookie:String(r.headers['set-cookie']).split(';')[0]!};
 }
 before(async()=>{
-  await query("update settings set value=to_jsonb('direct'::text) where key='deposit_provider'");
   await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
   ({uid,cookie}=await register()); secondCookie=(await register()).cookie;
 });
-after(async()=>{await query("update settings set value=to_jsonb('oxapay'::text) where key='deposit_provider'");await app.close(); server.closeAllConnections(); await new Promise<void>(r=>server.close(()=>r())); await pool.end(); });
+after(async()=>{await app.close(); server.closeAllConnections(); await new Promise<void>(r=>server.close(()=>r())); await pool.end(); });
 test('wallet requires sign-in and withholds addresses until the monitor is ready',async()=>{
   assert.equal((await request('/api/me/address/ETH','')).statusCode,401);
   assert.equal((await request('/api/me/address/ETH')).statusCode,503);
   await setSecret('xpub:EVM',key.extendedKey,'test');
+  await publicCustodyFixture(key.extendedKey);
   await setSecret('rpc:ETH','http://127.0.0.1:'+(server.address() as AddressInfo).port,'test');
   assert.equal((await request('/api/me/address/ETH')).statusCode,503);
   await watcher.tick();
@@ -81,31 +82,39 @@ test('parallel address requests agree per account and derive distinct addresses 
   const replies=await Promise.all(Array.from({length:12},()=>request('/api/me/address/ETH')));
   assert.ok(replies.every(r=>r.statusCode===200));
   address=replies[0]!.json().address;
-  assert.equal(address,key.derivePath('0/0').address.toLowerCase());
+  const row=(await query('select deriv_index from deposit_addresses where user_id=$1 and chain_id=$2',[uid,'ETH'])).rows[0];
+  assert.equal(address,key.derivePath('0/'+row.deriv_index).address.toLowerCase());
   assert.ok(replies.every(r=>r.json().address===address));
-  assert.equal((await request('/api/me/address/ETH',secondCookie)).json().address,key.derivePath('0/1').address.toLowerCase());
+  const second=(await request('/api/me/address/ETH',secondCookie)).json().address;assert.match(second,/^0x[\da-f]{40}$/);assert.notEqual(second,address);
 });
-test('saves a supported currency server-side and restricts deposit routes when disabled or paused',async()=>{
+test('saves a supported currency server-side and restricts disabled deposit routes',async()=>{
   const put=(asset:string)=>app.inject({method:'PUT',url:'/api/me/currency',headers:{cookie},payload:{asset}});
   assert.equal((await put('USDT')).statusCode,200);
   assert.equal((await request('/api/auth/me')).json().user.display_ccy,'USDT');
   assert.equal((await put('USDT.ERC20')).statusCode,400);
   assert.equal((await put('BAD')).statusCode,400);
-  await query("update settings set value='true' where key='deposits_paused'");
-  assert.equal((await request('/api/me/address/ETH')).statusCode,503);
-  await query("update settings set value='false' where key='deposits_paused'");
   await query("update chains set enabled=false where id='ETH'");
   assert.equal((await request('/api/me/address/ETH')).statusCode,503);
   assert.ok(!(await request('/api/assets')).json().assets.some((a:any)=>a.chain_id==='ETH'));
   await query("update chains set enabled=true where id='ETH'");
 });
-test('detects a transfer, handles a fork and re-inclusion, credits once across replicas',async()=>{
-  // A player may send to an address issued before the switch to hosted checkout.
-  await query("update settings set value=to_jsonb('oxapay'::text) where key='deposit_provider'");
+test('pausing blocks address issuance while issued addresses stay monitored through reorgs and credit once across replicas',async t=>{
+  const active=(await request('/api/assets')).json();
+  assert.equal(active.deposits_paused,false);
+  assert.ok(active.directRoutes.some((a:any)=>a.id==='USDT.ERC20'&&a.available));
+  await query("update settings set value='true' where key='deposits_paused'");
+  t.after(async()=>{await query("update settings set value='false' where key='deposits_paused'");});
   assert.equal((await request('/api/me/address/ETH')).statusCode,503);
   await assert.rejects(getOrCreateAddress(uid,'ETH'),/unavailable/);
+  const paused=await register();
+  assert.equal((await request('/api/me/address/ETH',paused.cookie)).statusCode,503);
+  await assert.rejects(getOrCreateAddress(paused.uid,'ETH'),/unavailable/);
+  assert.equal((await query('select 1 from deposit_addresses where user_id=$1',[paused.uid])).rowCount,0);
   const catalog=(await request('/api/assets')).json();
-  assert.equal(catalog.deposit_provider,'oxapay');assert.equal(catalog.oxapay_ready,false);
+  assert.equal(catalog.deposits_paused,true);
+  for(const field of ['deposit_provider','oxapay_ready','merchant_configured','public_origin'])assert.equal(Object.hasOwn(catalog,field),false,field);
+  assert.deepEqual(catalog.directRoutes.map((a:any)=>a.id).sort(),['BNB','ETH','POL','SOL','USDT.BEP20','USDT.ERC20','USDT.POL']);
+  assert.ok(catalog.directRoutes.every((a:any)=>a.available===false));
   for(const asset of ['USDT','BTC','ETH','BNB','POL','SOL','TRX'])assert.ok(catalog.currencies.some((a:any)=>a.id===asset),asset);
   assert.equal((await app.inject({method:'PUT',url:'/api/me/currency',headers:{cookie},payload:{asset:'SOL'}})).statusCode,200);
   assert.equal((await request('/api/auth/me')).json().user.display_ccy,'SOL');
@@ -127,6 +136,8 @@ test('detects a transfer, handles a fork and re-inclusion, credits once across r
   assert.equal(balances[0].amount,'1234567000000000000'); assert.equal(balances[0].decimals,18);
   assert.equal((await request('/api/me/deposits',secondCookie)).json().deposits.length,0);
   assert.equal((await query("select count(*) from journals where ref=$1",['deposit:'+dep.id])).rows[0].count,'1');
+  assert.equal((await request('/api/me/address/ETH')).statusCode,503);
+  assert.equal((await query("select address from deposit_addresses where user_id=$1 and chain_id='ETH'",[uid])).rows[0].address,address);
 });
 test('direct native payments need a successful receipt and use a separate event index',async()=>{
   head=134; await watcher.tick(); await watcher.tick();

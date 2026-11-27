@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320" viewBox="0 0 640 320" fill="none">
+  <defs><linearGradient id="bg" x1="60" y1="0" x2="555" y2="400" gradientUnits="userSpaceOnUse"><stop stop-color="#273443"/><stop offset="1" stop-color="#17222e"/></linearGradient><linearGradient id="paper" x1="0" y1="0" x2="130" y2="190" gradientUnits="userSpaceOnUse"><stop stop-color="#f5f1e5"/><stop offset="1" stop-color="#c7c6bd"/></linearGradient><path id="spade" d="M0-30C-6-21-29-8-29 7c0 17 21 20 27 5-1 15-5 21-11 25h26C7 33 3 27 2 12c6 15 27 12 27-5C29-8 6-21 0-30Z"/>
+  </defs>
+  <path fill="url(#bg)" d="M0 0h640v320H0z"/>
+  <ellipse cx="320" cy="147" rx="264" ry="199" stroke="#5b7288" stroke-opacity=".15"/>
+  <ellipse cx="320" cy="147" rx="244" ry="179" stroke="#aab6c1" stroke-opacity=".1" stroke-dasharray="4 9"/>
+  <ellipse cx="323" cy="278" rx="134" ry="15" fill="#08121d" fill-opacity=".4"/>
+  <g transform="translate(232 61) rotate(-19 65 98)">
+    <rect x="-1" y="7" width="133" height="198" rx="11" fill="#111b25"/>
+    <rect width="132" height="196" rx="10" fill="url(#paper)" stroke="#fff" stroke-opacity=".5"/>
+    <rect x="7" y="7" width="118" height="182" rx="6" stroke="#777e80" stroke-opacity=".25"/>
+    <text x="15" y="35" fill="#293844" font-family="Georgia,serif" font-size="28" font-weight="700">K</text>
+    <use href="#spade" transform="translate(25 53) scale(.28)" fill="#293844"/>
+    <path d="m35 90 16 13 15-24 15 24 16-13-7 42H42Z" fill="#8f7955"/><path d="M45 142h42" stroke="#8f7955" stroke-width="5"/>
+    <text x="116" y="160" fill="#293844" font-family="Georgia,serif" font-size="28" font-weight="700" transform="rotate(180 116 160)">K</text>
+  </g>
+  <g transform="translate(304 52) rotate(12 66 98)">
+    <rect x="-1" y="7" width="134" height="198" rx="11" fill="#0c1723" fill-opacity=".6"/>
+    <rect width="132" height="196" rx="10" fill="url(#paper)" stroke="#fff" stroke-opacity=".6"/>
+    <rect x="7" y="7" width="118" height="182" rx="6" stroke="#777e80" stroke-opacity=".25"/>
+    <text x="15" y="35" fill="#293844" font-family="Georgia,serif" font-size="28" font-weight="700">A</text>
+    <use href="#spade" transform="translate(25 53) scale(.28)" fill="#293844"/>
+    <use href="#spade" transform="translate(66 105) scale(.95)" fill="#293844"/>
+    <text x="116" y="160" fill="#293844" font-family="Georgia,serif" font-size="28" font-weight="700" transform="rotate(180 116 160)">A</text>
+  </g>
+  <g transform="translate(202 235) rotate(-12)"><ellipse cy="10" rx="31" ry="12" fill="#101a25"/><ellipse cy="4" rx="31" ry="12" fill="#8f7857" stroke="#d5bd91" stroke-width="2"/><ellipse cy="-2" rx="31" ry="12" fill="#baa17a" stroke="#d5bd91" stroke-width="2"/><ellipse cy="-2" rx="23" ry="8" stroke="#6f5f49"/><path d="M-28-7v9M-13-13v10M8-13v10M26-8v9" stroke="#e4d6b9" stroke-width="4"/></g>
+</svg>

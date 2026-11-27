@@ -14,11 +14,7 @@ import { depositSetup } from './routes-user.js';
 
 async function writeSecret(name:string,value:string|null,actor:string,ip:string){
   return tx(async c=>{
-    if(name==='oxapay:merchant'){
-      await c.query("select pg_advisory_xact_lock(hashtext('oxapay:merchant'))");
-      const unsettled=await c.query("select 1 from oxapay_invoices where status not in ('expired','failed','credited') limit 1");
-      if(unsettled.rowCount)return false;
-    }
+    if(/^rpc:(ETH|BSC|POL|SOL)$/.test(name) && (await c.query('select 1 from custody_root where sealed_seed is not null')).rowCount)return false;
     if(value===null)await deleteSecret(name,c);else await setSecret(name,value,actor,c);
     await c.query('insert into audit_log(actor,action,detail,ip) values($1,$2,$3,$4)',[actor,value===null?'secret.delete':'secret.set',{name},ip]);
     return true;
@@ -106,7 +102,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     // --- Overview ---
     r.get('/api/admin/overview', async () => {
       const addrs = await query<any>(`select count(*)::int c from deposit_addresses`);
-      const pend = await query<any>(`select count(*)::int c from deposit_records where status in ('pending','confirmed','paying','review','underpaid')`);
+      const pend = await query<any>(`select count(*)::int c from deposits where status in ('pending','confirmed')`);
       const credited = await query<any>(
         `select a.id as asset_id,a.decimals,sum(d.amount)::text total,count(*)::int n from deposit_records d join assets a on a.id=d.asset_id where d.status='credited' group by a.id order by a.id`,
       );
@@ -132,15 +128,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         try { const key=HDKey.fromExtendedKey(body.data.value); if (key.privateKey || !key.publicKey) throw new Error(); }
         catch { return reply.code(400).send({error:'Enter a watch-only extended public key'}); }
       }
-      if(body.data.name==='oxapay:merchant' && !/^[\x21-\x7e]{16,512}$/.test(body.data.value))return reply.code(400).send({error:'Enter the merchant API key, without whitespace'});
-      if(!await writeSecret(body.data.name,body.data.value,req.admin!.username,req.ip))return reply.code(409).send({error:'Pause new deposits and settle or reconcile outstanding OxaPay invoices before changing the key.'});
+      if(!/^(rpc|xpub):(EVM|ETH|BSC|POL|SOL|BTC|TRON)$/.test(body.data.name))return reply.code(400).send({error:'Use a supported network RPC or watch-only key'});
+      if(!await writeSecret(body.data.name,body.data.value,req.admin!.username,req.ip))return reply.code(409).send({error:'Manage enrolled network RPCs through Direct wallets.'});
       return { ok: true };
     });
 
     r.delete('/api/admin/secrets/:name', async (req, reply) => {
       const p = z.object({ name: z.string().min(1).max(64) }).safeParse(req.params);
       if (!p.success) return reply.code(400).send({ error: 'Bad name' });
-      if(!await writeSecret(p.data.name,null,req.admin!.username,req.ip))return reply.code(409).send({error:'Outstanding OxaPay invoices still need this merchant key.'});
+      if(!await writeSecret(p.data.name,null,req.admin!.username,req.ip))return reply.code(409).send({error:'Manage enrolled network RPCs through Direct wallets.'});
       return { ok: true };
     });
 
@@ -188,6 +184,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (b.data.enabled !== undefined) { vals.push(b.data.enabled); sets.push(`enabled=$${vals.length}`); }
       if (b.data.min_deposit !== undefined) { vals.push(b.data.min_deposit); sets.push(`min_deposit=$${vals.length}`); }
       if (b.data.token_address !== undefined) {
+        if(['USDT.ERC20','USDT.BEP20','USDT.POL'].includes(p.data.id))return reply.code(400).send({error:'The launch USDT contract is pinned to its network'});
         const row=(await query("select n.kind from assets a join chains n on n.id=a.chain_id where a.id=$1 and a.kind='token'",[p.data.id])).rows[0];
         const value=b.data.token_address;
         const patterns:Record<string,RegExp>={evm:/^0x[0-9a-fA-F]{40}$/,sol:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/,tron:/^T[1-9A-HJ-NP-Za-km-z]{33}$/};
@@ -203,17 +200,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     // --- Deposits view ---
     r.get('/api/admin/deposits', async (req) => {
       const q = z.object({ status: z.string().optional() }).parse(req.query);
-      const rows=await query(`select d.*,a.decimals,i.review_reason from deposit_records d join assets a on a.id=d.asset_id
-        left join oxapay_invoices i on d.provider='oxapay' and d.id=i.id::text where ($1::text is null or d.status=$1)
+      const rows=await query(`select d.*,a.decimals from deposit_records d join assets a on a.id=d.asset_id where ($1::text is null or d.status=$1)
         order by d.first_seen_at desc,d.id desc limit 100`,[q.status??null]);
       return { deposits: rows.rows };
     });
 
     // --- Settings (kill switches) ---
-    r.get('/api/admin/settings', async () => ({settings:(await query('select key,value from settings order by key')).rows,...await depositSetup(),public_origin:config.publicOrigin||null}));
+    r.get('/api/admin/settings', async () => ({settings:(await query('select key,value from settings order by key')).rows,...await depositSetup()}));
 
     r.patch('/api/admin/settings', async (req, reply) => {
-      const b = z.discriminatedUnion('key',[z.object({key:z.literal('deposits_paused'),value:z.boolean()}),z.object({key:z.literal('deposit_provider'),value:z.enum(['direct','oxapay'])})]).safeParse(req.body);
+      const b = z.object({key:z.literal('deposits_paused'),value:z.boolean()}).strict().safeParse(req.body);
       if (!b.success) return reply.code(400).send({ error: 'Bad setting' });
       await tx(async c=>{await c.query(
         `insert into settings(key,value,updated_at) values ($1,$2,now())

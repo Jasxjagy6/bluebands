@@ -18,6 +18,7 @@ COPY --from=build /workspace/treasury/node_modules ./node_modules
 COPY --from=build /workspace/treasury/dist ./dist
 COPY --from=build /workspace/treasury/sql ./sql
 COPY treasury/package.json ./
+RUN mkdir -p /var/lib/empireblox-custody/private && chown -R node:node /var/lib/empireblox-custody && chmod 0700 /var/lib/empireblox-custody/private
 USER node
 EXPOSE 8787
 CMD ["node", "dist/index.js"]

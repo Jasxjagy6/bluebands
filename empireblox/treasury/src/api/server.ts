@@ -17,7 +17,7 @@ import { playerManagement } from './routes-players.js';
 import { notificationRoutes } from './routes-notifications.js';
 import { activityRoutes } from './routes-activity.js';
 import { lobbyRoutes } from './routes-lobby.js';
-import { oxapayRoutes } from './routes-oxapay.js';
+import { custodyAdminRoutes } from './routes-custody.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -86,8 +86,8 @@ export async function buildServer() {
   await app.register(playerManagement);
   await app.register(notificationRoutes);
   await app.register(userRoutes);
-  await app.register(oxapayRoutes);
   await app.register(adminRoutes);
+  await app.register(custodyAdminRoutes);
 
   return app;
 }

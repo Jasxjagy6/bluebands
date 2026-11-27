@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="116" viewBox="0 0 640 116" role="img" aria-labelledby="brand-title">
+  <title id="brand-title">BANDITBLOX</title>
+  <defs>
+    <linearGradient id="brand-gold" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#fff09d"/>
+      <stop offset=".35" stop-color="#ffda45"/>
+      <stop offset=".72" stop-color="#ffc420"/>
+      <stop offset="1" stop-color="#e9a31e"/>
+    </linearGradient>
+    <linearGradient id="brand-white" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#fff"/>
+      <stop offset=".55" stop-color="#f6f9fc"/>
+      <stop offset="1" stop-color="#d6e1eb"/>
+    </linearGradient>
+    <linearGradient id="dice-left" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#e4ebf2"/>
+    </linearGradient>
+    <linearGradient id="dice-right" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#edf3f8"/>
+      <stop offset="1" stop-color="#bdcbd8"/>
+    </linearGradient>
+    <path id="letter-b" fill-rule="evenodd" d="M0 0h27q17 0 17 15 0 10-9 15 11 4 11 17 0 17-19 17H0Zm15 12v13h10q5 0 5-6.5T24 12Zm0 26v13h10q6 0 6-6.5T25 38Z"/>
+    <path id="letter-a" fill-rule="evenodd" d="M16 0h19l15 64H34l-2-13H15l-4 13H-5Zm8 17-5 21h10Z"/>
+    <path id="letter-n" d="M0 0h16l15 35V0h15v64H30L15 29v35H0Z"/>
+    <path id="letter-d" fill-rule="evenodd" d="M0 0h24q22 0 22 23v18q0 23-22 23H0Zm16 14v36h7q7 0 7-10V24q0-10-7-10Z"/>
+    <path id="letter-i" d="M0 0h24v64H0Z"/>
+    <path id="letter-t" d="M0 0h48v14H32v50H16V14H0Z"/>
+    <path id="letter-l" d="M0 0h16v50h26v14H0Z"/>
+    <path id="letter-o" fill-rule="evenodd" d="M23-1q24 0 24 24v18q0 24-24 24T-1 41V23Q-1-1 23-1Zm0 14q-8 0-8 11v16q0 11 8 11t8-11V24q0-11-8-11Z"/>
+    <path id="letter-x" d="M-1 0h18l8 19 9-19h18L35 31l18 33H35L25 44 15 64H-3l18-32Z"/>
+    <g id="bandit-name" transform="translate(20 30) skewX(-12) scale(1.08 1)">
+      <use href="#letter-b"/>
+      <use href="#letter-a" x="48"/>
+      <use href="#letter-n" x="102"/>
+      <use href="#letter-d" x="152"/>
+      <use href="#letter-i" x="201"/>
+      <use href="#letter-t" x="227"/>
+    </g>
+    <g id="blox-name" transform="translate(424 30) skewX(-12)">
+      <use href="#letter-b"/>
+      <use href="#letter-l" x="50"/>
+      <use href="#letter-o" x="98"/>
+      <use href="#letter-x" x="151"/>
+    </g>
+  </defs>
+  <g stroke-linejoin="round">
+    <g transform="translate(0 5)" stroke-width="1.6">
+      <use href="#bandit-name" fill="#98610f" stroke="#98610f"/>
+      <use href="#blox-name" fill="#7c8c9d" stroke="#7c8c9d"/>
+    </g>
+    <use href="#bandit-name" fill="url(#brand-gold)" stroke="#ffe37b" stroke-width=".8"/>
+    <use href="#blox-name" fill="url(#brand-white)" stroke="#fff" stroke-width=".8"/>
+  </g>
+  <g stroke-linejoin="round">
+    <path d="m310 82 45 29q7 4 14 0l35-20 5-11-49-27Z" fill="#8293a4"/>
+    <path d="m311 28 43-20q7-3 13 1l37 22-44 23Z" fill="#fff" stroke="#e3ebf2" stroke-width="1.2"/>
+    <path d="m311 28 49 26-2 52q0 6-6 4l-42-27q-5-3-5-10V39q0-7 6-11Z" fill="url(#dice-left)" stroke="#f8fbfd" stroke-width="1.2"/>
+    <path d="m360 54 44-23q8 4 8 12l-2 34q0 8-8 13l-36 20q-8 4-8-4Z" fill="url(#dice-right)" stroke="#d1dde8" stroke-width="1.2"/>
+    <path d="m314 29 46 24 43-22M360 55l-2 48" fill="none" stroke="#b1c1cf" stroke-width="1.2"/>
+    <g fill="#1c2530">
+      <ellipse cx="336" cy="27" rx="5.8" ry="3.2" transform="rotate(5 336 27)"/>
+      <ellipse cx="356" cy="18" rx="5.8" ry="3.2" transform="rotate(5 356 18)"/>
+      <ellipse cx="378" cy="31" rx="5.8" ry="3.2" transform="rotate(5 378 31)"/>
+      <ellipse cx="319" cy="47" rx="4.1" ry="5.5" transform="rotate(-24 319 47)"/>
+      <ellipse cx="342" cy="60" rx="4.1" ry="5.5" transform="rotate(-24 342 60)"/>
+      <ellipse cx="317" cy="73" rx="4.1" ry="5.5" transform="rotate(-24 317 73)"/>
+      <ellipse cx="340" cy="87" rx="4.1" ry="5.5" transform="rotate(-24 340 87)"/>
+      <ellipse cx="374" cy="60" rx="4" ry="5.7" transform="rotate(24 374 60)"/>
+      <ellipse cx="397" cy="47" rx="4" ry="5.7" transform="rotate(24 397 47)"/>
+      <ellipse cx="384" cy="69" rx="4" ry="5.7" transform="rotate(24 384 69)"/>
+      <ellipse cx="372" cy="88" rx="4" ry="5.7" transform="rotate(24 372 88)"/>
+      <ellipse cx="395" cy="75" rx="4" ry="5.7" transform="rotate(24 395 75)"/>
+    </g>
+    <path d="m316 30 38-18q7-3 12 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

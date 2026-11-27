@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="360" viewBox="0 0 520 360" fill="none">
+  <defs>
+    <linearGradient id="gold-top" x1="80" y1="107" x2="280" y2="150" gradientUnits="userSpaceOnUse"><stop stop-color="#fff2b2"/><stop offset="1" stop-color="#eec768"/></linearGradient>
+    <linearGradient id="gold-left" x1="90" y1="150" x2="219" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#e7bc5e"/><stop offset="1" stop-color="#ac7d2e"/></linearGradient>
+    <linearGradient id="gold-right" x1="207" y1="190" x2="303" y2="270" gradientUnits="userSpaceOnUse"><stop stop-color="#d7a342"/><stop offset="1" stop-color="#8b6026"/></linearGradient>
+    <linearGradient id="white-top" x1="247" y1="52" x2="448" y2="122" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset="1" stop-color="#e2eaf3"/></linearGradient>
+    <linearGradient id="white-left" x1="247" y1="112" x2="336" y2="258" gradientUnits="userSpaceOnUse"><stop stop-color="#f2f5f8"/><stop offset="1" stop-color="#b7c7d8"/></linearGradient>
+    <linearGradient id="white-right" x1="337" y1="133" x2="443" y2="248" gradientUnits="userSpaceOnUse"><stop stop-color="#b6c8d9"/><stop offset="1" stop-color="#71879b"/></linearGradient>
+  </defs>
+  <g stroke="#ccae74" stroke-opacity=".14"><ellipse cx="278" cy="285" rx="220" ry="58" transform="rotate(-13 278 285)"/><ellipse cx="278" cy="285" rx="179" ry="43" transform="rotate(-13 278 285)"/><path d="m62 302 414-95M149 344 387 42"/></g>
+  <ellipse cx="256" cy="294" rx="173" ry="26" fill="#080e16" fill-opacity=".65"/>
+  <g transform="rotate(-12 187 214)" stroke-linejoin="round">
+    <path d="m89 151 90-47q11-6 23 0l87 47-99 55Z" fill="url(#gold-top)" stroke="#f8dea0" stroke-width="1.5"/>
+    <path d="m89 151 101 55v113l-91-51q-10-5-10-18Z" fill="url(#gold-left)" stroke="#e9c77f" stroke-width="1.5"/>
+    <path d="m190 206 99-55v99q0 13-11 19l-88 50Z" fill="url(#gold-right)" stroke="#ca9c4c" stroke-width="1.5"/>
+    <path d="m96 153 94 50 91-50" stroke="#fff1b2" stroke-width="2"/>
+    <g fill="#493821"><ellipse cx="151" cy="147" rx="11" ry="6"/><ellipse cx="191" cy="125" rx="11" ry="6"/><ellipse cx="229" cy="149" rx="11" ry="6"/><ellipse cx="189" cy="171" rx="11" ry="6"/><ellipse cx="113" cy="190" rx="8" ry="11" transform="rotate(-25 113 190)"/><ellipse cx="163" cy="272" rx="8" ry="11" transform="rotate(-25 163 272)"/><ellipse cx="112" cy="244" rx="8" ry="11" transform="rotate(-25 112 244)"/><ellipse cx="163" cy="218" rx="8" ry="11" transform="rotate(-25 163 218)"/><ellipse cx="220" cy="220" rx="8" ry="11" transform="rotate(25 220 220)"/><ellipse cx="262" cy="197" rx="8" ry="11" transform="rotate(25 262 197)"/><ellipse cx="240" cy="246" rx="8" ry="11" transform="rotate(25 240 246)"/><ellipse cx="219" cy="278" rx="8" ry="11" transform="rotate(25 219 278)"/><ellipse cx="262" cy="254" rx="8" ry="11" transform="rotate(25 262 254)"/></g>
+  </g>
+  <g transform="rotate(12 340 153)" stroke-linejoin="round">
+    <path d="m245 89 91-46q10-5 20 0l91 46-102 55Z" fill="url(#white-top)" stroke="#fff" stroke-width="1.5"/>
+    <path d="m245 89 100 55v112l-89-49q-11-6-11-18Z" fill="url(#white-left)" stroke="#eef4f9" stroke-width="1.5"/>
+    <path d="m345 144 102-55v98q0 13-11 19l-91 50Z" fill="url(#white-right)" stroke="#b3c5d7" stroke-width="1.5"/>
+    <path d="m252 91 93 50 94-50" stroke="#fff" stroke-width="2"/>
+    <g fill="#253648"><ellipse cx="304" cy="84" rx="11" ry="6"/><ellipse cx="344" cy="64" rx="11" ry="6"/><ellipse cx="386" cy="87" rx="11" ry="6"/><ellipse cx="273" cy="133" rx="8" ry="11" transform="rotate(-25 273 133)"/><ellipse cx="319" cy="210" rx="8" ry="11" transform="rotate(-25 319 210)"/><ellipse cx="295" cy="172" rx="8" ry="11" transform="rotate(-25 295 172)"/><ellipse cx="375" cy="157" rx="8" ry="11" transform="rotate(25 375 157)"/><ellipse cx="418" cy="134" rx="8" ry="11" transform="rotate(25 418 134)"/><ellipse cx="375" cy="210" rx="8" ry="11" transform="rotate(25 375 210)"/><ellipse cx="418" cy="187" rx="8" ry="11" transform="rotate(25 418 187)"/></g>
+  </g>
+  <g fill="#dfc68e"><path d="m101 72 3 9 9 3-9 3-3 9-3-9-9-3 9-3Z"/><path d="m453 236 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z"/><circle cx="215" cy="61" r="2"/><circle cx="453" cy="55" r="2"/><circle cx="57" cy="215" r="2"/></g>
+</svg>

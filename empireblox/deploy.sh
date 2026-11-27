@@ -30,6 +30,7 @@ for color in treasury_blue treasury_green; do
   docker compose up -d --no-deps "$color"
   wait_healthy "$color"
 done
+docker compose up -d --no-deps custody_worker
 
 # Re-bind the static frontend (single-file mounts need a recreate to pick up
 # edited index.html / app.js / wallet.js).

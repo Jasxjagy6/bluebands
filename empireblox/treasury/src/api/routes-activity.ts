@@ -36,7 +36,7 @@ function historyRoutes(r:FastifyInstance,prefix:string,owner:(req:import('fastif
     r.get(prefix+'/transactions',async req=>{
       const p=transactionPage.parse(req.query);
       const rows=await query(`select e.id,e.asset_id,e.delta::text,a.symbol,a.decimals,j.kind,j.ref,j.created_at,
-        d.provider,case when d.provider='oxapay' then d.id end as invoice_id,coalesce(d.chain_id,w.chain_id) as chain_id,coalesce(d.txid,w.txid) as txid,w.status as withdrawal_status from ledger_entries e join journals j on j.id=e.journal_id join assets a on a.id=e.asset_id
+        d.provider,coalesce(d.chain_id,w.chain_id) as chain_id,coalesce(d.txid,w.txid) as txid,w.status as withdrawal_status from ledger_entries e join journals j on j.id=e.journal_id join assets a on a.id=e.asset_id
         left join deposit_records d on d.journal_id=j.id left join withdrawals w on j.kind in ('withdrawal_hold','withdrawal_refund') and j.ref=w.id::text and w.user_id=$1::uuid where e.account='u:'||$1::text and j.kind<>'currency_consolidation'
         and ($2::text is null or ${usdtFilter})
         and ($4='all' or $4=case

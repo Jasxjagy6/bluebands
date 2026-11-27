@@ -59,17 +59,20 @@ function totpAt(secret: string, counter: number): string {
 
 /** Accepts the current code plus one step either side (clock drift). */
 export function verifyTotp(secret: string, token: string): boolean {
+  return totpStep(secret,token)!==null;
+}
+export function totpStep(secret:string,token:string):number|null {
   const t = token.replace(/\s/g, '');
-  if (!/^\d{6}$/.test(t)) return false;
+  if (!/^\d{6}$/.test(t)) return null;
   const counter = Math.floor(Date.now() / 1000 / 30);
   for (const c of [counter - 1, counter, counter + 1]) {
     const expected = totpAt(secret, c);
-    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(t.padStart(6, '0')))) return true;
+    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(t.padStart(6, '0')))) return c;
   }
-  return false;
+  return null;
 }
 
-export function totpUri(secret: string, account: string, issuer = 'EmpireBlox Treasury'): string {
+export function totpUri(secret: string, account: string, issuer = 'BANDITBLOX Treasury'): string {
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&digits=6&period=30`;
 }
 

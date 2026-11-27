@@ -7,16 +7,26 @@ import { HDNodeWallet,id,toBeHex } from 'ethers';
 import { ed25519 } from '@noble/curves/ed25519';
 import { base58,bech32,base58check } from '@scure/base';
 import { sha256 } from '@noble/hashes/sha256';
-import { pool,query } from '../db.js';
-import { getOrCreateAddress } from '../derive.js';
-import { setSecret } from '../vault.js';
-import { NonEvmWatcher,bitcoinPayments } from '../chains/non-evm.js';
-import { associatedTokenAccount,validSolOwner,TOKEN_PROGRAM } from '../chains/receive.js';
+import { readFile,readdir } from 'node:fs/promises';
+import pg from 'pg';
+import { associatedTokenAccount,receiveAddress,validSolOwner,TOKEN_PROGRAM } from '../chains/receive.js';
+
+// Legacy issuance is permanently closed after managed enrollment. Keep these
+// historical-address fixtures separate from the managed-wallet test database.
+const runner=new URL(process.env.DATABASE_URL??'');
+if(process.env.NODE_ENV!=='test'||!['127.0.0.1','localhost','[::1]'].includes(runner.hostname))throw Error('Disposable local database required');
+const admin=new pg.Pool({connectionString:runner.href}),database='legacy_networks_'+randomBytes(8).toString('hex');
+const isolated=new URL(runner);isolated.pathname='/'+database;process.env.DATABASE_URL=isolated.href;
+const {pool,query}=await import('../db.js');
+const {getOrCreateAddress}=await import('../derive.js');
+const {setSecret}=await import('../vault.js');
+const {NonEvmWatcher,bitcoinPayments}=await import('../chains/non-evm.js');
 
 const uid=randomUUID(), xpub=HDNodeWallet.fromSeed(randomBytes(32)).neuter().extendedKey;
 const owner=base58.encode(ed25519.getPublicKey(randomBytes(32))),mint='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const addresses:Record<string,string>={}, heights:Record<string,number>={BTC:100,SOL:100,TRON:100};
-const hash=(id:string,n:number)=>id+n;
+const hash=(id:string,n:number)=>id==='SOL'?base58.encode(sha256(Buffer.from(id+n))):id+n;
+const solProbe=base58.encode(Buffer.alloc(64,201)),solPayment=base58.encode(Buffer.alloc(64,202)),solFailed=base58.encode(Buffer.alloc(64,203));
 const tronToken='TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const trxHex=(a:string)=>Buffer.from(base58check(sha256).decode(a)).toString('hex');
 let wrongNetwork=false,missingReceipt=false;
@@ -33,14 +43,26 @@ async function fixture(net:string,route:string,b:any){
   if(net==='SOL'){
     if(b.method==='getGenesisHash')return wrongNetwork?'testnet':'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
     if(b.method==='getSlot')return head;
-    if(b.method==='getBlocks')return Array.from({length:b.params[1]-b.params[0]+1},(_,i)=>b.params[0]+i).filter(n=>n!==101);
-    if(b.method==='getBlock'){
-      const n=b.params[0], ata=associatedTokenAccount(owner,mint);
+    if(b.method==='getFirstAvailableBlock'||b.method==='minimumLedgerSlot')return 90;
+    if(b.method==='getSignaturesForAddress'){
+      const sigs=b.params[0]==='11111111111111111111111111111111'?[solProbe]:head>=102?[solPayment,solFailed]:[];
+      const after=b.params[1].before?sigs.indexOf(b.params[1].before)+1:0;
+      return sigs.slice(after,after+b.params[1].limit).map(signature=>({signature,slot:signature===solProbe?100:102,
+        err:signature===solFailed?{InstructionError:[0,'failed']}:null,confirmationStatus:'finalized'}));
+    }
+    if(b.method==='getSignatureStatuses')return {context:{slot:head},value:[{slot:100,err:null,confirmationStatus:'finalized'}]};
+    if(b.method==='getTransaction'){
+      assert.equal(b.params[1].maxSupportedTransactionVersion,1);assert.equal(b.params[1].encoding,'jsonParsed');
+      const signature=b.params[0],ata=associatedTokenAccount(owner,mint);
+      if(signature===solProbe)return {slot:100,version:1,transaction:{signatures:[signature],message:{accountKeys:[],instructions:[]}},meta:{err:null,postTokenBalances:[],innerInstructions:[]}};
       const parsed={type:'transferChecked',info:{destination:ata,source:'other',mint,tokenAmount:{amount:'2000000'}}};
       const sol={programId:'11111111111111111111111111111111',parsed:{type:'transfer',info:{source:'other',destination:owner,lamports:1234567}}};
-      const tx={transaction:{signatures:[base58.encode(randomBytes(64))],message:{accountKeys:[{pubkey:ata}],instructions:[sol,{programId:'wrapper'}]}},
-        meta:{err:null,postTokenBalances:[{owner,mint,accountIndex:0}],innerInstructions:[{index:1,instructions:[{programId:TOKEN_PROGRAM,parsed}]}]}};
-      return {blockhash:hash(net,n),previousBlockhash:hash(net,n===102?100:n-1),transactions:n===102?[tx,{...tx,meta:{...tx.meta,err:'failed'}}]:[]};
+      return {slot:102,version:1,transaction:{signatures:[signature],message:{accountKeys:[{pubkey:ata},{pubkey:owner}],instructions:[sol,{programId:'wrapper'}]}},
+        meta:{err:signature===solFailed?{InstructionError:[0,'failed']}:null,postTokenBalances:[{owner,mint,accountIndex:0}],innerInstructions:signature===solFailed?null:[{index:1,instructions:[{programId:TOKEN_PROGRAM,parsed}]}]}};
+    }
+    if(b.method==='getBlock'){
+      const n=b.params[0];assert.notEqual(n,101);assert.equal(b.params[1].transactionDetails,'signatures');
+      return {blockhash:hash(net,n),blockTime:Math.floor(Date.now()/1000),signatures:n===100?[solProbe]:n===102?[solPayment,solFailed]:[]};
     }
   }
   if(net==='TRON'){
@@ -73,7 +95,9 @@ const server=createServer(async(req,res)=>{
   }catch{res.writeHead(500);res.end();}
 });
 before(async()=>{
-  await query("update settings set value=to_jsonb('direct'::text) where key='deposit_provider'");
+  await admin.query('create database '+database+' template template0');
+  const sql=new URL('../../sql/',import.meta.url);
+  for(const f of (await readdir(sql)).filter(f=>f.endsWith('.sql')).sort())await query(await readFile(new URL(f,sql),'utf8'));
   await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
   await query("insert into users(id,username,email,pass_hash) values($1,$2,$3,'x')",[uid,'n'+randomBytes(4).toString('hex'),uid+'@test.invalid']);
   for(const net of ['BTC','SOL','TRON']){
@@ -82,19 +106,22 @@ before(async()=>{
     if(net!=='SOL')await setSecret('xpub:'+net,xpub,'fixture');
   }
 });
-after(async()=>{await query("update settings set value=to_jsonb('oxapay'::text) where key='deposit_provider'");await query("update chains set enabled=false where id in ('BTC','SOL','TRON')");server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));await pool.end();});
+after(async()=>{
+  server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));await pool.end();
+  try{await admin.query('drop database if exists '+database);}finally{await admin.end();}
+});
 test('network identity must match before issuing any addresses',async()=>{
   wrongNetwork=true;
   for(const net of ['BTC','SOL','TRON']){await assert.rejects(new NonEvmWatcher(net).tick()); await assert.rejects(getOrCreateAddress(uid,net));}
   wrongNetwork=false;
 });
-test('watch-only derivation and Solana receive-pool exhaustion fail closed',async()=>{
+test('legacy assignments remain monitored without offering new off-scope deposit addresses',async()=>{
   assert.ok(validSolOwner(owner));assert.equal(validSolOwner('11111111111111111111111111111111'),false);
   for(const net of ['BTC','SOL','TRON']){
     await new NonEvmWatcher(net).tick();
-    if(net==='SOL'){await assert.rejects(getOrCreateAddress(uid,net));await query('insert into sol_receive_pool(address) values($1)',[owner]);}
-    const first=await getOrCreateAddress(uid,net),again=await getOrCreateAddress(uid,net);
-    assert.deepEqual(again,first);addresses[net]=first.address;
+    addresses[net]=net==='SOL'?owner:receiveAddress(net==='BTC'?'btc':'tron',xpub,101);
+    await query('insert into deposit_addresses(chain_id,user_id,address,deriv_index) values($1,$2,$3,101)',[net,uid,addresses[net]]);
+    if(net==='SOL')assert.equal((await getOrCreateAddress(uid,net)).address,owner);else await assert.rejects(getOrCreateAddress(uid,net),/unavailable/);
   }
   assert.equal(bech32.decode(addresses.BTC! as `${string}1${string}`).prefix,'bc');assert.equal(addresses.SOL,owner);assert.equal(trxHex(addresses.TRON!).slice(0,2),'41');
 });

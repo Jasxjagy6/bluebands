@@ -8,10 +8,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const COIN = '<svg class="coin" viewBox="0 0 20 20" aria-hidden="true"><ellipse cx="10" cy="15.2" rx="7.4" ry="2.6" fill="#b97a07"/><rect x="2.6" y="12.6" width="14.8" height="2.6" fill="#d9960f"/><ellipse cx="10" cy="12.6" rx="7.4" ry="2.6" fill="#f7c948"/><ellipse cx="9.4" cy="10.4" rx="7.4" ry="2.6" fill="#b97a07"/><rect x="2" y="7.8" width="14.8" height="2.6" fill="#d9960f"/><ellipse cx="9.4" cy="7.8" rx="7.4" ry="2.6" fill="#f7c948"/><ellipse cx="10.4" cy="5.6" rx="7.4" ry="2.6" fill="#b97a07"/><rect x="3" y="3" width="14.8" height="2.6" fill="#d9960f"/><ellipse cx="10.4" cy="3" rx="7.4" ry="2.6" fill="#ffd95e"/><ellipse cx="8.6" cy="2.5" rx="3.2" ry=".9" fill="#fff3b8" opacity=".75"/></svg>';
 const fmtS = v => { v = Number(v) || 0; const A = Math.abs(v); return A >= 1e9 ? +(v / 1e9).toFixed(2) + 'B' : A >= 1e6 ? +(v / 1e6).toFixed(2) + 'M' : A >= 1e5 ? +(v / 1e3).toFixed(1) + 'K' : fmt(v); };
 let quote = null, quoteRequest = 0, lastAsset = null;
-function catalogMoney(value, price = quote) {
+function catalogMoney(value, price = quote, positive = false) {
   const units = Math.round(Number(value) || 0);
   const amount = price ? currencyText(BigInt(units)*BigInt(price.unit),price.asset_id) : '—';
-  return `<span class="cv">${esc(amount)}</span>`;
+  return `<span class="cv">${positive ? '+' : ''}${esc(amount)}</span>`;
 }
 const cv = catalogMoney;
 const cvS = cv;
@@ -114,7 +114,16 @@ function toast(html, kind = '') {
  const t = $('toast'); t.innerHTML = html; t.className = 'show ' + kind; clearTimeout(toastT); toastT = setTimeout(() => { t.className = kind; }, 3000); }
 function gamesMenu(open) { $('gmenu').hidden = !open; $('gamesBtn').setAttribute('aria-expanded', open); }
 const GAME_PAGES = ['mines', 'cases', 'battles', 'upgrader', 'blackjack'];
-function nav(p) {
+const pageTransition=$('pageTransition'),navigationMotion=matchMedia('(prefers-reduced-motion: reduce)');
+const pageNames={home:'lobby',mines:'Mines',blackjack:'Blackjack',cases:'Cases',battles:'Case battles',upgrader:'Upgrader',rewards:'Rewards',leaderboard:'Leaderboard'};
+let navigationVersion=0,navigationTimer,transitionExitTimer;
+function cancelPageTransition(){
+  ++navigationVersion;clearTimeout(navigationTimer);clearTimeout(transitionExitTimer);
+  pageTransition.hidden=true;pageTransition.classList.remove('is-running','is-leaving');
+  $('pageScroll').inert=false;$('pageScroll').removeAttribute('aria-busy');
+}
+window.ebCancelPageTransition=cancelPageTransition;
+function showPage(p) {
   window.ebLeaveAccount?.();
   if(p==='battles') void loadBattles();
   document.querySelectorAll('#gmenu [data-p]').forEach(x => x.classList.toggle('on', x.dataset.p === p));
@@ -125,7 +134,37 @@ function nav(p) {
   $('pageScroll').scrollTop=0;
   gamesMenu(false);
 }
-$('home').onclick=e=>{const item=e.target.closest('[data-game-page]');if(item)nav(item.dataset.gamePage);};
+function nav(p){
+  if(!Object.hasOwn(pageNames,p))return;
+  const unchanged=$(p).classList.contains('on')&&!document.body.classList.contains('account-open');
+  cancelPageTransition();gamesMenu(false);
+  if(unchanged)return;
+  if(navigationMotion.matches){showPage(p);return;}
+  const version=navigationVersion;
+  $('pageTransitionLabel').textContent='Opening '+pageNames[p];
+  pageTransition.hidden=false;void pageTransition.offsetWidth;pageTransition.classList.add('is-running');
+  $('pageScroll').inert=true;$('pageScroll').setAttribute('aria-busy','true');
+  navigationTimer=setTimeout(()=>{
+    if(version!==navigationVersion)return;
+    showPage(p);$('pageScroll').inert=false;pageTransition.classList.add('is-leaving');
+    transitionExitTimer=setTimeout(()=>{if(version===navigationVersion)cancelPageTransition();},100);
+  },420);
+}
+$('home').onclick=e=>{
+  const item=e.target.closest('[data-game-page]');if(item)return nav(item.dataset.gamePage);
+  if(e.target.closest('[data-lobby-wallet]')){if(requireAuth())$('ebwDep').click();return;}
+  if(e.target.closest('[data-explore-games]')){
+    $('lobbyGamesTitle').scrollIntoView({behavior:navigationMotion.matches?'instant':'smooth',block:'start'});
+    $('lobbyGamesTitle').focus({preventScroll:true});return;
+  }
+  const filter=e.target.closest('[data-game-filter]');if(!filter)return;
+  document.querySelectorAll('[data-game-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b===filter)));
+  let count=0;document.querySelectorAll('#home .lobby-game').forEach(card=>{
+    card.hidden=filter.dataset.gameFilter!=='all'&&card.dataset.gameCategory!==filter.dataset.gameFilter;
+    if(!card.hidden)count++;
+  });
+  $('lobbyGameCount').textContent=count+' '+(count===1?'game':'games');
+};
 document.querySelector('.top .logo').onclick=e=>{
   if(e.button!==0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)return;
   e.preventDefault();$('chat').classList.remove('open');nav('home');
@@ -245,6 +284,7 @@ const VIEWS = { signup: 'fSignup', login: 'fLogin', forgot: 'fForgot', reset: 'f
 const TITLES = { signup: 'Create your account', login: 'Welcome back', forgot: 'Reset your password', reset: 'Set a new password', sent: 'Check your email' };
 let lastEmail = '';
 function openAuth(view) {
+  cancelPageTransition();
   view = view || 'signup';
   Object.entries(VIEWS).forEach(([k, id]) => $(id).hidden = k !== view);
   $('authTabs').hidden = !(view === 'signup' || view === 'login');
@@ -408,19 +448,27 @@ function renderCaseGrid() {
 $('caseGrid').onclick = e => { const t = e.target.closest('[data-case]'); if (t) openCase(t.dataset.case); };
 function idleH(reel, c) { reel.style.transition = 'none'; reel.style.transform = 'translateX(0)'; reel.parentElement.classList.remove('goldmode'); const s = reelSet(c); reel.innerHTML = s.concat(s, s).map(hcard).join(''); }
 async function hspin(reel, c, winner, dur) {
-  const box = reel.parentElement; box.classList.remove('goldmode');
-  if (!winner.top) return hroll(reel, () => shown(pick(c)), winner, dur);
+  const box = reel.parentElement; box.classList.remove('goldmode');box.dataset.phase='spinning';
+  if(navigationMotion.matches){
+    await hroll(reel,()=>shown(pick(c)),winner,120);
+    if(winner.top){box.classList.add('goldmode');reel.children[50].classList.add('jack');}
+    box.dataset.phase='landed';
+    return;
+  }
+  if (!winner.top){await hroll(reel, () => shown(pick(c)), winner, dur);box.dataset.phase='landed';return;}
   await hroll(reel, () => shown(pick(c)), DICE, dur - 900);
+  box.dataset.phase=$('caseView').dataset.phase='bonus';
   await flare(reel.children[50], box);
   box.classList.add('goldmode');
   await hroll(reel, () => pickTop(c), winner, 3800);
-  reel.children[50].classList.add('jack'); confetti(false);
+  reel.children[50].classList.add('jack');box.dataset.phase='landed';confetti(false);
 }
 function hroll(reel, fill, winner, dur) {
-  SFX.spin(dur - 450);
   const N = 60, W = 50; let h = ''; for (let i = 0; i < N; i++) h += hcard(i === W ? winner : fill()); reel.innerHTML = h;
   reel.style.transition = 'none'; reel.style.transform = 'translateX(0)'; void reel.offsetWidth;
   const box = reel.parentElement.clientWidth, x0 = 12 + W * 162 + 75 - box / 2, off = (Math.random() < .5 ? -1 : 1) * (20 + Math.random() * 45), run = dur - 500;
+  if(navigationMotion.matches){reel.style.transform=`translateX(${-x0}px)`;reel.children[W].classList.add('won');return sleep(120);}
+  SFX.spin(dur - 450);
   reel.style.transition = `transform ${run}ms cubic-bezier(.1,.75,.15,1)`; reel.style.transform = `translateX(${-(x0 + off)}px)`;
   setTimeout(() => { reel.style.transition = 'transform .45s cubic-bezier(.3,1.35,.5,1)'; reel.style.transform = `translateX(${-x0}px)`; reel.children[W].classList.add('won'); }, run + 40);
   return sleep(dur + 150);
@@ -435,6 +483,7 @@ function flare(card, box, ms = 1500) {
 }
 function openCase(id) {
   cur = caseById(id); if (!cur) return;
+  $('caseView').dataset.phase='idle';$('cvReel').parentElement.dataset.phase='idle';
   $('caseList').hidden = true; $('caseView').hidden = false;
   $('pageScroll').scrollTop=0;
   $('cvIcon').innerHTML = cpic(cur); $('cvName').textContent = cur.name;
@@ -448,14 +497,19 @@ $('cvOpen').onclick = async () => {
   if (spinning || !requireAuth()) return;
   if (!requireQuote()) return;
   spinning = true; $('cvOpen').disabled = true; $('cvBack').disabled = true;
+  $('caseView').setAttribute('aria-busy','true');
+  $('caseView').dataset.phase=$('cvReel').parentElement.dataset.phase='requesting';
   try {
     const r = await api('/api/games/instant','POST',{ ...pricedBet(),game:'cases',case:cur.id });
     void window.ebWalletRefresh();
     const w = cur.items.find(i => i.idx === r.idx) || cur.items[0];
+    $('caseView').dataset.phase='spinning';
     await hspin($('cvReel'), cur, w, 4600);
+    $('caseView').dataset.phase='landed';
     toast(`You unboxed <b>${esc(w.n)}</b> · ${currencyText(r.payout,r.asset_id)}`);
-  } catch (e) { toast(esc(niceErr(e)), 'lose'); }
+  } catch (e) { $('caseView').dataset.phase=$('cvReel').parentElement.dataset.phase='error';toast(esc(niceErr(e)), 'lose'); }
   spinning = false; $('cvOpen').disabled = false; $('cvBack').disabled = false;
+  $('caseView').setAttribute('aria-busy','false');
 };
 
 /* ---------- mines (the server decides where mines are) ---------- */
@@ -716,8 +770,8 @@ function renderLobby(force) {
 }
 function renderCreate() {
   const g = isGroup(draft.mode); if (g) { draft.crazy = false; draft.jackpot = false; }
-  document.querySelectorAll('#bCreate [data-tg]').forEach(t => { const k = t.dataset.tg; t.classList.toggle('on', !!draft[k]); t.classList.toggle('off', g && k !== 'borrow'); });
-  document.querySelectorAll('#bCreate [data-mode]').forEach(x => x.classList.toggle('on', x.dataset.mode === draft.mode));
+  document.querySelectorAll('#bCreate [data-tg]').forEach(t => { const k = t.dataset.tg; t.classList.toggle('on', !!draft[k]); t.classList.toggle('off', g && k !== 'borrow'); t.setAttribute('aria-pressed',!!draft[k]); t.setAttribute('aria-disabled',g && k !== 'borrow'); });
+  document.querySelectorAll('#bCreate [data-mode]').forEach(x => { const selected=x.dataset.mode === draft.mode; x.classList.toggle('on',selected); x.setAttribute('aria-pressed',selected); });
   document.querySelectorAll('#bCreate .cbtype').forEach(x => x.classList.toggle('on', !!x.querySelector(`[data-mode="${draft.mode}"]`)));
   const counts = new Map(); draft.cases.forEach(id => counts.set(id, (counts.get(id) || 0) + 1));
   $('bRounds').innerHTML = '<button class="cbadd" data-pick="1"><b>+</b>Add a case</button>' + [...counts].map(([id, q]) => { const c = caseById(id); return `<div class="cbcase"><span class="art">${cpic(c)}</span><b>${esc(c.name)}</b>${cv(c.price)}<span class="qty"><button data-dec="${id}" aria-label="One less">−</button><em>${q}</em><button data-inc="${id}" aria-label="One more">+</button></span></div>`; }).join('');
@@ -741,7 +795,7 @@ function renderPicker() {
   let list = onSale().filter(c => !q || c.name.toLowerCase().includes(q));
   const S = { new: (x, y) => y.sort - x.sort || 0, asc: (x, y) => x.price - y.price, desc: (x, y) => y.price - x.price, vlo: (x, y) => caseVol(x) - caseVol(y), vhi: (x, y) => caseVol(y) - caseVol(x) };
   if (PK.sort === 'new') list = list.slice().reverse(); else list = list.slice().sort(S[PK.sort]);
-  $('pkGrid').innerHTML = list.length ? list.map(c => `<button class="pkc ${counts[c.id] ? 'sel' : ''}" data-add="${c.id}">${counts[c.id] ? `<span class="cnt">${counts[c.id]}</span>` : ''}<span class="art">${cpic(c)}</span><b>${esc(c.name)}</b><span class="pp">${cv(c.price)}</span>${volBar(c)}</button>`).join('') : '<div class="lbempty" style="grid-column:1/-1">No cases match.</div>';
+  $('pkGrid').innerHTML = list.length ? list.map(c => `<button class="pkc ${counts[c.id] ? 'sel' : ''}" data-add="${c.id}" aria-label="Add ${esc(c.name)}${counts[c.id] ? ', '+counts[c.id]+' selected' : ''}">${counts[c.id] ? `<span class="cnt">${counts[c.id]}</span>` : ''}<span class="art">${cpic(c)}</span><b>${esc(c.name)}</b><span class="pp">${cv(c.price)}</span>${volBar(c)}</button>`).join('') : '<div class="lbempty" style="grid-column:1/-1">No cases match.</div>';
   const cost = PK.sel.reduce((s, id) => s + caseById(id).price, 0);
   $('pkCount').innerHTML = `${PK.sel.length} Case${PK.sel.length === 1 ? '' : 's'} - ${cv(cost)}`;
   $('pkAdd').disabled = !PK.sel.length;
@@ -769,7 +823,8 @@ const vcard = (it,price) => it.dice ? `<div class="vc dice" style="--rc:${RC.leg
 /* battle reel: lands the item, or the gold dice → flare → respin between the top pulls */
 function vspin(reel, c, winner, dur, price) {
   const token = reel.dataset.spin = String(Math.random()), box = reel.parentElement;
-  box.classList.remove('goldmode', 'flaring');
+  box.classList.remove('goldmode', 'flaring');reel.style.visibility='';
+  if(navigationMotion.matches)return vroll(reel,()=>shown(pick(c)),winner,dur,token,price);
   if (!winner.top) return vroll(reel, () => shown(pick(c)), winner, dur, token, price);
   if (dur <= 0) { box.classList.add('goldmode'); vroll(reel, () => pickTop(c), winner, 0, token, price); reel.children[30].classList.add('jack'); return; }
   const d2 = Math.min(TOP_SPIN, dur), d1 = dur - d2 - FLARE_MS;
@@ -779,11 +834,17 @@ function vspin(reel, c, winner, dur, price) {
   setTimeout(() => { if (reel.dataset.spin !== token) return; flare(reel.children[30], box, FLARE_MS); setTimeout(respin, FLARE_MS); }, d1);
 }
 function vroll(reel, fill, winner, dur, token, price) {
-  if (reel.id === 'vr0' && dur > 0) SFX.spin(dur - 450);
+  if (reel.id === 'vr0' && dur > 0 && !navigationMotion.matches) SFX.spin(dur - 450);
   const N = 36, W = 30; let h = ''; for (let i = 0; i < N; i++) h += vcard(i === W ? winner : fill(),price); reel.innerHTML = h;
   reel.style.transition = 'none'; reel.style.transform = 'translateY(0)'; void reel.offsetHeight;
   const H = reel.parentElement.clientHeight, y0 = 10 + W * PITCH + 65 - H / 2, card = reel.children[W];
   if (dur <= 0) { reel.style.transform = `translateY(${-y0}px)`; card.classList.add('won'); return; }
+  if(navigationMotion.matches){
+    // Keep shared battle reveal times while omitting the travelling reel.
+    reel.style.visibility='hidden';
+    setTimeout(()=>{if(reel.dataset.spin!==token)return;reel.style.visibility='';reel.style.transform=`translateY(${-y0}px)`;card.classList.add('won');},dur);
+    return;
+  }
   const run = Math.max(300, dur - 450), off = (Math.random() < .5 ? -1 : 1) * (18 + Math.random() * 34);
   reel.style.transition = `transform ${run}ms cubic-bezier(.12,.8,.18,1)`; reel.style.transform = `translateY(${-(y0 + off)}px)`;
   setTimeout(() => { if (reel.dataset.spin !== token) return; reel.style.transition = 'transform .42s cubic-bezier(.3,1.35,.5,1)'; reel.style.transform = `translateY(${-y0}px)`; card.classList.add('won'); }, run + 40);
@@ -818,11 +879,13 @@ function renderJackpot(b, p) {
     el.innerHTML = `<h3>JACKPOT MODE</h3><div class="pot">${cv(pot)}</div><div class="jtrack"><div class="jstrip" id="jStrip">${seg.repeat(R)}</div></div><div class="jres" id="jRes"></div>`;
     vs.jp = { W, S, x: W / 2 - (6 * S + roll * S) };
     const strip = $('jStrip'), start = W / 2 - S * 0.5, elapsed = p.ph === 'jackpot' ? JP_MS - p.jpLeft : JP_MS;
-    if (elapsed < JP_SPIN - 300) {
+    if(navigationMotion.matches&&p.ph!=='done')strip.style.transform=`translateX(${start}px)`;
+    else if (elapsed < JP_SPIN - 300) {
       strip.style.transform = `translateX(${start}px)`; void strip.offsetWidth;
       strip.style.transition = `transform ${JP_SPIN - elapsed}ms cubic-bezier(.1,.7,.1,1)`; strip.style.transform = `translateX(${vs.jp.x}px)`;
     } else strip.style.transform = `translateX(${vs.jp.x}px)`;
   }
+  if(navigationMotion.matches&&p.ph==='done'){$('jStrip').style.transition='none';$('jStrip').style.transform=`translateX(${vs.jp.x}px)`;}
   const res = $('jRes');
   if (p.ph === 'done' && !res.innerHTML) {
     const ws = teams[wt].filter(i => b.seats[i]);
@@ -846,8 +909,9 @@ function confetti(big) {
 }
 function tickView(force) {
   if (!vs) return;
-  const b = BT[vs.id]; const cv = v => catalogMoney(v,b), cvS = cv; if (!b) { showB('bLobby'); return; }
+  const b = BT[vs.id]; const cv = v => catalogMoney(v,b), cvS = (v,positive) => catalogMoney(v,b,positive); if (!b) { showB('bLobby'); return; }
   const now = Date.now(), p = prog(b, now), n = b.cases.length;
+  $('vGrid').dataset.phase=p.ph;
   const want = p.spinning >= 0 ? p.spinning : p.revealed - 1;
   if (want >= 0 && vs.spinning !== want) {
     vs.spinning = want;
@@ -896,7 +960,7 @@ function tickView(force) {
     const nm = $('wt' + i).querySelector('.nm'); if (nm) nm.textContent = nameOf(s);
     const pc = $('pc' + i);
     pc.classList.toggle('win', !!won); pc.classList.toggle('lose', !!(w && !won));
-    if (s) { pc.innerHTML = `${avatar(s)}<span class="pcm"><span class="nm" ${s.startsWith('bot:') ? '' : `data-uid="${esc(s)}"`}></span><span class="pcs">${s.startsWith('bot:') ? '<span class="lvl bt">BOT</span>' : lvlBadge(levelInfo(PW[s] || 0).level)}<span class="tt">${won ? `+${COIN}${fmtS(b.payouts[i])}` : ''}</span></span></span>`; pc.querySelector('.nm').textContent = nameOf(s); if (!won) pc.querySelector('.tt').innerHTML = cvS(t[i]); pc.title = nameOf(s) + ': ' + fmt(won ? b.payouts[i] : t[i]); }
+    if (s) { const amount=won ? b.payouts[i] : t[i]; pc.innerHTML = `${avatar(s)}<span class="pcm"><span class="nm" ${s.startsWith('bot:') ? '' : `data-uid="${esc(s)}"`}></span><span class="pcs">${s.startsWith('bot:') ? '<span class="lvl bt">BOT</span>' : lvlBadge(levelInfo(PW[s] || 0).level)}<span class="tt">${cvS(amount,won)}</span></span></span>`; pc.querySelector('.nm').textContent = nameOf(s); pc.title = nameOf(s) + ': ' + fmtMinor(BigInt(amount)*BigInt(b.unit),b.asset_id) + ' ' + ccySym(b.asset_id); }
     else pc.innerHTML = '<span class="wt">Waiting for player</span>';
     $('rd' + i).innerHTML = b.cases.map((c, r) => { if (b.results && r < p.revealed) { const it = b.results[i][r]; return `<div class="rb got" style="--rc:${RC[it.r]}"><span class="art">${pic(it)}</span>${cv(it.v)}<em>Round ${r + 1}</em></div>`; } return `<div class="rb"><em>Round ${r + 1}</em></div>`; }).join('');
   });
@@ -1046,12 +1110,14 @@ function uFiltered() {
 function renderUGrid() {
   if (!UPI.length) return;
   const l = uFiltered(), b = uBet();
-  $('uGrid').innerHTML = l.length ? l.slice(0, uShow).map(i => `<button class="ucard ${uSel && uSel.id === i.id ? 'sel' : ''} ${i.v <= b ? 'too' : ''}" data-u="${i.id}" style="--rc:${RC[i.r]}"><span class="tag">${i.r}</span><span class="art">${pic(i)}</span><b>${esc(i.n)}</b>${cv(i.v)}</button>`).join('')
+  $('uGrid').innerHTML = l.length ? l.slice(0, uShow).map(i => `<button class="ucard ${uSel && uSel.id === i.id ? 'sel' : ''} ${i.v <= b ? 'too' : ''}" data-u="${i.id}" aria-pressed="${!!uSel && uSel.id === i.id}" style="--rc:${RC[i.r]}"><span class="tag">${i.r}</span><span class="art">${pic(i)}</span><b>${esc(i.n)}</b>${cv(i.v)}</button>`).join('')
     : '<div class="loading">No items match. Try a different search or price range.</div>';
   $('uMore').hidden = l.length <= uShow;
 }
 function renderUpg(result) {
   const ch = uChance(), C = 2 * Math.PI * 178;
+  $('uWheel').setAttribute('aria-busy',uSpinning);
+  document.querySelectorAll('#uMode button,#uDir button,#uMult button').forEach(b=>b.setAttribute('aria-pressed',b.classList.contains('on')));
   $('uArc').setAttribute('stroke-dasharray', `${C * ch / 100} ${C}`);
   $('uArc').setAttribute('transform', `rotate(${-90 + (U.over ? 360 * (1 - ch / 100) : 0)} 200 200)`);
   if (!result) {
@@ -1099,9 +1165,12 @@ async function upgradeOnce(spinMs) {
   const target = Number(r.roll) / 100 * 360, base = uRot - (uRot % 360);
   uRot = base + 360 * (spinMs > 3000 ? 7 : 4) + target;
   const ptr = $('uPtr');
-  ptr.style.transition = `transform ${spinMs}ms cubic-bezier(.08,.6,.06,1)`; SFX.upgrade(spinMs); $('uWheel').classList.add('spin'); ptr.style.transform = `rotate(${uRot}deg)`;
+  const reduced=navigationMotion.matches,duration=reduced&&U.mode!=='auto'?160:spinMs;
+  ptr.style.transition=reduced?'none':`transform ${spinMs}ms cubic-bezier(.08,.6,.06,1)`;
+  if(!reduced){SFX.upgrade(spinMs);$('uWheel').classList.add('spin');ptr.style.transform=`rotate(${uRot}deg)`;}
   $('uLab').textContent = 'Rolling…'; $('uRng').textContent = '';
-  await sleep(spinMs + 80);
+  // Autobet retains its original cadence under either motion preference.
+  await sleep(duration + 80);if(reduced)ptr.style.transform=`rotate(${uRot}deg)`;
   const w = $('uWheel'); w.classList.remove('spin'); w.classList.toggle('win', r.win); w.classList.toggle('lose', !r.win);
   if (r.win) { SFX.upWin(); } else SFX.upLose();
   if (r.win) confetti(r.chance < 25); else { w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
@@ -1142,7 +1211,9 @@ const BACK = '<span class="back"><img src="/assets/dice-gold.png" alt=""></span>
 const cardHTML = (c, cls = '') => c < 0 ? `<span class="pcard hidden ${cls}" data-c="-1">${BACK}<span class="face"></span></span>`
   : `<span class="pcard ${cls}" data-c="${c}"><span class="face ${[1, 2].includes(Math.floor(c / 13)) ? 'red' : ''}"><span class="r">${RANKS[c % 13]}</span><span class="s">${SUITS[Math.floor(c / 13)]}</span></span>${BACK}</span>`;
 let BJ = null, bjBusy = false, bjShown = { dealer: 0, hands: [] }, bjAnim = 0;
-const BJ_GAP = 500, BJ_DEAL = 850, BJ_FLIP = 750;
+const BJ_GAP = 170, BJ_DEAL = 420, BJ_FLIP = 360;
+$('bjTable').style.setProperty('--bj-deal-ms',BJ_DEAL+'ms');
+$('bjTable').style.setProperty('--bj-flip-ms',BJ_FLIP+'ms');
 /* blackjack total of the cards a player can currently see */
 function bjCount(cardsEl) {
   let t = 0, aces = 0;
@@ -1161,6 +1232,7 @@ function bjCards(box, cards, already) {
 }
 function bjRender(st, animateDealer) {
   BJ = st;
+  const reduced=navigationMotion.matches;
   const hasGame = !!st, live = st && st.status !== 'done';
   $('bjCurrency').textContent = ccySym(live ? st.asset_id : undefined);
   $('bjTotal').textContent = currencyText(st ? st.hands.reduce((sum,h) => sum + BigInt(h.bet), BigInt(st.insurance)) : 0n, st?.asset_id);
@@ -1174,7 +1246,8 @@ function bjRender(st, animateDealer) {
       if (i < shownD.length) {
         if (c >= 0 && shownD[i].classList.contains('hidden')) {           // reveal the hole card
           const fresh = document.createElement('div'); fresh.innerHTML = cardHTML(c); const nc = fresh.firstChild;
-          nc.classList.add('hidden', 'flip'); nc.dataset.wait = 1; SFX.flip(); shownD[i].replaceWith(nc); flipped = true; setTimeout(() => { delete nc.dataset.wait; bjShowTot(dEl); }, BJ_FLIP * 0.6); requestAnimationFrame(() => requestAnimationFrame(() => nc.classList.remove('hidden')));
+          shownD[i].replaceWith(nc);
+          if(!reduced){nc.classList.add('hidden','flip');nc.dataset.wait=1;SFX.flip();flipped=true;setTimeout(()=>{delete nc.dataset.wait;bjShowTot(dEl);},BJ_FLIP*.6);requestAnimationFrame(()=>requestAnimationFrame(()=>nc.classList.remove('hidden')));}
         }
       } else dEl.insertAdjacentHTML('beforeend', cardHTML(c, 'deal'));
     });
@@ -1195,11 +1268,17 @@ function bjRender(st, animateDealer) {
     });
     // stagger newly dealt cards
     const fresh = [...document.querySelectorAll('#bjTable .pcard.deal:not([data-d])')], base = flipped ? BJ_FLIP : 0;
-    fresh.forEach(c => c.dataset.wait = 1);
-    fresh.sort((x, y) => bjOrder(x) - bjOrder(y)).forEach((c, i) => { c.dataset.d = 1; c.style.animationDelay = (base + i * BJ_GAP) + 'ms';
-      setTimeout(() => SFX.card(), base + i * BJ_GAP);
-      setTimeout(() => { delete c.dataset.wait; bjShowTot(c.parentElement); }, base + i * BJ_GAP + BJ_DEAL * 0.7); c.addEventListener('animationend', () => { c.classList.remove('deal'); c.style.animationDelay = ''; delete c.dataset.d; }, { once: true }); });
-    bjAnim = fresh.length ? base + (fresh.length - 1) * BJ_GAP + BJ_DEAL : base;
+    if(reduced){fresh.forEach(c=>{c.classList.remove('deal');c.style.animationDelay='';delete c.dataset.wait;delete c.dataset.d;});bjAnim=0;}
+    else{
+      fresh.forEach(c => c.dataset.wait = 1);
+      fresh.sort((x, y) => bjOrder(x) - bjOrder(y)).forEach((c, i) => { const delay=base+i*BJ_GAP;c.dataset.d=1;c.style.animationDelay=delay+'ms';
+        const finish=()=>{c.classList.remove('deal');c.style.animationDelay='';delete c.dataset.d;};
+        setTimeout(()=>SFX.card(),delay);
+        setTimeout(()=>{delete c.dataset.wait;if(c.isConnected)bjShowTot(c.parentElement);},delay+BJ_DEAL*.7);
+        c.addEventListener('animationend',finish,{once:true});setTimeout(finish,delay+BJ_DEAL+60);
+      });
+      bjAnim=fresh.length?base+(fresh.length-1)*BJ_GAP+BJ_DEAL:base;
+    }
     document.querySelectorAll('#bjTable .bjcards').forEach(bjShowTot);
   }
   $('bjIns').hidden = !(st && st.status === 'insurance');
@@ -1232,13 +1311,13 @@ async function bjSend(endpoint, args) {
     // mid-hand finish (bust, stand, double): show your new card first, then the dealer reveals
     if (st.status === 'done' && BJ && BJ.status && BJ.status !== 'done' && BJ.dealer && BJ.dealer.length) {
       bjAnim = 0; bjRender({ ...pre, dealer: BJ.dealer });
-      await sleep(bjAnim + 650); if (owner !== me?.id) return;
+      await sleep(bjAnim + (navigationMotion.matches?0:240)); if (owner !== me?.id) return;
     }
     bjAnim = 0; bjRender(pre);
-    await sleep(bjAnim + 150); if (owner !== me?.id) return;
+    await sleep(bjAnim + (navigationMotion.matches?0:150)); if (owner !== me?.id) return;
     bjBusy = false; bjRender(st);
     if (st.status === 'done') {
-      await sleep(250);
+      await sleep(navigationMotion.matches?0:250);
       if (owner === me?.id) bjFinishMsg(st);
     }
   } catch (e) { bjBusy = false; bjRender(BJ); toast(esc(niceErr(e)), 'lose'); }
@@ -1399,29 +1478,6 @@ async function verifyBattle(id) {
   openFair('verify');
   $('pfBody').innerHTML = `<div class="pff"><label>Battle seed</label><code>${esc(b.pfSeed)}</code></div><div class="pff"><label>Client seed (battle id)</label><code>${esc(b.id)}</code></div><div class="pfres">${await pfVerify({ game: 'battles', seed: b.pfSeed, client: b.id, nonce: 0, hash: b.pfHash, battle: b.id })}</div>`;
 }
-
-/* ---------- gentle snowfall ---------- */
-(() => {
-  const c=$('snow'),reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');if(!c||reducedMotion.matches)return;
-  const x = c.getContext('2d'); let W, H, dpr, flakes = [];
-  const size = () => { dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; c.width = W * dpr; c.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const n = Math.round(Math.min(110, W * H / 14000)); flakes = Array.from({ length: n }, () => mk(true)); };
-  const mk = any => ({ x: Math.random() * W, y: any ? Math.random() * H : -10, r: .6 + Math.random() * 2.1, s: .25 + Math.random() * .7, d: Math.random() * Math.PI * 2, o: .25 + Math.random() * .5 });
-  addEventListener('resize', size); size();
-  let last = performance.now();
-  (function tick(now) {
-    const dt = Math.min(50, now - last) / 16.7; last = now;
-    if (!document.hidden && !document.body.classList.contains('account-open') && !reducedMotion.matches) {
-      x.clearRect(0, 0, W, H);
-      for (const f of flakes) {
-        f.y += f.s * dt; f.d += .012 * dt; f.x += Math.sin(f.d) * .35 * dt;
-        if (f.y > H + 6) Object.assign(f, mk(false));
-        x.globalAlpha = f.o; x.fillStyle = '#fff'; x.beginPath(); x.arc(f.x, f.y, f.r, 0, 6.283); x.fill();
-      }
-    }
-    requestAnimationFrame(tick);
-  })(last);
-})();
 
 /* ---------- weekly leaderboard ---------- */
 let LB = null, lbEnd = 0;

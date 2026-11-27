@@ -1,0 +1,918 @@
+/* Game-only surfaces and event feedback. Reel pitch is owned by app.js. */
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) {
+  --bg: #10151b;
+  --bg2: #141b22;
+  --panel: #181f27;
+  --panel2: #202933;
+  --panel3: #293440;
+  --line: #303a45;
+  --line2: #3e4b59;
+  --txt: #e5ebf1;
+  --mut: #91a0af;
+  --dim: #91a0af;
+  --acc: #c8ad7f;
+  --acc2: #b99b69;
+  --game-success: #95cdb2;
+  --game-danger: #dfa0aa;
+  --game-info: #a4b9d0;
+  --game-focus: #8a9bad;
+  --game-ease: cubic-bezier(.2, .7, .2, 1);
+  color: var(--txt);
+  font: 500 14px/1.5 Inter, system-ui, "Segoe UI", sans-serif;
+  accent-color: var(--acc);
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader).on {
+  animation: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(h1, h2, h3, h4) {
+  font-family: Inter, system-ui, "Segoe UI", sans-serif;
+  font-weight: 650;
+  letter-spacing: -.025em;
+  line-height: 1.25;
+}
+
+:is(#cases, #battles) h1 { font-size: clamp(24px, 2.2vw, 30px); }
+:is(#mines, #blackjack, #cases, #battles, #upgrader) .cv {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--game-focus);
+  outline-offset: 3px;
+}
+
+/* Focus is immediate and slate. Grouped fields use their container outline. */
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(.amt, .tin, .fsel, .sel, .usearch, .pfv, input, select) {
+  transition: none;
+  animation: none;
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(.amt, .usearch, .pfv.edit):focus-within {
+  border-color: var(--game-focus);
+  outline: 2px solid var(--game-focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(.amt, .usearch, .pfv) input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(.tin, .fsel, .sel):focus {
+  border-color: var(--game-focus);
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn {
+  min-height: 42px;
+  height: 42px;
+  padding-inline: 16px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-shadow: none;
+  box-shadow: none;
+  transition: background-color .12s, border-color .12s, color .12s;
+  touch-action: manipulation;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn:not(:disabled):is(:hover, :active) {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn.gold {
+  border-color: var(--acc);
+  background: var(--acc);
+  color: #171d24;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn.gold:not(:disabled):hover {
+  border-color: #d6bf99;
+  background: #d6bf99;
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn.dark {
+  background: var(--panel2);
+  color: var(--txt);
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn.dark:not(:disabled):hover {
+  background: var(--panel3);
+  border-color: #586878;
+}
+
+#battles .btn.mint {
+  border-color: #396655;
+  background: #213d33;
+  color: #a2dfc0;
+  box-shadow: none;
+}
+
+#battles .btn.mint:not(:disabled):hover { background: #2a4a3e; }
+:is(#mines, #blackjack, #upgrader) .btn.big { min-height: 46px; height: auto; padding-block: 11px; font-size: 14px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+:is(#mines, #blackjack, #upgrader) .btn.mint {
+  border-color: var(--game-success);
+  background: var(--game-success);
+  color: #17271f;
+  box-shadow: none;
+}
+:is(#mines, #blackjack, #upgrader) .btn.mint:not(:disabled):hover { background: #abd8c1; border-color: #abd8c1; }
+:is(#mines, #blackjack, #upgrader) .lbl { margin: 18px 0 7px; font-size: 12px; font-weight: 600; }
+:is(#mines, #blackjack, #upgrader) .lbl b { font-variant-numeric: tabular-nums; }
+
+:is(#mines, #blackjack, #upgrader, #borrowModal, #fairModal) .amt {
+  height: 46px;
+  gap: 5px;
+  padding: 4px 4px 4px 10px;
+  border-color: var(--line2);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+:is(#mines, #blackjack, #upgrader, #borrowModal, #fairModal) .amt input {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(#mines, #blackjack, #upgrader) .amt button {
+  min-width: 36px;
+  height: 36px;
+  padding-inline: 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel2);
+  font-size: 12px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+:is(#mines, #blackjack, #upgrader) .amt button:hover { background: var(--panel3); }
+:is(#mines, #blackjack, #upgrader) .amt .hint { color: var(--mut); font-size: 11px; }
+
+:is(#mines, #blackjack, #upgrader, #fairModal) .seg {
+  gap: 3px;
+  padding: 3px;
+  border-color: var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #upgrader, #fairModal) .seg button {
+  height: 36px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+:is(#mines, #blackjack, #upgrader, #fairModal) .seg button.on {
+  background: var(--panel3);
+  color: var(--txt);
+  box-shadow: none;
+}
+
+:is(#mines, #upgrader, #battles, #borrowModal) input[type=range] {
+  height: 36px;
+  margin: 1px 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+:is(#mines, #upgrader, #battles, #borrowModal) input[type=range]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--acc) var(--p, 10%), var(--panel3) 0);
+}
+
+:is(#mines, #upgrader, #battles, #borrowModal) input[type=range]::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border: 3px solid var(--acc);
+  background: var(--txt);
+  box-shadow: none;
+}
+
+:is(#mines, #upgrader, #battles, #borrowModal) input[type=range]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel3);
+}
+
+:is(#mines, #upgrader, #battles, #borrowModal) input[type=range]::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--acc);
+}
+
+:is(#mines, #upgrader, #battles, #borrowModal) input[type=range]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--acc);
+  background: var(--txt);
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack, #upgrader) :is(.game, .upg) {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg2);
+  background-image: none;
+  box-shadow: none;
+}
+
+:is(#mines, #blackjack) .game {
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: min(660px, calc(100dvh - var(--top) - 48px));
+}
+
+:is(#mines, #blackjack, #upgrader) .side {
+  padding: 20px;
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+:is(#mines, #blackjack, #upgrader) .stats { margin-top: 24px; padding-top: 12px; gap: 0; border-top: 1px solid var(--line); }
+:is(#mines, #blackjack, #upgrader) .stats div {
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
+}
+
+:is(#mines, #blackjack, #upgrader) .stats b {
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+:is(#mines, #blackjack, #upgrader) .stats div:last-child { border-bottom: 0; }
+:is(#mines, #upgrader) .stats div:first-child b { font-size: 18px; letter-spacing: -.025em; }
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader) .pfbtn {
+  min-height: 36px;
+  border-color: var(--line);
+  border-radius: 5px;
+  color: var(--mut);
+  font-size: 12px;
+  font-weight: 600;
+  transition: color .12s, background-color .12s;
+}
+
+:is(#mines, #blackjack, #cases, #battles, #upgrader) .pfbtn:hover { background: var(--panel2); color: var(--txt); }
+:is(#mines, #blackjack, #cases, #battles, #upgrader) .pfbtn svg { color: var(--mut); }
+
+/* Mines */
+#mines .board-wrap { padding: 28px; background: var(--bg2); }
+#mines .board {
+  width: min(100%, calc(100dvh - var(--top) - 120px), 640px);
+  gap: clamp(4px, .8vw, 10px);
+}
+
+#mines .tile {
+  border: 1px solid #35414f;
+  border-radius: clamp(4px, .6vw, 7px);
+  background: #232d38;
+  color: #526172;
+  box-shadow: inset 0 -2px 0 #17212b;
+  transition: background-color .12s;
+  touch-action: manipulation;
+}
+
+#mines .tile:not(:disabled):hover { transform: none; box-shadow: inset 0 -2px 0 #17212b; }
+#mines .board.live .tile:not(.gem):not(.bomb):hover { background: #303d4b; color: #758698; transform: none; }
+#mines .board.live .tile:not(.gem):not(.bomb):hover .mark { transform: none; }
+#mines .tile.gem { border-color: #6b9c83; background: #24392f; box-shadow: none; }
+#mines .tile.gem .ic { filter: none; }
+#mines .tile.bomb { border-color: #cf6779; background: #452631; box-shadow: none; }
+#mines .tile.bomb .ic { filter: none; }
+#mines .tile.dim { opacity: .62; box-shadow: none; }
+#mines .tile.pending { border-color: #8191a2; background: #2b3947; opacity: .85; transform: none; }
+#mines .tile.pending .mark { opacity: .55; }
+#mines:has(#mPlay.mint) #sProfit { color: var(--game-success); }
+
+/* Cases and item catalogs */
+#cases .ph { margin: 0 0 22px; }
+#cases .ph p { max-width: 560px; font-size: 13px; line-height: 1.6; }
+#cases .cgrid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 14px; }
+#cases .ccard {
+  gap: 7px;
+  padding: 22px 14px 18px;
+  border-radius: 8px;
+  background: var(--panel);
+  background-image: none;
+  box-shadow: none;
+  color: var(--txt);
+  font: inherit;
+  transition: background-color .12s;
+}
+
+#cases .ccard:is(:hover, :active) { transform: none; background: var(--panel2); box-shadow: none; }
+#cases .ccard::before, #cases .ccard::after { display: none; }
+#cases .ccard .art { width: 150px; height: 150px; }
+#cases .ccard:hover .art img { transform: none; }
+#cases .ccard .art img { transition: none; filter: none; }
+#cases .ccard b { margin-top: 4px; font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+#cases .ccard .meta { flex-wrap: wrap; justify-content: center; font-size: 11px; }
+#cases .ccard .price { margin-top: 8px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); }
+#cases .ccard .vol { margin-top: 7px; }
+#cases .cvtop { gap: 14px; margin-bottom: 18px; }
+#cases .cvname b { font-size: 22px; font-weight: 650; }
+#cases .cvtop .btn { min-width: 190px; }
+#cases .cvtop .btn { height: auto; min-height: 42px; padding-block: 11px; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+#cases .hbox { border-radius: 8px; background: var(--panel); box-shadow: none; }
+#cases .hbox::after { top: 10px; bottom: auto; width: 14px; height: 10px; border-radius: 0; background: var(--acc); box-shadow: none; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+#cases .hc { border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); }
+#cases .hc::before, #cases .ic2::before { display: none; }
+#cases .hc.won { border-color: var(--rc); background: #26313d; transform: scale(1.02); box-shadow: 0 0 0 1px var(--rc); animation: none; }
+#cases .hc.dice { background: #302b22; box-shadow: inset 0 0 0 1px var(--acc); }
+#cases .hbox.goldmode { border-color: var(--acc); background: #24251f; box-shadow: none; }
+#cases .sh { margin: 24px 0 12px; font-size: 15px; font-weight: 650; }
+#cases .igrid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 155px), 1fr)); gap: 12px; }
+#cases .ic2 { padding: 18px 10px 14px; border-radius: 7px; box-shadow: none; }
+#cases .ic2:hover { transform: none; }
+#cases .ic2.tp { background: var(--panel); }
+#cases .ic2 .odds { top: 8px; right: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); font-weight: 650; }
+#cases .ccard .price { color: var(--txt); font-variant-numeric: tabular-nums; }
+#cases :is(.ccard, .ic2) { border-top: 2px solid var(--rc, var(--g, var(--line))) !important; }
+#cases .hbox[data-phase=spinning] { border-color: #5e7185; }
+#cases .hbox[data-phase=bonus] { border-color: #9d8a68; }
+#cases .hbox[data-phase=landed] { border-color: #71879d; }
+#cases .hbox[data-phase=error] { border-color: var(--game-danger); }
+:is(#cases, #pickModal) .vol em { box-shadow: none; }
+
+/* Battles: lobby, creation and arena */
+#battles .ltitle { justify-content: space-between; align-items: center; margin: 0 0 22px; flex-wrap: wrap; }
+#battles .ltitle p { margin: 6px 0 0; }
+#battles .lbar { gap: 12px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+#battles .tabs { gap: 3px; padding: 3px; border-radius: 6px; }
+#battles .tabs button { height: 36px; padding-inline: 13px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+#battles .tog { min-height: 40px; gap: 8px; font-size: 12px; font-weight: 600; }
+#battles .tog[aria-pressed=true] .sw { background: #6b6252; }
+#battles .tog[aria-pressed=true] .sw::after { background: var(--acc); }
+#battles .sel { min-height: 40px; font-size: 12px; font-weight: 600; }
+#battles .lbar .right { gap: 14px; }
+#battles :is(.lhead, .brow) { grid-template-columns: 90px minmax(0, 1.5fr) minmax(0, 1.2fr) 110px 112px 140px; gap: 12px; padding-inline: 16px; }
+#battles .lhead { color: var(--mut); font-size: 10px; letter-spacing: .08em; }
+#battles .blist { gap: 8px; }
+#battles .brow { min-height: 82px; border-radius: 7px; background: var(--panel); background-image: none; box-shadow: none; }
+#battles .brow:hover { background: var(--panel2); }
+#battles .brow.done { opacity: 1; background: var(--bg2); }
+#battles .bm b { font-size: 17px; font-weight: 650; }
+#battles .bm small { font-size: 11px; }
+#battles .bc .mini { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); }
+#battles .bc .mini :is(img, svg) { width: 36px; height: 36px; filter: none; }
+#battles .bk .cv { font-size: 13px; }
+#battles .pill { padding: 5px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+#battles .pill.open { background: #20372e; color: #9ed4b7; }
+#battles :is(.pill.starting, .pill.rolling) { background: #353023; color: var(--acc); }
+#battles .mtag { padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: 650; }
+#battles .mtag.jp { color: var(--acc); background: #353023; }
+#battles .bempty { min-height: 300px; border-radius: 8px; }
+#battles .bempty h3 { font-size: 22px; }
+#battles .bempty p { max-width: 420px; font-size: 13px; font-weight: 500; }
+#battles .cb { margin-top: 14px; padding: 24px; border-radius: 9px; background: var(--panel); background-image: none; box-shadow: none; }
+#battles .cb h2 { margin-bottom: 22px; font-size: 21px; }
+#battles .cbsec { margin-bottom: 24px; }
+#battles .cbsec h3 { font-size: 14px; }
+#battles .cbsec .small { font-size: 12px; line-height: 1.6; }
+#battles .cbtogs { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+#battles .tg { gap: 10px; padding: 14px; border-radius: 6px; background: var(--panel2); box-shadow: none; }
+#battles .tg .tn b { font-size: 13px; font-weight: 650; }
+#battles .tg .tn small { line-height: 1.5; }
+#battles .tg .ti { width: 30px; height: 30px; border-radius: 5px; color: var(--mut); }
+#battles .tg.on { border-color: #7c91a6 !important; background: #25323f; }
+#battles .tg.on .ti { color: var(--acc); background: #393428; }
+#battles .tg.on .sw { background: #6b6252; }
+#battles .tg.on .sw::after { background: var(--acc); }
+#battles .cbtypes { gap: 10px; }
+#battles .cbtype { padding: 14px; border-radius: 6px; box-shadow: none; }
+#battles .cbtype.on { border-color: #7c91a6 !important; background: #25323f; }
+#battles .cbtype .ch { gap: 7px; font-size: 12px; font-weight: 650; }
+#battles .cbtype .cm { gap: 5px; }
+#battles .cbtype .cm button { min-height: 36px; padding-inline: 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+#battles .cbtype .cm button.on { background: #36485a; border-color: #8a9bad; color: var(--txt); }
+#battles .cbrounds { grid-template-columns: repeat(auto-fill, minmax(min(100%, 155px), 1fr)); gap: 12px; }
+#battles .cbadd { min-height: 210px; border: 1px dashed var(--line2); border-radius: 6px; font-size: 13px; font-weight: 600; }
+#battles .cbadd b { font-size: 28px; }
+#battles .cbadd:hover { border-color: var(--game-focus); color: var(--txt); background: var(--panel2); }
+#battles .cbcase { border-radius: 6px; box-shadow: none; }
+#battles .cbcase:hover { transform: none; }
+#battles .cbcase b { font-size: 13px; font-weight: 600; }
+#battles .qty { gap: 8px; padding: 3px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); }
+#battles .qty button { width: 32px; height: 32px; border: 1px solid var(--line2); border-radius: 4px; background: var(--panel3); color: var(--txt); }
+#battles .qty em { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+#battles .cbfoot { padding-top: 16px; padding-bottom: 2px; background: var(--panel); }
+#battles .cbfoot .btn { min-width: 180px; width: auto; }
+#battles #bFoot { font-size: 13px; white-space: normal; }
+#battles :is(.ba, .wait) .btn { min-height: 42px; height: auto; padding-block: 10px; white-space: normal; flex-wrap: wrap; line-height: 1.4; }
+#battles :is(.ba, .wait) .btn .cv { display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+#battles .bvtop { margin-bottom: 14px; }
+#battles .bvtitle { font-size: 15px; font-weight: 650; }
+#battles .bvtitle span { font-size: 12px; }
+#battles .bvsub { margin: 0 0 16px; padding-block: 14px; border-block: 1px solid var(--line); }
+#battles .bvsub :is(.l, .r) { font-size: 12px; font-weight: 600; }
+#battles .curcase .art { width: 56px; height: 56px; filter: none; }
+#battles .curcase b { font-weight: 600; }
+#battles .bvfair { gap: 8px; margin-bottom: 16px; font-size: 11px; }
+#battles .vscroll { overscroll-behavior-x: contain; scrollbar-color: #566575 var(--bg); }
+#battles .vgrid { --ah: clamp(340px, calc(100dvh - 350px), 540px); }
+#battles .ccol { border-radius: 8px 0 0 8px; }
+#battles .ccol .cc { border-radius: 6px; }
+#battles .ccol .cc.on { background: var(--panel3); transform: none; }
+#battles .seat.last { border-radius: 0 8px 8px 0; }
+#battles .vbox { box-shadow: none; }
+#battles .vbox::after { left: 6px; right: auto; width: 6px; height: 12px; transform: translateY(-50%); clip-path: polygon(0 0, 100% 50%, 0 100%); background: #a0b0c1; box-shadow: none; opacity: 1; }
+#battles .seat::after { content: ""; position: absolute; z-index: 3; top: 50%; right: 6px; width: 6px; height: 12px; transform: translateY(-50%); clip-path: polygon(100% 0, 0 50%, 100% 100%); background: #a0b0c1; pointer-events: none; }
+#battles .vc { border-radius: 6px; }
+#battles .vc .art::before { display: none; }
+#battles .vc.won .art::before { display: none; }
+#battles .wait b { font-size: 13px; font-weight: 600; }
+#battles .wait .ok { font-size: 12px; font-weight: 600; }
+#battles .wait .ring { width: 42px; height: 42px; border: 2px dashed #637487; background: none; mask: none; -webkit-mask: none; animation: none; }
+#battles .wait:has(.ok) { background: #1b2924; }
+#battles .wait .ok { color: var(--game-success); }
+#battles .vc.won { transform: scale(1.025); background: #25313e; }
+#battles .seat.win { box-shadow: inset 0 -3px 0 #769e88; }
+#battles .seat.win::after, #battles .seat.win .vbox::after { background: var(--game-success); }
+#battles .pc { border-radius: 5px; background: var(--panel); }
+#battles .pc::after { display: none; }
+#battles .pc.t0 { border-bottom-color: var(--acc); }
+#battles .pc.t1 { border-bottom-color: #5b8cff; }
+#battles .pc.t2 { border-bottom-color: #a66bff; }
+#battles .pc .pcm .nm { font-size: 12px; font-weight: 650; }
+#battles .pc .pcs .tt { font-size: 11px; font-weight: 600; }
+#battles .pc.win { border-color: #648773; }
+#battles .pc.win .tt { color: #9ed4b7; }
+#battles .pc.lose { opacity: 1; background: #241e27; }
+#battles .pc.lose .tt { color: var(--game-danger); }
+#battles .pc.win { background: #20332a; border-color: #769e88 !important; }
+#battles .rb { min-height: 112px; height: auto; padding: 10px 6px; border-radius: 6px; }
+#battles .rb em { color: var(--mut); font-size: 10px; font-weight: 600; }
+#battles .vjack { padding: 22px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+#battles .vjack h3 { color: var(--acc); font-size: 21px; font-weight: 650; letter-spacing: .02em; }
+#battles .vjack .pot { font-size: 18px; }
+#battles .jtrack::after { width: 2px; box-shadow: none; }
+#battles .jseg { border-radius: 5px; background: var(--tc); box-shadow: inset 0 0 0 1px #ffffff40; }
+#battles .jres .lbl2 { font-size: 16px; }
+#battles .jres:has(em) { padding-top: 16px; border-top: 1px solid var(--line); }
+#battles .bvstat { font-size: 12px; font-weight: 600; }
+#battles .bvstat.win { color: var(--game-success); }
+#battles .bvstat.lose { color: var(--game-danger); }
+#battles #vGrid[data-phase=rolling] .seat { border-top-color: #60768c; }
+
+/* Blackjack: retain card faces, hand indicators and dealing transforms. */
+#blackjack .bjacts { gap: 7px; padding: 7px; border-radius: 6px; }
+#blackjack .bjacts button { height: 44px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; font-weight: 650; letter-spacing: .02em; }
+#blackjack .bjtable { min-height: 580px; padding: 64px 26px 30px; background: var(--bg2); }
+#blackjack .bjtable::after { display: none; }
+#blackjack .bjpill { top: 18px; left: 20px; padding: 7px 10px; border-radius: 5px; font-size: 10px; font-weight: 600; }
+#blackjack .bjrules { max-width: 100%; padding: 8px 12px; border-radius: 5px; background: var(--panel); font-size: 10px; font-weight: 600; letter-spacing: .025em; }
+#blackjack .bjhand { max-width: 100%; }
+#blackjack .bjhands { max-width: 100%; padding-inline: 22px; gap: 38px; }
+#blackjack .bjcards .bjtot + .pcard { margin-left: 0; margin-top: 0; }
+#blackjack .bjcards .pcard:nth-child(3) { margin-top: 14px; }
+#blackjack .bjcards .pcard:nth-child(4) { margin-top: 28px; }
+#blackjack .bjcards .pcard:nth-child(5) { margin-top: 42px; }
+#blackjack .bjcards .pcard:nth-child(n+6) { margin-top: 56px; }
+#blackjack .bjcards:has(.pcard:nth-child(4)) { height: 164px; }
+#blackjack .bjcards:has(.pcard:nth-child(5)) { height: 178px; }
+#blackjack .bjcards:has(.pcard:nth-child(6)) { height: 192px; }
+#blackjack .bjcards:has(.pcard:nth-child(n+8)) .pcard ~ .pcard { margin-left: -64px; }
+#blackjack .bjcards:has(.pcard:nth-child(n+11)) .pcard ~ .pcard { margin-left: -72px; }
+#blackjack .bjtot { right: -35px; min-width: 34px; padding-inline: 7px; border-width: 1px; border-radius: 5px; font-size: 12px; }
+#blackjack .bjhand.active .bjtot { border-color: #8d7bff; background: #302951; color: var(--txt); }
+#blackjack :is(.bjhand.res-win, .bjhand.res-blackjack) .bjtot { background: #383124; color: #e0c69d; }
+#blackjack .bjres { font-size: 12px; font-weight: 650; letter-spacing: .04em; }
+#blackjack .bjres:not(:empty) { display: grid; place-items: center; min-width: 84px; min-height: 24px; height: auto; padding: 2px 9px; border: 1px solid currentColor; border-radius: 4px; line-height: 1.4; }
+#blackjack .bjres.win { color: var(--game-success); }
+#blackjack .bjres.blackjack { color: #dcc49d; }
+#blackjack .bjres:is(.lose, .bust) { color: var(--game-danger); }
+#blackjack .pcard, #blackjack .pcard :is(.face, .back) { border-radius: 6px; }
+#blackjack .pcard { box-shadow: 0 4px 10px #0005; }
+#blackjack .pcard .face { background: #edf0f3; }
+#blackjack .pcard .back { border: 2px solid var(--acc); background: #26323f; box-shadow: inset 0 0 0 4px #18212b, inset 0 0 0 5px #718092; }
+#blackjack .pcard .back img { filter: none; }
+#blackjack .bjins .box { width: min(340px, 100%); padding: 22px; border-radius: 8px; }
+#blackjack .bjins h3 { font-size: 19px; }
+#blackjack .bjins p { font-size: 13px; font-weight: 500; }
+#blackjack .bjempty { color: var(--mut); font-size: 13px; font-weight: 500; }
+
+/* Upgrader */
+#upgrader .upg { grid-template-columns: 320px minmax(0, 1fr) 240px; min-height: 590px; }
+#upgrader .wheel-wrap { gap: 22px; padding: 28px 20px; background: var(--bg2); }
+#upgrader .wheel { width: min(100%, 430px); filter: none; }
+#upgrader .wheel .arc { stroke: var(--acc); filter: none; }
+#upgrader .wheel.win .arc { stroke: var(--grn); filter: none; }
+#upgrader .wheel.lose .arc { stroke: var(--red); filter: none; }
+#upgrader .wheel .uring > circle:first-child { stroke: var(--panel3); }
+#upgrader .wheel .uring > circle:nth-child(4) { fill: var(--bg2); stroke: var(--line); }
+#upgrader .wheel .ptr i { filter: none; background: var(--txt); }
+#upgrader .wheel .ptr b { background: #bdc9d5; opacity: .55; box-shadow: none; }
+#upgrader .wheel::after { content: ""; position: absolute; inset: 3%; border: 1px solid var(--line2); border-radius: 50%; pointer-events: none; }
+#upgrader .wheel.spin::after { border-color: #7890a7; }
+#upgrader .wheel.win::after { border-color: #709f86; }
+#upgrader .wheel.lose::after { border-color: #b27782; }
+#upgrader .wheel.spin .mid .pct { color: var(--mut); opacity: .7; }
+#upgrader .wheel.shake { animation: none; }
+#upgrader .wheel .mid { gap: 7px; }
+#upgrader .wheel .mid .pct { font-size: clamp(34px, 4vw, 48px); font-weight: 650; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+#upgrader .wheel .mid .lab { font-size: 10px; font-weight: 600; letter-spacing: .07em; }
+#upgrader .wheel .mid .rng { padding-inline: 42px; font-size: 12px; font-weight: 600; }
+#upgrader .uflow { width: 100%; gap: 8px; justify-content: center; }
+#upgrader .uflow .fb { min-width: 0; flex: 1; max-width: 180px; padding: 10px 7px; border-radius: 5px; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; text-align: center; }
+#upgrader .uflow .fb small { font-size: 9px; font-weight: 600; }
+#upgrader .uflow .fb.t { border-color: #665d4c; background: var(--panel); }
+#upgrader .utarget { padding: 26px 18px; gap: 12px; background: var(--panel); }
+#upgrader .utarget .h { font-size: 12px; font-weight: 600; }
+#upgrader .utarget .empty-t { font-size: 12px; font-weight: 500; line-height: 1.75; }
+#upgrader .utarget .tart { width: min(180px, 100%); border-color: var(--line); border-radius: 7px; background: var(--bg2); }
+#upgrader .utarget .tart::before { display: none; }
+#upgrader .utarget .tart .rar { top: 7px; left: 7px; border-radius: 3px; background: var(--bg); font-size: 9px; font-weight: 650; }
+#upgrader .utarget .tn { font-size: 14px; font-weight: 600; }
+#upgrader .utarget .tv { font-size: 20px; font-weight: 650; }
+#upgrader .utarget .tpills { gap: 7px; }
+#upgrader .utarget .tpills span { border-radius: 5px; background: var(--bg2); font-size: 9px; font-weight: 600; }
+#upgrader .utarget .tpills b { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+#upgrader .utarget .x { top: 12px; right: 12px; border: 1px solid var(--line); border-radius: 5px; }
+#upgrader .ubar { gap: 10px; margin: 24px 0 16px; }
+#upgrader .ubar h2 { font-size: 18px; }
+#upgrader .usearch { height: 42px; min-width: min(240px, 100%); padding-inline: 12px; border-radius: 6px; }
+#upgrader .usearch input { font-size: 13px; }
+#upgrader .fsel { height: 42px; min-width: 150px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+#upgrader .urange { gap: 8px; }
+#upgrader .urange .amt { width: 120px; height: 42px; }
+#upgrader .urange .amt input { font-size: 13px; }
+#upgrader .ugrid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 12px; }
+#upgrader .ucard { gap: 7px; padding: 22px 10px 14px; border-radius: 7px; background: var(--panel); box-shadow: none; transition: background-color .12s; }
+#upgrader .ucard::before { display: none; }
+#upgrader .ucard:hover { transform: none; background: var(--panel2); box-shadow: none; }
+#upgrader .ucard.sel { border-color: #8a9bad !important; background: #253442; box-shadow: inset 0 0 0 1px #8a9bad; }
+#upgrader .ucard b { font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 2.8em; }
+#upgrader .ucard .tag { top: 8px; font-size: 9px; font-weight: 650; }
+#upgrader .ucard.too { opacity: .62; }
+
+/* Game-specific dialogs */
+:is(#pickModal, #borrowModal, #fairModal) { padding: 20px; background: #080c11cc; }
+:is(#pickModal, #borrowModal, #fairModal) .dlg {
+  max-height: calc(100dvh - 40px);
+  border: 1px solid var(--line2);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: 0 16px 48px #0006;
+  animation: none;
+}
+
+:is(#pickModal, #borrowModal) .pkhead { padding: 20px 22px 14px; }
+:is(#pickModal, #borrowModal) .pkhead h2 { font-size: 20px; text-align: left; }
+:is(#pickModal, #borrowModal, #fairModal) .dlg-x { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel2); }
+#pickModal .pkbar { padding-top: 0; gap: 10px; }
+#pickModal :is(.tin, .pksbtn) { height: 42px; border-radius: 5px; font-size: 12px; font-weight: 600; }
+#pickModal .tin { min-width: 0; background: var(--bg2); }
+#pickModal .pksmenu { border-radius: 5px; background: var(--panel); }
+#pickModal .pksmenu button { min-height: 40px; }
+#pickModal .pkgrid2 { min-height: 0; max-height: min(520px, calc(100dvh - 260px)); gap: 12px; overscroll-behavior: contain; }
+#pickModal .pkc { padding: 16px 10px 12px; border-width: 1px; border-radius: 6px; box-shadow: none; transition: background-color .12s; }
+#pickModal .pkc:hover { transform: none; background: var(--panel3); }
+#pickModal .pkc.sel { border-color: #8a9bad !important; background: #253442; }
+#pickModal .pkc b { font-size: 12px; font-weight: 600; }
+#pickModal .pkc .pp { padding: 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg2); }
+#pickModal .pkc .pp .cv { font-size: 12px; font-weight: 650; }
+#pickModal .pkc .cnt { border-radius: 4px; font-weight: 650; }
+:is(#pickModal, #borrowModal) .pkfoot { flex-wrap: wrap; padding: 14px 22px; background: var(--bg2); font-size: 12px; font-weight: 600; }
+:is(#battles, #borrowModal) .bwp { padding: 18px; border-color: var(--line2); border-radius: 6px; background: var(--bg2); gap: 22px; }
+#borrowModal .bwp { overflow-y: auto; border: 0; border-radius: 0; }
+:is(#battles, #borrowModal) .bwp h4 { font-size: 14px; }
+:is(#battles, #borrowModal) .bwp input[type=range] { height: 36px; }
+:is(#battles, #borrowModal) .bwq { gap: 5px; margin-top: 8px; }
+:is(#battles, #borrowModal) .bwq button { min-width: 40px; height: 36px; border-color: var(--line2); border-radius: 4px; color: var(--txt); font-size: 11px; font-weight: 600; }
+:is(#battles, #borrowModal) .bwq button:is(.on, :hover) { border-color: #8a9bad; background: #2e4052; }
+:is(#battles, #borrowModal) .bwr { gap: 12px; font-size: 12px; font-weight: 500; }
+:is(#battles, #borrowModal) .bwr div { gap: 12px; }
+:is(#battles, #borrowModal) .bwr .big { font-size: 15px; }
+#fairModal .fairdlg { padding: 22px; }
+#fairModal .pfhead { gap: 12px; }
+#fairModal .pfhead h2 { font-size: 20px; }
+#fairModal .pfshield { color: var(--acc); }
+#fairModal .pfintro { font-size: 13px; font-weight: 500; line-height: 1.65; }
+#fairModal .pftabs { border-radius: 6px; }
+#fairModal .pftabs button { min-height: 36px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+#fairModal .pfl { font-size: 12px; font-weight: 600; }
+#fairModal .pfv { border-radius: 5px; background: var(--bg2); }
+#fairModal .pfv span { color: var(--mut); }
+#fairModal .pfv input { font-weight: 500; }
+#fairModal .pfcp { width: 34px; height: 34px; border-radius: 4px; color: var(--mut); }
+#fairModal .pfbet { border-radius: 5px; font-size: 12px; font-weight: 500; }
+#fairModal .pfbet button { min-height: 36px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+#fairModal :is(.tin, .fsel, .pfmono, .pff code) { border-radius: 5px; }
+#fairModal :is(.pfnote, .pfwarn) { font-weight: 500; line-height: 1.65; }
+#fairModal .pff .row { flex-wrap: wrap; }
+#fairModal .pff .row > * { min-width: 0; flex: 1 1 110px; }
+#fairModal .pfres { border-radius: 6px; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+
+/* Dialog chrome stays fixed while long case lists and seed values scroll. */
+:is(#pickModal, #borrowModal, #fairModal) .dlg { isolation: isolate; }
+:is(#pickModal, #borrowModal) :is(.pkhead, .pkbar, .pkfoot) { flex-shrink: 0; }
+:is(#pickModal, #borrowModal) .pkhead { border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+:is(#pickModal, #borrowModal) .pkfoot { gap: 12px 20px; }
+:is(#pickModal, #borrowModal) .pkfoot > span { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#pickModal .pkgrid2 { flex: 1 1 auto; scrollbar-gutter: stable; scroll-padding: 16px; }
+#pickModal .pkc b { min-height: 2.8em; line-height: 1.4; }
+#pickModal .pkc .pp { max-width: 100%; min-height: 42px; align-items: center; padding: 8px 6px; }
+#pickModal .pkc .pp .cv { display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+#pickModal .pkc .cnt { border: 1px solid #879cb1; background: #d0dae4; color: #16212c; }
+#pickModal .pksmenu { max-height: min(320px, 42dvh); overflow-y: auto; overscroll-behavior: contain; }
+#pickModal .pksmenu button.on { background: #2b3a49; color: var(--txt); }
+:is(#battles, #borrowModal) .bwr > div { gap: 10px 16px; flex-wrap: wrap; }
+:is(#battles, #borrowModal) .bwr :is(b, .ac, .cv) { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+:is(#battles, #borrowModal) .bwr .big { min-height: 48px; height: auto; padding-block: 10px; border-bottom: 1px solid var(--line); }
+:is(#battles, #borrowModal) .bwr .big .cv { font-size: 18px; }
+#borrowModal .bwp { min-height: 0; overscroll-behavior: contain; }
+#fairModal .fairdlg { display: flex; flex-direction: column; overflow: hidden; }
+#fairModal :is(.pfhead, .pfintro, .pftabs) { flex-shrink: 0; }
+#fairModal .pftabs { margin: 0 0 2px; }
+#fairModal .pfbody { min-height: 0; max-height: none; padding: 18px 0 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scroll-padding: 16px; }
+#fairModal .pfv { min-height: 44px; height: auto; padding-block: 8px; }
+#fairModal .pfv span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; font: 500 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
+#fairModal .pfv .pfcp { flex-shrink: 0; }
+#fairModal .pfbet { grid-template-columns: minmax(0, 1fr) 50px 76px; gap: 10px; padding: 12px; }
+#fairModal .pfbet > span:first-child { overflow-wrap: anywhere; }
+#fairModal .pfbet button { grid-column: 3; grid-row: 1; }
+#fairModal .pfbet .h { grid-row: 2; order: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; font-size: 11px; }
+#fairModal .pfbet > .pfres { grid-column: 1 / -1; margin-top: 2px; }
+#fairModal .pfres { background: #203229; border-color: #557d65; color: var(--txt); }
+#fairModal .pfres.bad { background: #35242b; border-color: #986673; }
+#fairModal .pfres.bad b { color: var(--game-danger); }
+:is(#cases, #upgrader) :is(.ic2, .ucard) .cv { display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+#cases .hc .cv, #battles :is(.vc, .rb) .cv, #upgrader .utarget .tv .cv { display: block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+#battles .pc { height: auto; min-height: 62px; padding-block: 10px; }
+#battles .pc .pcs .tt { display: inline-flex; flex-wrap: wrap; overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+#battles .pc .pcs .tt .cv { display: block; max-width: 100%; overflow-wrap: anywhere; }
+
+/* Event-only feedback: no idle bobbing, jackpot pulsing or full-screen shake. */
+#mines .tile.pop { animation: eb-game-safe-confirm 280ms ease-out; }
+#mines .tile.pop .ic { animation: eb-game-mine-reveal 280ms var(--game-ease) both; }
+#mines .tile.hit { animation: eb-game-mine-hit 190ms ease-out; }
+#mines .tile.hit .ic { animation: eb-game-mine-reveal 220ms var(--game-ease) both; }
+#blackjack .bjtable { --bj-origin-x: 38px; --bj-origin-y: -42px; }
+#blackjack .pcard.deal { animation: eb-game-card-deal var(--bj-deal-ms, 420ms) var(--game-ease) both; }
+#blackjack .pcard.hidden.deal { animation-name: eb-game-card-back; }
+#blackjack .pcard.flip { transition: transform var(--bj-flip-ms, 360ms) cubic-bezier(.3, .1, .2, 1); }
+/* A reduced-motion preference must never bypass the JS disclosure gate. */
+#blackjack .pcard[data-wait] .face { visibility: hidden; }
+#blackjack .pcard[data-wait] .back { backface-visibility: visible; -webkit-backface-visibility: visible; }
+#blackjack .bjres:is(.win, .blackjack, .lose, .bust, .push) { animation: eb-game-result-arrive 220ms var(--game-ease) both; }
+#cases .hc.won .art, #battles .vc.won .art { animation: eb-game-landed 280ms var(--game-ease) both; }
+:is(#cases, #battles) :is(.hc.dice, .vc.dice) .art { animation: none; }
+#cases .hc.jack { animation: none; border-color: var(--acc); background: #332f26; box-shadow: inset 0 0 0 1px var(--acc); }
+#battles .vc.jack .art::before { animation: none; }
+#cases .hbox.flaring, #battles .vbox.flaring { overflow: hidden; animation: none; }
+:is(#cases, #battles) .dicei { filter: none; }
+:is(#cases, #battles) .dflare > img { animation: eb-game-bonus-turn 650ms var(--game-ease) both; filter: none; }
+:is(#cases, #battles) .dflare .dfr { width: 84px; height: 84px; border: 1px solid var(--acc); animation: eb-game-bonus-ring 450ms ease-out both; }
+:is(#cases, #battles) .dflare :is(.rays, .r2, b) { display: none; animation: none; }
+#battles .wait:has(.ok) { animation: eb-game-seat-ready 220ms ease-out both; }
+#battles .pc.win { animation: eb-game-winner-confirm 280ms ease-out; }
+#battles .jres:has(em) { animation: eb-game-result-arrive 240ms var(--game-ease) both; }
+#upgrader .wheel:is(.win, .lose) .mid { animation: eb-game-result-arrive 240ms var(--game-ease) both; }
+
+@keyframes eb-game-mine-reveal {
+  from { opacity: .6; transform: translateY(3px) scale(.88); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes eb-game-safe-confirm {
+  from { background-color: #355a45; }
+  to { background-color: #24392f; }
+}
+@keyframes eb-game-mine-hit {
+  0%, 100% { transform: none; }
+  35% { transform: translateX(-2px); }
+  70% { transform: translateX(1px); }
+}
+@keyframes eb-game-card-deal {
+  0% { transform: translate(var(--bj-origin-x), var(--bj-origin-y)) rotate(6deg) rotateY(180deg); }
+  60% { transform: translate(0, 0) rotate(0) rotateY(180deg); }
+  100% { transform: rotateY(0); }
+}
+@keyframes eb-game-card-back {
+  from { transform: translate(var(--bj-origin-x), var(--bj-origin-y)) rotate(6deg) rotateY(180deg); }
+  to { transform: rotateY(180deg); }
+}
+@keyframes eb-game-landed {
+  from { transform: translateY(3px) scale(.96); }
+  to { transform: none; }
+}
+@keyframes eb-game-result-arrive {
+  from { transform: translateY(3px); }
+  to { transform: none; }
+}
+@keyframes eb-game-bonus-turn {
+  0% { transform: rotate(-8deg) scale(.92); }
+  55% { transform: rotate(5deg) scale(1.06); }
+  100% { transform: none; }
+}
+@keyframes eb-game-bonus-ring {
+  from { opacity: .6; transform: scale(.9); }
+  to { opacity: 0; transform: scale(1.35); }
+}
+@keyframes eb-game-seat-ready {
+  from { background-color: #2e463a; }
+  to { background-color: #1b2924; }
+}
+@keyframes eb-game-winner-confirm {
+  from { background-color: #304d3d; }
+  to { background-color: #20332a; }
+}
+
+@media (max-width: 1450px) {
+  #upgrader .upg { grid-template-columns: 320px minmax(0, 1fr); }
+  #upgrader .wheel-wrap { border-right: 0; }
+  #upgrader .utarget { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; justify-content: center; border-top: 1px solid var(--line); }
+  #upgrader .utarget .tart { width: 110px; }
+  #upgrader .utarget .tpills { width: min(260px, 100%); }
+  #battles :is(.lhead, .brow) { grid-template-columns: 80px minmax(0, 1.5fr) minmax(0, 1fr) 95px 100px 120px; gap: 10px; padding-inline: 12px; }
+}
+
+@media (max-width: 1100px) {
+  #battles .lhead { display: none; }
+  #battles .brow { grid-template-columns: 90px minmax(0, 1fr) auto; grid-template-areas: "m c c" "p k s" "a a a"; gap: 12px; padding: 16px; }
+  #battles .cbtypes { grid-template-columns: 1fr; }
+  #battles .cbtype .cm button { min-width: 52px; }
+}
+
+@media (max-width: 860px) {
+  :is(#mines, #blackjack) .game { grid-template-columns: 1fr; min-height: 0; }
+  :is(#mines, #blackjack, #upgrader) .side { padding: 18px; border-right: 0; }
+  #mines .board-wrap { padding: 18px; }
+  #mines .board { width: min(100%, 520px); }
+  #mines .side { order: 2; border-top: 1px solid var(--line); border-bottom: 0; }
+  #blackjack .side { order: 2; border-top: 1px solid var(--line); border-bottom: 0; }
+  #blackjack .bjtable { min-height: 540px; padding: 64px 20px 26px; }
+  #blackjack .bjhands { gap: 40px; }
+  #blackjack .bjcards { height: 116px; }
+  #blackjack .bjcards:has(.pcard:nth-child(4)) { height: 130px; }
+  #blackjack .bjcards:has(.pcard:nth-child(5)) { height: 144px; }
+  #blackjack .bjcards:has(.pcard:nth-child(6)) { height: 158px; }
+  #blackjack .bjcards:has(.pcard:nth-child(n+8)) .pcard ~ .pcard { margin-left: -50px; }
+  #blackjack .bjcards:has(.pcard:nth-child(n+11)) .pcard ~ .pcard { margin-left: -56px; }
+  #blackjack .bjtot { right: -30px; min-width: 30px; padding-inline: 5px; }
+  #upgrader .upg { grid-template-columns: 1fr; min-height: 0; }
+  #upgrader .side { order: 3; border-top: 1px solid var(--line); border-bottom: 0; }
+  #upgrader .wheel-wrap { padding: 28px 20px 24px; }
+  #upgrader .wheel { width: min(100%, 360px); }
+  #upgrader .wheel .mid .pct { font-size: 42px; }
+  #upgrader .utarget { padding: 20px 16px; }
+  #upgrader .utarget .empty-t { margin: 0; }
+  #upgrader .uflow { max-width: 380px; }
+  #upgrader .usearch { width: 100%; }
+  #upgrader .urange { width: 100%; }
+  #upgrader .urange .amt { width: auto; flex: 1; }
+  #battles .bvtop { gap: 14px; }
+  #battles .bvsub { gap: 12px; }
+  #battles .vgrid { --ah: 350px; }
+  #battles .cb { padding: 20px; }
+  #battles .lbar .right { width: 100%; margin-left: 0; justify-content: space-between; }
+  #battles .tabs { width: 100%; }
+  #cases .cvtop .btn { width: 100%; min-width: 0; }
+}
+
+@media (max-width: 600px) {
+  :is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) .btn { min-height: 44px; height: 44px; }
+  :is(#mines, #blackjack, #upgrader) .btn.big { min-height: 46px; height: auto; }
+  :is(#mines, #blackjack, #upgrader) .amt { height: 50px; }
+  :is(#mines, #blackjack, #upgrader) .amt button { min-width: 38px; height: 40px; padding-inline: 6px; }
+  :is(#mines, #blackjack, #upgrader) .amt input { font-size: 16px; }
+  :is(#mines, #blackjack, #upgrader, #fairModal) .seg button { min-height: 40px; }
+  :is(#mines, #blackjack, #upgrader) .stats { padding-top: 18px; }
+  :is(#mines, #upgrader, #battles, #borrowModal) input[type=range] { height: 44px; }
+  #mines .board-wrap { padding: 12px; }
+  #mines .board { gap: 5px; }
+  #cases .ccard { padding: 18px 8px 14px; }
+  #cases .ccard .art { width: min(120px, 100%); height: 120px; }
+  #cases .ccard b { font-size: 13px; }
+  #cases .ccard .meta { font-size: 10px; }
+  #cases .ccard .price { padding: 6px 9px; font-size: 12px; }
+  #cases .igrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #cases .ic2 .art { width: 82px; height: 82px; }
+  #cases .ic2 .odds { font-size: 10px; }
+  #cases .cvname { width: 100%; }
+  #cases .cvname b { font-size: 20px; }
+  #battles .ltitle { align-items: flex-start; gap: 14px; }
+  #battles .tabs button { min-height: 42px; padding-inline: 12px; }
+  #battles .brow { grid-template-columns: 70px minmax(0, 1fr) auto; gap: 12px 8px; padding: 14px 12px; }
+  #battles .bp { gap: 3px; }
+  #battles .bp .av { width: 26px; height: 26px; border-radius: 5px; }
+  #battles .bp .sep { margin-inline: 1px; font-size: 9px; }
+  #battles .bm b { font-size: 15px; }
+  #battles .bk .cv { font-size: 12px; }
+  #battles .pill { font-size: 10px; padding: 5px 6px; }
+  #battles .cb { padding: 18px 14px; }
+  #battles .cbrounds { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #battles .cbadd { min-height: 200px; }
+  #battles .cbcase .art { width: 82px; height: 82px; }
+  #battles .qty button { width: 36px; height: 40px; }
+  #battles .cbtype .cm button { min-height: 44px; }
+  #battles .cbfoot { align-items: stretch; gap: 12px; padding-bottom: 6px; }
+  #battles .cbfoot .btn { width: 100%; min-width: 0; }
+  #battles .bvctl { width: 100%; }
+  #battles .bvctl .btn { flex: 1 1 auto; }
+  #battles .bvfair { justify-content: flex-start; }
+  #battles .bvfair code { overflow-wrap: anywhere; }
+  #blackjack .bjtable { --bj-origin-x: 26px; --bj-origin-y: -30px; min-height: 464px; padding: 60px 14px 20px; gap: 16px; }
+  #blackjack .bjhand { min-height: 150px; }
+  #blackjack .bjhands { width: 100%; padding-inline: 18px; gap: 30px; }
+  #blackjack .bjcards .pcard ~ .pcard { margin-left: -44px; }
+  #blackjack .bjtot { right: -20px; }
+  #blackjack .bjrules { font-size: 9px; padding: 8px; gap: 4px 7px; }
+  #blackjack .bjpill { top: 14px; left: 14px; max-width: calc(100% - 105px); flex-wrap: wrap; }
+  #blackjack .bjins { padding: 14px; }
+  #upgrader .ugrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #upgrader .ubar h2 { width: 100%; }
+  #upgrader .usearch { height: 46px; }
+  #upgrader .usearch input { font-size: 16px; }
+  #upgrader .fsel { width: 100%; min-height: 44px; }
+  #upgrader .urange .amt { height: 46px; }
+  #upgrader .utarget .x { width: 40px; height: 40px; }
+  #upgrader .utarget .h { padding-inline: 26px; }
+  #upgrader .utarget:not(:has(.tart)) { display: block; padding: 16px; }
+  #upgrader .utarget:not(:has(.tart)) .empty-t { margin-top: 8px; }
+  :is(#pickModal, #borrowModal, #fairModal) { padding: 12px; }
+  :is(#pickModal, #borrowModal, #fairModal) .dlg { max-height: calc(100dvh - 24px); }
+  :is(#pickModal, #borrowModal) .pkhead { padding: 16px 16px 12px; }
+  :is(#pickModal, #borrowModal) .pkhead h2 { font-size: 18px; }
+  :is(#pickModal, #borrowModal, #fairModal) .dlg-x { width: 40px; height: 40px; }
+  #pickModal .pkbar { padding-inline: 16px; flex-wrap: wrap; }
+  #pickModal .pksort { width: 100%; }
+  #pickModal .pksbtn { width: 100%; height: 44px; }
+  #pickModal .pkbar .tin { width: 100%; flex: 1 1 100%; height: 44px; font-size: 16px; }
+  #pickModal .pkgrid2 { padding: 14px 16px; max-height: max(100px, calc(100dvh - 310px)); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  #pickModal .pkc .art { width: 80px; height: 80px; }
+  :is(#pickModal, #borrowModal) .pkfoot { padding: 12px 16px; }
+  :is(#pickModal, #borrowModal) .pkbtns { width: 100%; }
+  :is(#pickModal, #borrowModal) .pkbtns .btn { min-width: 0; flex: 1; }
+  :is(#battles, #borrowModal) .bwp { padding: 16px; }
+  :is(#battles, #borrowModal) .bwq button { height: 40px; }
+  #fairModal .fairdlg { padding: 18px 16px; }
+  #fairModal .pfhead h2 { font-size: 18px; }
+  #fairModal .pfv { min-height: 46px; }
+  #fairModal .pfv input { font-size: 16px; }
+  #fairModal .pfcp { width: 38px; height: 38px; }
+  #fairModal .pfbet { grid-template-columns: minmax(0, 1fr) 40px 72px; }
+  #fairModal .pfbet .h { grid-column: 1 / -1; }
+  #fairModal .pfbet button { min-width: 72px; }
+  #fairModal .pfbet button { min-height: 40px; }
+}
+
+@media (max-height: 600px) and (min-width: 601px) {
+  :is(#pickModal, #borrowModal, #fairModal) { padding: 12px; }
+  :is(#pickModal, #borrowModal, #fairModal) .dlg { max-height: calc(100dvh - 24px); }
+  #pickModal .pkgrid2 { max-height: calc(100dvh - 210px); }
+  :is(#pickModal, #borrowModal) .pkhead { padding-block: 12px 8px; }
+  :is(#pickModal, #borrowModal) .pkfoot { padding-block: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal),
+  :is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) *,
+  :is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) *::before,
+  :is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  /* Outcome positions on .hreel/.vreel/.jstrip/.ptr remain authored by JS. */
+  #blackjack .pcard.deal { transform: none; }
+  #blackjack .pcard.hidden.deal { transform: rotateY(180deg); }
+  #cases .hc.won, #battles .vc.won { transform: none; }
+  :is(#cases, #battles) .dflare { display: none; }
+  #cases .hc.flare > .art, #battles .vc.flare > .art { opacity: 1; }
+}
+
+@media (forced-colors: active) {
+  :is(#mines, #blackjack, #cases, #battles, #upgrader, #pickModal, #borrowModal, #fairModal) :is(button, a, input, select, [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
+  :is(#mines, #blackjack, #upgrader, #fairModal) :is(.amt, .usearch, .pfv.edit):focus-within { border-color: Highlight; outline-color: Highlight; }
+  #mines .tile.gem { border: 2px solid Highlight; }
+  #mines .tile.bomb { border: 2px dashed CanvasText; }
+  #upgrader .ucard.sel, #pickModal .pkc.sel { border-color: Highlight !important; outline: 2px solid Highlight; outline-offset: -4px; }
+}

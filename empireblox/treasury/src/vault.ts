@@ -56,7 +56,7 @@ export function decryptBlob(b: Blob): Buffer {
 
 export async function setSecret(name: string, value: string, updatedBy: string, db:Pick<PoolClient,'query'>=pool): Promise<void> {
   const b = encryptBlob(value);
-  const hint = name==='oxapay:merchant' ? null : value.length <= 6 ? '••••' : `…${value.slice(-4)}`;
+  const hint = value.length <= 6 ? '••••' : `…${value.slice(-4)}`;
   await db.query(
     `insert into secrets(name, enc_dek, iv, tag, ciphertext, hint, updated_by, updated_at)
      values ($1,$2,$3,$4,$5,$6,$7, now())

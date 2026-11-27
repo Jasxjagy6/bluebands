@@ -13,19 +13,22 @@ import { startMines,revealMines } from '../games/mines.js';
 import { post } from '../ledger.js';
 import { setSecret } from '../vault.js';
 import { installMarketFixture } from './market-fixture.js';
+import { publicCustodyFixture } from './custody-public-fixture.js';
 import { expectBelow } from './picker-geometry.js';
 
 installMarketFixture();
 const app=await buildServer(), root=resolve('..');
 let browser:Browser, context:BrowserContext, page:Page, base:string;
 let delayResponse:((url:string)=>Promise<void>)|undefined;
-const username='ui'+randomBytes(5).toString('hex'), errors:string[]=[];
+const username='ui'+randomBytes(5).toString('hex'), errors:string[]=[],hostedRequests:string[]=[];
 before(async()=>{
   // Several cases use a real address endpoint; the watcher integration suite covers its heartbeat.
-  await query("update settings set value=to_jsonb('direct'::text) where key='deposit_provider'");
-  await setSecret('xpub:EVM', HDNodeWallet.fromSeed(randomBytes(32)).neuter().extendedKey,'browser-test');
-  for (const chain of ['ETH','BSC']) await setSecret('rpc:'+chain,'http://127.0.0.1:1','browser-test');
-  await query("update chains set scan_ready_at=now() where id in ('ETH','BSC')");
+  await publicCustodyFixture(HDNodeWallet.fromSeed(randomBytes(32)).neuter().extendedKey);
+  for(const chain of ['ETH','BSC','SOL']){
+    await setSecret('rpc:'+chain,'http://127.0.0.1:1','browser-test');
+    await query('insert into scanned_blocks(chain_id,height,hash) values($1,500,$2) on conflict do nothing',[chain,'ui-fixture']);
+    await query('update chains set enabled=true,last_scanned=500,scan_ready_at=now() where id=$1',[chain]);
+  }
   app.addHook('onSend',async(req,_reply,payload)=>{await delayResponse?.(req.url);return payload;});
   app.get('/*',async(req,reply)=>{
     const pathname=req.url.split('?')[0]!;
@@ -37,6 +40,9 @@ before(async()=>{
   });
   base=await app.listen({host:'127.0.0.1',port:0});
   browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,args:['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1']});
+  browser.on('context',ctx=>ctx.on('request',req=>{
+    if(/^\/api\/(?:me\/oxapay|oxapay)(?:\/|$)/.test(new URL(req.url()).pathname))hostedRequests.push(req.method()+' '+req.url());
+  }));
   context=await browser.newContext({viewport:{width:390,height:750},permissions:['clipboard-read','clipboard-write']});
   page=await context.newPage(); page.setDefaultTimeout(7000);
   page.on('pageerror', e=>errors.push(e.message));
@@ -53,7 +59,7 @@ async function choose(p:Page,selector:string,value:string){
   await picker(p,selector).click();await expectBelow(p,selector,'.eb-option-picker[open]');
   await p.getByRole('listbox').getByRole('option',{name:label,exact:true}).click();
 }
-after(async()=>{await browser?.close();await app.close();await query("update settings set value=to_jsonb('oxapay'::text) where key='deposit_provider'");await pool.end();});
+after(async()=>{if(errors.length)console.error('Wallet browser errors:',errors);await browser?.close();await app.close();await pool.end();assert.deepEqual(hostedRequests,[],'Wallet must never request retired hosted APIs');});
 test('instant signup works with external services offline and displays the wallet',async()=>{
   await page.locator('#signBtn').click(); await page.locator('[data-v=signup]').click();
   await page.fill('#suName',username); await page.fill('#suEmail',username+'@test.invalid');
@@ -70,8 +76,10 @@ test('currency menu remains visible at desktop and phone widths, and choice surv
   for (const width of [320,390,1024,1440]) {
     await page.setViewportSize({width,height:width===320?480:750});
     await page.locator('#ebwCcy').click(); const box=await page.locator('#ebwMenu').boundingBox();
-    assert.ok(box && box.x>=0 && box.y>=0 && box.x+box.width<=width && box.y+box.height<=page.viewportSize()!.height);
+    assert.ok(box && box.x>=0 && box.y>=0 && box.x+box.width<=width && box.y+box.height<=page.viewportSize()!.height,JSON.stringify({box,width,errors}));
+    assert.ok(box.width<=292 && Math.abs(box.x+box.width/2-width/2)<=1,'Currency selector must be narrow and centered');
     await expectBelow(page,'#ebwCcy','#ebwMenu[open]');
+    if(width===390)await screenshot('playing-currency-centered-phone');
     await page.keyboard.press('Escape');
   }
   await page.setViewportSize({width:390,height:750});
@@ -79,35 +87,93 @@ test('currency menu remains visible at desktop and phone widths, and choice surv
   await page.waitForFunction(()=>document.querySelector('#ebwMenu')?.hasAttribute('hidden'));
   await page.reload(); await page.locator('#ebwCcy[aria-label*="USDT balance"]').waitFor();
 });
-test('deposit opens the selected network, shows a local QR, exact minimum and copies the address',async()=>{
-  await page.click('#ebwDep');await page.locator('#ebwMenu [data-asset=USDT]').click(); const addr=page.locator('#depositAddress'); await addr.waitFor();
+test('wallet loading is circular, honors reduced motion and cannot reopen a dismissed popup',async()=>{
+  let release!:()=>void;
+  const hold=new Promise<void>(resolve=>release=resolve);
+  delayResponse=async url=>{if(url==='/api/assets')await hold;};
+  try{
+    const original=page.url();await page.click('#ebwDep');
+    const loader=page.locator('#walletPopupLoading'),ring=loader.locator('.wallet-loading-ring');
+    await loader.waitFor();assert.equal(await page.locator('#ebwMenu').getAttribute('aria-busy'),'true');
+    assert.match(await ring.evaluate(el=>getComputedStyle(el).animationName),/wallet-ring-turn/);
+    assert.equal(await page.locator('#walletSummary').isVisible(),false);await screenshot('wallet-loading-phone');
+    await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await ring.evaluate(el=>getComputedStyle(el).animationName),'none');
+    await page.keyboard.press('Escape');assert.equal(page.url(),original);
+    release();delayResponse=undefined;
+    await page.click('#ebwCcy');await page.getByRole('dialog',{name:'Playing currency'}).waitFor();
+    assert.equal(await page.locator('#ebwMenu').getAttribute('data-mode'),'play');
+    await page.keyboard.press('Escape');await page.emulateMedia({reducedMotion:'no-preference'});
+  }finally{release();delayResponse=undefined;await page.emulateMedia({reducedMotion:'no-preference'});}
+});
+test('deposits stay in the popup without amount inputs or hosted checkout and show the selected address, QR and minimum',async()=>{
+  const original=page.url();await page.click('#ebwDep');const dialog=page.locator('#ebwMenu'),initial=await dialog.elementHandle();await page.locator('#walletSummary:visible').waitFor();await screenshot('wallet-overview-phone');
+  await page.setViewportSize({width:1280,height:768});await page.waitForFunction(()=>document.querySelector('#ebwMenu .sheet-list')?.getBoundingClientRect().width!>0);
+  const overview=await dialog.evaluate(el=>{
+    const box=el.getBoundingClientRect(),rows=Array.from(el.querySelectorAll<HTMLElement>('.sheet-list>[data-asset]'));
+    return {left:box.left,top:box.top,right:box.right,bottom:box.bottom,width:box.width,height:box.height,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,columns:getComputedStyle(el.querySelector('.sheet-list')!).gridTemplateColumns.split(' ').length,rowBounds:rows.map(row=>{const r=row.getBoundingClientRect();return {top:r.top,bottom:r.bottom}})};
+  });
+  assert.ok(overview.left>=0&&overview.right<=1280&&overview.top>=0&&overview.bottom<=768&&overview.width<=464,'Desktop balance menu stays centered in the viewport');
+  assert.equal(overview.columns,2,'Desktop balances use a compact two-column layout');
+  assert.ok(overview.scrollHeight<=overview.clientHeight+1,'All desktop balances fit without scrolling');
+  assert.ok(overview.rowBounds.every(row=>row.top>=overview.top&&row.bottom<=overview.bottom),'Every desktop balance row remains visible');
+  await screenshot('wallet-overview-desktop');await page.setViewportSize({width:390,height:750});
+  assert.ok(await dialog.locator('[data-asset]').count()>=7);await dialog.locator('#makeDeposit').click();await page.locator('#walletPopupLoading').waitFor();
+  assert.equal(await dialog.locator('#currencySheetTitle').innerText(),'Deposit');const addr=dialog.locator('#popupDepositAddress');await addr.waitFor();
   const expected=await addr.inputValue(); assert.match(expected,/^0x[0-9a-f]{40}$/);
-  assert.equal(await page.inputValue('#depositNetwork'),'USDT.ERC20');
-  assert.deepEqual((await page.locator('#depositNetwork option').evaluateAll(els=>els.map(el=>(el as HTMLOptionElement).value))).sort(),
-    ['USDT.BEP20','USDT.ERC20','USDT.POL','USDT.SPL']);
-  assert.ok(await page.locator('#depositQr svg').isVisible()); assert.match(await page.locator('.wallet-facts').innerText(),/1 USDT/);
-  await page.click('#copyAddress'); assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),expected);
-  const bounds=await page.locator('#accountPage').boundingBox(); assert.ok(bounds && bounds.width<=390);
-  const selector=picker(page,'#depositNetwork');await selector.click();const networkList=page.getByRole('listbox');
+  assert.equal(await dialog.locator('#popupDepositSymbol').inputValue(),'USDT');
+  assert.equal(await dialog.locator('input[name=amount],input[inputmode=decimal],#depositAmount,#oxapayForm,#invoiceReceipt').count(),0);
+  assert.equal(await page.locator('#accountPage #depositSymbol,#accountPage #depositNetwork,#accountPage #depositAddress').count(),0);
+  assert.equal(await page.inputValue('#popupDepositNetwork'),'USDT.ERC20');
+  assert.deepEqual((await page.locator('#popupDepositNetwork option').evaluateAll(els=>els.map(el=>(el as HTMLOptionElement).value))).sort(),['USDT.BEP20','USDT.ERC20','USDT.POL']);
+  assert.ok(await page.locator('#popupDepositQr svg').isVisible());assert.match(await dialog.locator('.wallet-facts').innerText(),/1 USDT/);
+  await page.click('#popupCopyAddress');assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),expected);await screenshot('wallet-receive-phone');
+  for(const width of [320,1280]){
+    await page.setViewportSize({width,height:750});
+    await page.waitForFunction(width=>{const b=document.getElementById('ebwMenu')!.getBoundingClientRect();return Math.abs(b.x+b.width/2-width/2)<=1;},width);
+    const b=await dialog.boundingBox();assert.ok(b&&b.x>=0&&b.y>=0&&b.x+b.width<=width&&b.y+b.height<=750);
+    assert.ok(await page.locator('#walletPopupPane').evaluate(el=>el.scrollWidth<=el.clientWidth));
+    await screenshot('wallet-receive-'+(width===320?'compact':'desktop'));
+  }
+  await page.setViewportSize({width:390,height:750});
+  const bounds=await dialog.boundingBox();assert.ok(bounds&&bounds.width<=390);assert.equal(page.url(),original);
+  const selector=picker(page,'#popupDepositNetwork');await selector.click();const networkList=page.getByRole('listbox');
   assert.ok(await networkList.evaluate(el=>!!el.closest('dialog:modal')));
   await screenshot('deposit-network-sheet');await page.keyboard.press('End');await page.keyboard.press('Escape');
-  assert.equal(await page.inputValue('#depositNetwork'),'USDT.ERC20');assert.ok(await selector.evaluate(el=>el===document.activeElement));
-  await choose(page,'#depositNetwork','USDT.POL');
-  await page.locator('#addressResult [data-retry]').waitFor();
+  assert.equal(await page.inputValue('#popupDepositNetwork'),'USDT.ERC20');assert.ok(await selector.evaluate(el=>el===document.activeElement));
+  await choose(page,'#popupDepositNetwork','USDT.POL');await dialog.getByText(/on Polygon is unavailable/i).waitFor();
   assert.equal(await addr.count(),0);
-  await choose(page,'#depositNetwork','USDT.SPL');
-  await page.getByText('Solana deposits are currently unavailable.').waitFor();
-  assert.equal(await addr.count(),0); await page.keyboard.press('Escape');
+  await choose(page,'#popupDepositSymbol','SOL');await addr.waitFor();assert.match(await addr.inputValue(),/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);assert.equal(await page.inputValue('#popupDepositNetwork'),'SOL');
+  assert.equal(await dialog.locator('input[name=amount],input[inputmode=decimal]').count(),0);assert.deepEqual(hostedRequests,[]);
+  await dialog.getByRole('button',{name:'Back to wallet'}).click();await page.click('#makeWithdrawal');await dialog.locator('#popupWithdrawForm').waitFor();
+  assert.ok(await dialog.evaluate((el,old)=>el===old,initial));assert.equal(page.url(),original);await page.keyboard.press('Escape');
+});
+test('legacy financial links open the same wallet popup and close onto a usable lobby',async()=>{
+  const ctx=await browser.newContext({viewport:{width:390,height:750},storageState:await context.storageState()});
+  try{
+    const p=await ctx.newPage();p.setDefaultTimeout(7000);p.on('pageerror',e=>errors.push(e.message));
+    for(const mode of ['deposit','withdraw']){
+      await p.goto(base+'/account/'+mode+'?invoice=retired');
+      const dialog=p.locator('#ebwMenu[data-mode=wallet][data-view='+mode+']');await dialog.waitFor();
+      await dialog.locator(mode==='deposit'?'#popupDepositAddress':'#popupWithdrawForm').waitFor();
+      assert.equal(p.url(),base+'/');assert.equal(await p.locator('#accountPage').isVisible(),false);
+      assert.equal(await p.locator('#accountPage #depositAddress,#accountPage #withdrawForm').count(),0);
+      await p.keyboard.press('Escape');assert.equal(await dialog.isVisible(),false);
+      assert.equal(await p.locator('#home.on').isVisible(),true);
+      await p.locator('#meChip').click();await p.locator('#walletContent .wallet-balances').waitFor();
+      assert.equal(await p.locator('#walletTitle').innerText(),'Account overview');
+      assert.equal(await p.locator('#walletNav a').count(),7);
+    }
+  }finally{await ctx.close();}
 });
 test('stale network responses cannot replace the current address',async()=>{
   let unblock!:()=>void, seen!:()=>void;
   const hold=new Promise<void>(r=>unblock=r), started=new Promise<void>(r=>seen=r);
   delayResponse=async url=>{if(url==='/api/me/address/ETH'){seen();await hold;}};
   try{
-    await page.click('#ebwDep');await page.locator('#ebwMenu [data-asset=USDT]').click();await started;await choose(page,'#depositNetwork','USDT.BEP20');
-    await page.locator('#depositAddress').waitFor();assert.match(await page.locator('.network-warning').innerText(),/BNB Chain/);
+    await page.click('#ebwDep');await page.locator('#ebwMenu [data-asset=USDT]').click();await started;await choose(page,'#popupDepositNetwork','USDT.BEP20');
+    await page.locator('#popupDepositAddress').waitFor();assert.match(await page.locator('#walletPopupPane .network-warning').innerText(),/BNB Chain/);
   }finally{unblock();delayResponse=undefined;}
-  assert.match(await page.locator('.network-warning').innerText(),/BNB Chain/); await page.keyboard.press('Escape');
+  assert.match(await page.locator('#walletPopupPane .network-warning').innerText(),/BNB Chain/); await page.keyboard.press('Escape');
 });
 test('profile and currency selector round displayed balances while preserving exact spendable units',async()=>{
   const uid=(await query('select id from users where username=$1',[username])).rows[0].id;
@@ -132,9 +198,200 @@ test('profile and currency selector round displayed balances while preserving ex
   await page.click('#ebwCcy'); await page.click('[data-profile]'); await page.locator('#walletTitle').waitFor();
   assert.equal(await page.locator('#walletTitle').innerText(),'Account overview'); await page.keyboard.press('Escape');
 });
+test('illustrated lobby loads real assets, fits supported screens and opens every game',async()=>{
+  await page.locator('.top .logo').click();await page.locator('#home.on').waitFor();
+  const css=await context.request.get(base+'/assets/site.css');assert.equal(css.status(),200);
+  assert.match(css.headers()['content-type']||'',/^text\/css/);assert.doesNotMatch(await css.text(),/<html/i);
+  const cards=page.locator('#home .lobby-game');assert.equal(await cards.count(),5);
+  await page.waitForFunction(()=>Array.from(document.querySelectorAll<HTMLImageElement>('#home .lobby-game-art img')).every(image=>image.complete&&image.naturalWidth===640));
+  await page.locator('.lobby-dice').evaluate((image:HTMLImageElement)=>image.decode());
+  for(const [width,height,label] of [[320,750,'compact'],[390,750,'phone'],[740,850,'tablet'],[1024,850,'laptop'],[1440,900,'desktop'],[1920,1080,'wide']] as const){
+    await page.setViewportSize({width,height});await page.evaluate(()=>{document.getElementById('pageScroll')!.scrollTop=0;});
+    const bounds=await cards.evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect(),art=el.querySelector('.lobby-game-art')!.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,artWidth:art.width,artHeight:art.height};}));
+    for(const box of bounds){
+      assert.ok(box.left>=0&&box.right<=width+1&&box.width>=120,JSON.stringify({width,box}));
+      assert.ok(Math.abs(box.artWidth-(box.width-2))<=1,'Artwork must fill its card at '+width);
+    }
+    if(width<=740)assert.equal(bounds[1]!.artHeight,bounds[2]!.artHeight,'Phone artwork rows must align');
+    for(let i=0;i<bounds.length;i++)for(let j=i+1;j<bounds.length;j++){
+      const a=bounds[i]!,b=bounds[j]!;assert.ok(a.right<=b.left+1||b.right<=a.left+1||a.bottom<=b.top+1||b.bottom<=a.top+1,'Overlapping lobby cards at '+width);
+    }
+    assert.ok(bounds[0]!.top<height-150,'First game artwork should be visible below the feature at '+width);
+    if(width>=1440)assert.ok(bounds.every(b=>b.bottom<height-45),'All five games should fit on desktop');
+    assert.ok(await page.locator('#home').evaluate(el=>el.scrollWidth<=el.clientWidth));
+    await screenshot('lobby-'+label);
+  }
+  await page.setViewportSize({width:390,height:750});
+  await page.keyboard.press('Tab');await cards.first().focus();
+  assert.equal(await cards.first().evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
+  await page.keyboard.press('Enter');await page.locator('#pageTransition:not([hidden])').waitFor();
+  assert.equal(await page.locator('.transition-wordmark').textContent(),'BANDITBLOX');
+  assert.equal(await page.locator('#pageTransitionLabel').innerText(),'Opening Mines');
+  assert.equal(await page.locator('#home.on').isVisible(),true,'Keep the original page behind the transition');
+  assert.equal(await page.locator('#mines').isVisible(),false,'Reveal the game after the wordmark completes');
+  const loadingLogo=page.locator('.transition-logo-reveal');
+  assert.equal(await loadingLogo.getAttribute('src'),'/assets/banditblox-logo.svg');
+  assert.equal(await loadingLogo.evaluate(el=>getComputedStyle(el).animationName),'brand-logo-complete');
+  assert.equal(await loadingLogo.evaluate(el=>getComputedStyle(el).animationDuration),'0.378s');
+  await page.locator('#mines.on').waitFor();
+  for(const game of ['mines','blackjack','cases','battles','upgrader']){
+    await page.locator('.top .logo').click();await page.locator('#home.on').waitFor();
+    await page.locator('#home .lobby-game[data-game-page='+game+']').click();await page.locator('#'+game+'.on').waitFor();
+    assert.equal(await page.locator('#home').isVisible(),false);
+  }
+  await page.locator('.top .logo').click();await page.locator('#home.on').waitFor();
+});
+test('lobby filters keep games discoverable and the wallet entry opens the same financial popup',async()=>{
+  await page.locator('[data-game-filter=multiplayer]').click();
+  assert.equal(await page.locator('#home .lobby-game:visible').count(),1);
+  assert.equal(await page.locator('#home .lobby-game:visible').getAttribute('data-game-page'),'battles');
+  assert.equal(await page.locator('#lobbyGameCount').innerText(),'1 game');
+  await page.locator('[data-game-filter=solo]').click();
+  assert.equal(await page.locator('#home .lobby-game:visible').count(),4);
+  assert.equal(await page.locator('[data-game-filter=solo]').getAttribute('aria-pressed'),'true');
+  await page.locator('[data-game-filter=all]').click();
+  assert.equal(await page.locator('#home .lobby-game:visible').count(),5);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.locator('[data-explore-games]').click();
+  assert.equal(await page.locator('#lobbyGamesTitle').evaluate(el=>el===document.activeElement),true);
+  await page.locator('[data-lobby-wallet]').click();
+  await page.locator('#ebwMenu[data-mode=wallet] #walletSummary:visible').waitFor();
+  assert.equal(await page.locator('#accountPage').isVisible(),false);
+  await page.keyboard.press('Escape');await page.emulateMedia({reducedMotion:'no-preference'});
+});
+test('brand transitions follow the latest selection, cancel for accounts and respect reduced motion',async()=>{
+  const ctx=await browser.newContext({viewport:{width:390,height:750},storageState:await context.storageState()});
+  try{
+    const p=await ctx.newPage();p.setDefaultTimeout(7000);p.on('pageerror',e=>errors.push(e.message));
+    await p.goto(base);await p.locator('#ebwCcy').waitFor();
+    assert.equal(await p.locator('.top .logo img').evaluate(el=>getComputedStyle(el).filter),'none');
+    await p.locator('#home [data-game-page=mines]').click();await p.locator('#pageTransition:not([hidden])').waitFor();
+    await p.locator('#lbBtn').click();assert.equal(await p.locator('#pageTransitionLabel').innerText(),'Opening Leaderboard');
+    await p.locator('#leaderboard.on').waitFor();await p.locator('#pageTransition').waitFor({state:'hidden'});
+    assert.equal(await p.locator('#mines').isVisible(),false);assert.equal(await p.locator('#pageScroll').getAttribute('aria-busy'),null);
+    await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=upgrader]').click();
+    await p.locator('#pageTransition:not([hidden])').waitFor();await p.locator('#meChip').click();
+    await p.locator('#walletContent .wallet-balances').waitFor();await p.waitForTimeout(550);
+    assert.equal(await p.locator('#pageTransition').isVisible(),false);
+    assert.equal(await p.locator('#accountPage').isVisible(),true);
+    assert.equal(await p.locator('#pageScroll').evaluate(el=>(el as HTMLElement).inert),false);
+    await p.emulateMedia({reducedMotion:'reduce'});await p.locator('.top .logo').click();await p.locator('#home.on').waitFor();
+    await p.locator('#home [data-game-page=mines]').click();await p.locator('#mines.on').waitFor();
+    assert.equal(await p.locator('#pageTransition').isVisible(),false);
+  }finally{await ctx.close();}
+});
+test('reduced motion presents game results cleanly while retaining automatic wager cadence',async()=>{
+  const ctx=await browser.newContext({viewport:{width:390,height:750},reducedMotion:'reduce',storageState:await context.storageState()});
+  try{
+    const p=await ctx.newPage();p.setDefaultTimeout(7000);p.on('pageerror',e=>errors.push(e.message));
+    const hand={id:randomUUID(),version:1,asset_id:'ETH',bet:'1000000000000',insurance:'0',payout:'0',status:'playing',active:1,
+      dealer:[9,-1],hands:[{cards:[9,8],bet:'1000000000000'}],can_double:true,can_split:false};
+    await p.route('**/api/games/blackjack/start',r=>r.fulfill({json:hand}));
+    await p.route('**/api/games/blackjack/action',r=>r.fulfill({json:{...hand,version:2,status:'done',dealer:[9,7],
+      hands:[{...hand.hands[0],result:'win'}],payout:'2000000000000',can_double:false}}));
+    const catalog=await (await ctx.request.get(base+'/api/catalog')).json();
+    let instantRequests=0,caseItem:{idx:number;name:string}|undefined;
+    await p.route('**/api/games/instant',route=>{
+      const body=route.request().postDataJSON();instantRequests++;
+      if(body.game==='cases'){
+        caseItem=catalog.items.find((i:{case_id:string;top:boolean})=>i.case_id===body.case&&i.top)
+          ||catalog.items.find((i:{case_id:string})=>i.case_id===body.case);
+        assert.ok(caseItem);return route.fulfill({json:{idx:caseItem.idx,asset_id:'ETH',payout:'2000000000000'}});
+      }
+      assert.equal(body.game,'upgrader');return route.fulfill({json:{roll:'25.0000',win:true,chance:50,value:123,name:'Motion fixture'}});
+    });
+    const quoteReady=p.waitForResponse(r=>r.url().endsWith('/api/quote/ETH')&&r.ok());
+    await p.goto(base);await p.locator('#ebwCcy').waitFor();
+    await p.locator('#ebwCcy').click();await p.locator('[data-asset=ETH]').click();await quoteReady;
+    await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=blackjack]').click();await p.fill('#bjBet','0.000001');
+    await p.locator('#bjDeal').click();await p.locator('#bjHit:not([disabled])').waitFor();
+    assert.equal(await p.locator('#bjTable .deal,#bjTable [data-wait]').count(),0);
+    assert.equal(await p.locator('#bjDealer .pcard.hidden[data-c="-1"]').count(),1,'Keep the dealer hole card hidden');
+    assert.equal(await p.locator('#bjDTot').innerText(),'10');
+    await p.locator('#bjStand').click();await p.locator('#bjHands .bjres.win').waitFor();
+    assert.equal(await p.locator('#bjTable .deal,#bjTable [data-wait],#bjDealer .pcard.hidden').count(),0);
+    assert.match(await p.locator('#toast').innerText(),/Win: \+0\.000001 ETH/);
+    assert.equal(await p.locator('#bjDTot').innerText(),'18');await screenshot('blackjack-result-reduced-phone',p);
+    await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=cases]').click();await p.locator('#caseGrid [data-case]').first().click();
+    await p.locator('#cvOpen').click();await p.locator('#caseView[data-phase=landed]').waitFor({timeout:2000});
+    assert.equal(await p.locator('#cvReel .hc.won').count(),1);assert.match(await p.locator('#cvReel .hc.won').innerText(),new RegExp(caseItem!.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+    assert.equal(await p.locator('#caseView .flaring,#caseView .dflare').count(),0);
+    assert.match(await p.locator('#toast').innerText(),/0\.000002 ETH/);
+    assert.equal(await p.locator('#cvReel').evaluate(el=>(el as HTMLElement).style.transition),'none');await screenshot('case-result-reduced-phone',p);
+    await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=upgrader]').click();await p.fill('#uBet','0.00000000000001');
+    await p.locator('#uGrid [data-u]').first().click();
+    assert.equal(await p.locator('#uGrid [data-u]').first().getAttribute('aria-pressed'),'true');
+    assert.equal(await p.locator('#uMode [data-m=manual]').getAttribute('aria-pressed'),'true');
+    await p.locator('#uPlay').click();
+    await p.locator('#uWheel.win').waitFor({timeout:2000});assert.equal(await p.locator('#uPlay').isEnabled(),true);
+    assert.equal(await p.locator('#uPtr').evaluate(el=>(el as HTMLElement).style.transition),'none');
+    assert.equal(await p.locator('#uWheel').getAttribute('aria-busy'),'false');await screenshot('upgrader-result-reduced-phone',p);
+    await p.locator('#uMode [data-m=auto]').click();await p.fill('#uCount','2');
+    const before=instantRequests,autoResponse=p.waitForResponse(r=>r.url().endsWith('/api/games/instant')&&r.ok());await p.locator('#uPlay').click();
+    await autoResponse;await p.waitForTimeout(500);
+    assert.equal(instantRequests,before+1,'Reduced motion must not accelerate automated wagers');
+    await p.locator('#uPlay').click();
+  }finally{await ctx.close();}
+});
+test('tablet headers retain readable balances and separate actions with a full-length username',async()=>{
+  const account=await (await context.request.get(base+'/api/auth/me')).json();
+  const isolated=await browser.newContext({viewport:{width:1024,height:768},storageState:await context.storageState()});
+  try{
+    await isolated.route('**/api/auth/me',r=>r.fulfill({json:{...account,user:{...account.user,username:'Institutional_User20'}}}));
+    const p=await isolated.newPage();await p.goto(base);await p.locator('#meChip').waitFor();
+    for(const width of [861,900,940,1024,1160,1180,1181,1200,1280,1440]){
+      await p.setViewportSize({width,height:768});
+      const rects=await p.evaluate(()=>['ebwCcy','ebwDep','noticeBell','meChip'].map(id=>{
+        const el=document.getElementById(id)!,r=el.getBoundingClientRect();return {id,left:r.left,right:r.right,width:r.width};
+      }));
+      for(let i=0;i<rects.length;i++){
+        const r=rects[i]!;assert.ok(r.left>=0&&r.right<=width,`${width}px: ${r.id} stays in viewport`);
+        if(i)assert.ok(rects[i-1]!.right<=r.left,`${width}px: ${r.id} does not overlap`);
+      }
+      assert.ok(await p.locator('#ebwBal').evaluate(el=>el.getBoundingClientRect().width)>=40,`${width}px: balance remains readable`);
+      assert.equal(await p.locator('#ebwBal').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,`${width}px: balance text remains complete`);
+    }
+    await p.setViewportSize({width:1024,height:768});await screenshot('header-tablet',p);
+  }finally{await isolated.close();}
+});
+
+test('battle results show their original currency and precise payouts on phone',async()=>{
+  const catalog=await (await context.request.get(base+'/api/catalog')).json(),c=catalog.cases.find((c:any)=>c.active!==false);
+  const item=catalog.items.find((i:any)=>i.case_id===c.id&&!i.top);
+  const fixture={id:'ui-currency-result',mode:'1v1',case_ids:[c.id],seats:['bot:1','bot:2'],status:'rolling',results:[[item.idx],[item.idx]],payouts:[123456,0],unit:'1000000000000',asset_id:'ETH',cost:c.price,creator:'bot:1',created_at:new Date(Date.now()-600000).toISOString(),started_at:new Date(Date.now()-600000).toISOString()};
+  const isolated=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce',storageState:await context.storageState()});
+  try{
+    await isolated.route('**/api/me/battles/ETH',r=>r.fulfill({json:{battles:[fixture]}}));
+    await isolated.route('**/api/battles/ETH',r=>r.fulfill({json:{battles:[fixture]}}));
+    const p=await isolated.newPage(),pageErrors:string[]=[];p.on('pageerror',e=>pageErrors.push(e.message));
+    await p.goto(base);await p.locator('#ebwCcy').waitFor();await p.locator('#ebwCcy').click();await p.locator('[data-asset=ETH]').click();
+    await p.locator('#gamesBtn').click();await p.locator('#gmenu [data-p=battles]').click();await p.locator('[data-open="ui-currency-result"]').click();
+    await p.locator('#vGrid[data-phase=done]').waitFor();
+    const winner=p.locator('#pc0');assert.match(await winner.locator('.tt').innerText(),/^\+0\.12346 ETH$/);
+    assert.match(await winner.getAttribute('title')||'',/0\.123456 ETH$/);
+    assert.equal(await winner.locator('.tt .coin').count(),0);
+    assert.equal(await winner.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
+    assert.deepEqual(pageErrors,[]);await screenshot('battle-result-phone',p);
+  }finally{await isolated.close();}
+});
+
 test('real game, chat, leaderboard and catalog entry points work without external services',async()=>{
+  assert.deepEqual(await page.evaluate(()=>['/assets/site.css','/assets/game-screens.css'].map(path=>
+    Array.from(document.styleSheets).some(sheet=>sheet.href&&new URL(sheet.href).pathname===path&&sheet.cssRules.length>0))),[true,true]);
+  await page.setViewportSize({width:390,height:750});
+  await page.locator('.top .logo').click();await page.locator('#home.on').waitFor();await screenshot('lobby-phone');
+  if(process.env.WALLET_SCREENSHOT_DIR){
+    await page.setViewportSize({width:1440,height:900});await screenshot('lobby-desktop');await page.setViewportSize({width:390,height:750});
+  }
   await page.click('#gamesBtn'); await page.click('[data-p=blackjack]');
   await page.fill('#bjBet','0.000001');
+  const focus=await page.locator('#bjBet').evaluate(el=>{
+    const input=getComputedStyle(el),group=getComputedStyle(el.closest('.amt')!);
+    return {inputAnimation:input.animationName,inputTransition:input.transitionDuration,inputShadow:input.boxShadow,
+      groupAnimation:group.animationName,groupTransition:group.transitionDuration,groupShadow:group.boxShadow,border:group.borderTopColor,outline:group.outlineColor};
+  });
+  assert.deepEqual(focus,{inputAnimation:'none',inputTransition:'0s',inputShadow:'none',groupAnimation:'none',groupTransition:'0s',groupShadow:'none',
+    border:'rgb(138, 155, 173)',outline:'rgb(138, 155, 173)'});
   // This opening stake is placed in ETH; explicitly choose the funded currency.
   await page.click('#ebwCcy'); await page.click('[data-asset="ETH"]');
   await page.locator('#ebwCcy[aria-label*="ETH on Ethereum"]').waitFor();
@@ -151,13 +408,14 @@ test('account menu fits compact phones, supports the keyboard and opens each act
   const overview=page.locator('#walletContent');await overview.getByRole('heading',{name:'Wallet balances'}).waitFor();
   assert.equal(await overview.locator('[data-view=security], [data-view=transactions]').count(),0);
   assert.equal(await page.locator('#walletNav a[href="/account/security"], #walletNav a[href="/account/transactions"]').count(),2);
-  assert.equal(await page.locator('#walletNav a').count(),9);
+  assert.equal(await page.locator('#walletNav a').count(),7);
+  assert.equal(await page.locator('#walletNav [data-view=deposit],#walletNav [data-view=withdraw],.account-quick [data-view=deposit],.account-quick [data-view=withdraw]').count(),0);
   assert.ok(await page.locator('#accountPage').evaluate(el=>el.scrollWidth<=el.clientWidth));
   await page.click('#walletNav [data-view=rewards]');await page.waitForURL('**/account/rewards');
   await page.reload();await page.getByText('Current level',{exact:true}).waitFor();
   await page.goBack();await page.waitForURL('**/account/profile');
   await page.setViewportSize({width:390,height:750});await screenshot('account-phone');
-  await page.click('#walletNav [data-view=deposit]');await page.locator('#depositAddress').waitFor();
+  const profileURL=page.url();await page.click('#ebwDep');await page.click('#makeDeposit');await page.locator('#popupDepositAddress').waitFor();assert.equal(page.url(),profileURL);
   await screenshot('deposit-phone');await page.keyboard.press('Escape');
   await page.click('#meChip');await page.click('#walletNav [data-view=transactions]');
   await page.locator('.transaction-details summary').first().click();await page.locator('.transaction-details[open]').getByText('Ledger entry',{exact:true}).waitFor();
@@ -189,21 +447,23 @@ test('account menu fits compact phones, supports the keyboard and opens each act
 
 test('withdraw review, cancellation and external settlement are visible through the player and admin interfaces',async()=>{
   await page.setViewportSize({width:390,height:750});
-  await page.click('#meChip');await page.click('#walletNav [data-view=withdraw]');await page.locator('#withdrawForm').waitFor();
-  await choose(page,'#withdrawCurrency','USDT');
-  await page.waitForFunction(()=>document.querySelector('#withdrawForm label')?.closest('form')?.textContent?.includes('Amount in USDT'));
-  await choose(page,'#withdrawCurrency','ETH');
+  const original=page.url();await page.click('#ebwDep');await page.click('#makeWithdrawal');await page.locator('#popupWithdrawForm').waitFor();
+  await choose(page,'#popupWithdrawCurrency','USDT');
+  await page.waitForFunction(()=>document.querySelector('#popupWithdrawForm label')?.closest('form')?.textContent?.includes('Amount in USDT'));
+  await choose(page,'#popupWithdrawCurrency','ETH');
   await page.getByText('Amount in ETH',{exact:true}).waitFor();
   const request=async()=>{
-    await page.fill('#withdrawForm [name=destination]','0x'+'2b'.repeat(20));await page.fill('#withdrawForm [name=amount]','0.0001');
+    await page.fill('#popupWithdrawForm [name=destination]','0x'+'2b'.repeat(20));await page.fill('#popupWithdrawForm [name=amount]','0.0001');
     await page.getByRole('button',{name:'Review withdrawal'}).click();
-    assert.match(await page.locator('#reviewDetails').innerText(),/Ethereum/);
+    assert.match(await page.locator('#popupReviewDetails').innerText(),/Ethereum/);
     await page.getByRole('button',{name:'Edit details'}).click();
-    assert.equal(await page.inputValue('#withdrawForm [name=amount]'),'0.0001');
+    assert.equal(await page.inputValue('#popupWithdrawForm [name=amount]'),'0.0001');
     await page.getByRole('button',{name:'Review withdrawal'}).click();
-    assert.match(await page.locator('#reviewDetails').innerText(),/0x(2b){20}/);
+    assert.match(await page.locator('#popupReviewDetails').innerText(),/0x(2b){20}/);
     await screenshot('withdraw-review-phone');
     await page.getByRole('button',{name:'Confirm request'}).click();
+    await page.locator('#popupWithdrawStatus').filter({hasText:'Withdrawal requested.'}).waitFor();
+    await page.locator('.popup-withdrawal-history:not([open])>summary').click();
     await page.locator('.transaction-details summary').filter({hasText:'Requested'}).waitFor();
   };
   await request();
@@ -220,25 +480,26 @@ test('withdraw review, cancellation and external settlement are visible through 
     await card.getByRole('button',{name:'Claim for review'}).click();await card.getByRole('button',{name:'Approve withdrawal'}).click();await card.locator('[name=txid]').waitFor();
     const hash='0x'+'ce'.repeat(32);await card.locator('[name=txid]').fill(hash);panel.once('dialog',d=>d.accept());
     await card.getByRole('button',{name:'Record as sent'}).click();await card.waitFor({state:'detached'});
-    const receipt=page.locator('.transaction-details').filter({hasText:'Sent'});
+     await page.evaluate(()=>(window as any).ebWalletRefresh());
+     const receipt=page.locator('#popupWithdrawalRecords .transaction-details').filter({hasText:'Sent'});
     await receipt.locator('summary').click();assert.equal(await receipt.getByRole('link').getAttribute('href'),'https://etherscan.io/tx/'+hash);
-    await page.click('#noticeBell');const popup=page.getByRole('dialog',{name:'Notifications'});
+     await page.keyboard.press('Escape');await page.click('#noticeBell');const popup=page.getByRole('dialog',{name:'Notifications'});
     await popup.getByText('Withdrawal sent',{exact:true}).waitFor();await popup.getByText('Withdrawal approved',{exact:true}).waitFor();
     await popup.getByText('Withdrawal requested',{exact:true}).waitFor();
     await popup.locator('.notice-entry').filter({hasText:'Withdrawal sent'}).locator('summary').click();
     assert.equal(await popup.getByRole('link',{name:hash}).getAttribute('href'),'https://etherscan.io/tx/'+hash);
-    await page.keyboard.press('Escape');assert.ok(page.url().endsWith('/account/withdraw'));
+     await page.keyboard.press('Escape');assert.equal(page.url(),original);
   }finally{await admin.close();}
   await page.keyboard.press('Escape');
 });
-test('profile panes scroll independently, stats show a layout placeholder and respect reduced motion',async()=>{
+test('profile panes scroll independently and stats keep a static layout placeholder under either motion preference',async()=>{
   await page.setViewportSize({width:1100,height:440});await page.click('#meChip');
   await page.locator('.wallet-balances').waitFor();
   const rail=page.locator('.account-rail'),main=page.locator('.account-main');
   await main.hover();await page.mouse.wheel(0,300);
   await page.waitForFunction(()=>document.querySelector('.account-main')!.scrollTop>0);
   const offset=await main.evaluate(e=>e.scrollTop);assert.equal(await rail.evaluate(e=>e.scrollTop),0);
-  await rail.hover();await page.mouse.wheel(0,250);
+   await rail.hover();await page.mouse.wheel(0,250);
   await page.waitForFunction(()=>document.querySelector('.account-rail')!.scrollTop>0);
   assert.equal(await main.evaluate(e=>e.scrollTop),offset);assert.equal(await page.evaluate(()=>scrollY),0);
   let release!:()=>void;
@@ -247,7 +508,8 @@ test('profile panes scroll independently, stats show a layout placeholder and re
   try{
     await page.click('#walletNav [data-view=stats]');const loader=page.locator('.skeleton-stats');
     await loader.waitFor();assert.equal(await loader.innerText(),'');
-    assert.match(await loader.locator('i').first().evaluate(e=>getComputedStyle(e,'::after').animationName),/skeleton-sweep/);
+    assert.equal(await loader.locator('i').first().evaluate(e=>getComputedStyle(e,'::after').animationName),'none');
+    assert.ok((await loader.boundingBox())!.height>0);
     await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await loader.locator('i').first().evaluate(e=>getComputedStyle(e,'::after').animationName),'none');
   }finally{delayResponse=undefined;release();}
@@ -275,7 +537,7 @@ test('admin search, detailed records and an audited credit reach a player with t
     await panel.locator('#playerTabs').getByRole('button',{name:'Controls',exact:true}).click();
     await choose(panel,'#adjustPlayer select[name=asset]','USDT');await panel.fill('#adjustPlayer [name=amount]','100');
     await panel.fill('#adjustPlayer [name=reason]','Browser reconciliation');
-    await page.click('#ebwDep');await page.waitForURL('**/account/deposit');await page.click('#noticeBell');await page.locator('.popup-feed article').first().waitFor();
+     await page.click('#meChip');await page.click('#noticeBell');await page.locator('.popup-feed article').first().waitFor();
     const receipt=page.locator('.popup-feed article').filter({hasText:'Withdrawal sent'}).locator('details');
     await receipt.locator('summary').click();await receipt.locator('a').focus();const link=await receipt.locator('a').elementHandle();
     const route=page.url();panel.once('dialog',d=>d.accept());await panel.locator('#adjustPlayer button').click();
@@ -339,7 +601,8 @@ test('operator navigation discards late responses and recovers from a failed loa
     assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await nav.getByRole('button',{name:'Secrets',exact:true}).click();await picker(p,'#s_name').waitFor();
     await choose(p,'#s_name','rpc:ETH');assert.equal(await p.locator('#s_name').inputValue(),'rpc:ETH');
-    await choose(p,'#s_name','custom');await p.getByLabel('Custom secret name').waitFor();
+    assert.equal(await p.locator('#s_name option[value=custom],#customName,#merchantKey,#merchantForm,#providerForm').count(),0);
+    assert.ok((await p.locator('#s_name option').evaluateAll(els=>els.map(el=>(el as HTMLOptionElement).value))).every(value=>!value||/^(rpc|xpub):/.test(value)));
     const mast=await p.locator('.masthead').boundingBox(),strip=await nav.boundingBox();
     await p.mouse.move(175,400);await p.mouse.wheel(0,380);await p.waitForFunction(()=>document.getElementById('workspaceScroll')!.scrollTop>0);
     assert.deepEqual(await p.locator('.masthead').boundingBox(),mast);assert.deepEqual(await nav.boundingBox(),strip);
@@ -348,7 +611,7 @@ test('operator navigation discards late responses and recovers from a failed loa
 });
 test('the main logo returns from an account page or a game to the home entry point',async()=>{
   await page.click('#meChip');await page.waitForURL('**/account/profile');
-  const logo=page.getByRole('link',{name:'EmpireBlox home'}),documentRoot=await page.locator('html').elementHandle();
+  const logo=page.getByRole('link',{name:'BANDITBLOX home'}),documentRoot=await page.locator('html').elementHandle();
   assert.equal(await logo.evaluate(el=>getComputedStyle(el).getPropertyValue('-webkit-tap-highlight-color')),'rgba(0, 0, 0, 0)');
   await page.keyboard.press('Tab');await logo.focus();assert.ok(await logo.evaluate(el=>el.matches(':focus-visible') && getComputedStyle(el).outlineStyle==='solid'));
   await page.keyboard.press('Enter');await page.waitForURL(base+'/');
@@ -388,7 +651,7 @@ test('mobile account navigation, fixed header and security settings fit phone vi
     assert.equal(await page.evaluate(()=>scrollY),0);assert.deepEqual(await top.boundingBox(),before);
     assert.deepEqual(await page.locator('#gamesBtn').boundingBox(),pinnedNav);
     assert.equal((await pane.boundingBox())?.y,headerBottom);
-    const home=page.getByRole('link',{name:'EmpireBlox home'}),brand=await home.boundingBox();assert.ok(brand && brand.height>=44);
+    const home=page.getByRole('link',{name:'BANDITBLOX home'}),brand=await home.boundingBox();assert.ok(brand && brand.height>=44);
     if(brand.width<=84)assert.match(await home.locator('img').evaluate(el=>getComputedStyle(el).content),/dice-gold/);
     const headerBoxes=await page.locator('.top .logo,#ebwCcy,#ebwDep,#noticeBell,#meChip').evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.left,b.right,b.width];}));
     for(let i=0;i<headerBoxes.length;i++){
@@ -419,24 +682,46 @@ test('mobile account navigation, fixed header and security settings fit phone vi
       const amounts=(await values.allTextContents()).filter(v=>v.endsWith(' ETH'));
       assert.ok(amounts.length>0);assert.ok(amounts.every(v=>/^\d+(?:\.\d{1,5})? ETH$/.test(v)),game);
     }
+    await screenshot('game-'+game+'-phone');
+  }
+  if(process.env.WALLET_SCREENSHOT_DIR){
+    await page.setViewportSize({width:1440,height:900});
+    for(const game of ['mines','blackjack','cases','battles','upgrader']){
+      await page.click('#gamesBtn');await page.locator('#gmenu [data-p='+game+']').click();await page.locator('#'+game+'.on').waitFor();
+      await screenshot('game-'+game+'-desktop');
+    }
+    await page.setViewportSize({width:390,height:750});
   }
 });
 test('phone deposit sheet fits, preserves playing currency and ledger type filters show matching records',async()=>{
   for(const width of [320,390]){
     await page.setViewportSize({width,height:480});await page.click('#ebwDep');
-    const sheet=page.getByRole('dialog',{name:'Deposit currency'});await sheet.waitFor();
-    await expectBelow(page,'#ebwDep','#ebwMenu[open]');
+    const sheet=page.getByRole('dialog',{name:'Wallet',exact:true});await sheet.waitFor();
+    await page.locator('#walletSummary:visible').waitFor();
     const bounds=await sheet.boundingBox();assert.ok(bounds && bounds.x>=0 && bounds.x+bounds.width<=width && bounds.y>=0 && bounds.y+bounds.height<=480);
+    assert.ok(Math.abs(bounds.x+bounds.width/2-width/2)<=1);
     await screenshot('deposit-sheet-'+width);
-    await sheet.locator('[data-asset="USDT"]').click();await page.waitForURL('**/account/deposit');await page.locator('#depositAddress').waitFor();
-    assert.equal(await page.inputValue('#depositNetwork'),'USDT.ERC20');assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'ETH');
-    await page.click('#walletNav [data-view=transactions]');await picker(page,'#transactionType').waitFor();
+    await sheet.locator('[data-asset="USDT"]').click();await page.locator('#popupDepositAddress').waitFor();
+    assert.equal(await page.inputValue('#popupDepositNetwork'),'USDT.ERC20');assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'ETH');
+    await page.keyboard.press('Escape');await page.click('#meChip');await page.click('#walletNav [data-view=transactions]');await picker(page,'#transactionType').waitFor();
     for(const [type,label] of [['bets','Stake'],['withdrawals','Withdrawal reserved'],['deposits','Deposit'],['rewards','Level bonus'],['adjustments','Balance credit']]){
       await choose(page,'#transactionType',type!);
       await page.locator('.transaction-details summary').filter({hasText:label!}).first().waitFor();
       assert.equal(await page.inputValue('#transactionType'),type);
     }
   }
+  await page.setViewportSize({width:1280,height:850});await page.click('#ebwDep');
+  const desktopWallet=page.getByRole('dialog',{name:'Wallet',exact:true});await page.locator('#walletSummary:visible').waitFor();
+  const desktopWalletBounds=await desktopWallet.boundingBox();assert.ok(desktopWalletBounds&&desktopWalletBounds.width<=464&&desktopWalletBounds.x>=0&&desktopWalletBounds.x+desktopWalletBounds.width<=1280);
+  await page.locator('#makeDeposit').click();await page.locator('#popupDepositAddress').waitFor();
+  const desktopReceive=await page.locator('#walletPopupPane .receive-card').evaluate(el=>{
+    const qr=el.querySelector<HTMLElement>('.deposit-qr')!.getBoundingClientRect(),address=el.querySelector<HTMLElement>('#popupDepositAddress')!.getBoundingClientRect(),copy=el.querySelector<HTMLElement>('.copy-deposit-address')!.getBoundingClientRect();
+    return {columns:getComputedStyle(el).gridTemplateColumns.split(' ').length,qrRight:qr.right,addressLeft:address.left,addressRight:address.right,copyLeft:copy.left,copyRight:copy.right,cardRight:el.getBoundingClientRect().right};
+  });
+  assert.equal(desktopReceive.columns,2,'Desktop QR and address should use a two-column layout');
+  assert.ok(desktopReceive.qrRight<desktopReceive.addressLeft,'Desktop QR should sit beside the address, not above it');
+  assert.ok(desktopReceive.addressRight<=desktopReceive.cardRight&&desktopReceive.copyRight<=desktopReceive.cardRight&&desktopReceive.copyLeft>=desktopReceive.addressLeft,'Desktop address and copy control stay within the receive card');
+  await screenshot('wallet-receive-desktop');await page.keyboard.press('Escape');
   await page.click('#rewardsBtn');await page.locator('#vipLobby .vip-tiers').waitFor();
   assert.equal(await page.locator('#rewards').getByText(/daily pack|open pack|loading packs/i).count(),0);
   assert.equal(await page.locator('#vipLobby details').count(),9);
@@ -474,15 +759,15 @@ test('currency picker preserves focus, reports failed saves and does not dismiss
     delayResponse=async url=>{if(url==='/api/me/currency'){started();await hold;}};
     await other.click();await waiting;await sheet.getByRole('status').filter({hasText:'Saving'}).waitFor();
     await p.keyboard.press('Escape');await p.setViewportSize({width:320,height:480});await p.click('#ebwDep');
-    const deposit=p.getByRole('dialog',{name:'Deposit currency'});await deposit.waitFor();
-    const focused=await deposit.locator(':focus').getAttribute('data-asset');assert.ok(focused);
+    const deposit=p.getByRole('dialog',{name:'Wallet',exact:true});await deposit.waitFor();
+    const focused=await deposit.locator(':focus').getAttribute('id');assert.equal(focused,'currencySheetTitle');
     release!();await p.waitForFunction(id=>(window as any).ebCurrency()===id,id);
-    assert.ok(await deposit.isVisible());assert.equal(await deposit.locator(':focus').getAttribute('data-asset'),focused);
-    assert.match(await deposit.locator('[data-asset=USDT] b').innerText(),/networks?$/);
+    assert.ok(await deposit.isVisible());assert.equal(await deposit.locator(':focus').getAttribute('id'),focused);
+    assert.match(await deposit.locator('[data-asset=USDT] b').innerText(),/^0$/);
     assert.equal(await deposit.evaluate(el=>getComputedStyle(el).animationName),'none');
     await p.keyboard.press('Escape');assert.ok(await p.locator('#ebwDep').evaluate(el=>el===document.activeElement));
     await p.emulateMedia({reducedMotion:'no-preference'});await p.click('#ebwDep');
-    await expectBelow(p,'#ebwDep','#ebwMenu[open]');
+    await p.locator('#walletSummary:visible').waitFor();
     await screenshot('currency-sheet-compact',p);
   }finally{release?.();delayResponse=undefined;await ctx.close();}
 });
@@ -575,6 +860,7 @@ test('touch swipes scroll only the pane below the masthead, including reversals 
     await p.setViewportSize({width:390,height:415});const smaller=await pane.boundingBox(),tabs=await bottom.boundingBox();
     assert.ok(smaller && tabs && smaller.y===topBox.height && smaller.y+smaller.height===tabs.y && Math.abs(tabs.y+tabs.height-415)<=1);
     await p.keyboard.press('Escape');await p.locator('#cases.on').waitFor();assert.ok(await pane.evaluate(el=>el.scrollTop>100));
-    await p.click('#rewardsBtn');assert.equal(await pane.evaluate(el=>el.scrollTop),0);assert.deepEqual(await rootPosition(),[0,0,0,0]);
+    await p.click('#rewardsBtn');await p.locator('#rewards.on').waitFor();
+    assert.equal(await pane.evaluate(el=>el.scrollTop),0);assert.deepEqual(await rootPosition(),[0,0,0,0]);
   }finally{await ctx.close();}
 });

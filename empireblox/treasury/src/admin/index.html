@@ -3,92 +3,428 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-<title>Treasury Admin · EmpireBlox</title>
+<title>Treasury Admin · BANDITBLOX</title>
 <style>
-  :root{color-scheme:dark;--bg:#10161b;--panel:#182026;--panel2:#212c33;--line:#344048;--line2:#52616a;--txt:#edf1f2;--mut:#acb9bf;--acc:#e1c58f;--grn:#a3d9bb;--red:#f3ada7;--gutter:clamp(16px,3vw,44px);--left:max(var(--gutter),env(safe-area-inset-left,0px));--right:max(var(--gutter),env(safe-area-inset-right,0px))}
-  *{box-sizing:border-box}
+  :root{color-scheme:dark;--bg:#10151b;--panel:#181f27;--panel2:#202a34;--line:#303a45;--line2:#526271;--txt:#e5ebf1;--mut:#91a0af;--acc:#c8ad7f;--grn:#a1cdb9;--red:#e4a5a5;--focus:#8396a9;--gutter:clamp(16px,3vw,40px);--left:max(var(--gutter),env(safe-area-inset-left,0px));--right:max(var(--gutter),env(safe-area-inset-right,0px))}
+  *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
   html,body{height:100%;overflow:hidden;overscroll-behavior:none}
   /* Keep the shell stable when mobile browser controls appear or retract. */
   html{height:100svh}
-  body{margin:0;background:var(--bg);color:var(--txt);font:400 14px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums}
-  a{color:var(--acc)}
-  h1,h2,h3,p{margin:0}h1,h2,h3{line-height:1.2;font-weight:650;letter-spacing:-.025em}
-  h1{font-size:clamp(26px,3vw,34px)}h2,h3{font-size:18px}h2+p,h3+p{margin-top:6px}
+  body{margin:0;background:var(--bg);color:var(--txt);font:400 14px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
+  ::selection{background:#354657;color:#fff}
+  a{color:var(--acc);text-underline-offset:3px}
+  h1,h2,h3,p{margin:0}
+  h1,h2,h3{line-height:1.3;font-weight:650;letter-spacing:-.025em;overflow-wrap:anywhere}
+  h1{font-size:clamp(24px,2.5vw,30px)}
+  h2{font-size:17px}h3{font-size:15px}
+  h2+p,h3+p{margin-top:7px}
   [hidden],.hide{display:none!important}
-  :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-  .mut{color:var(--mut)}.mono{font:13px/1.5 ui-monospace,Menlo,Consolas,monospace}
-  .eyebrow,th{font-size:11px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
-  button{font:inherit;font-weight:600;line-height:1.35;cursor:pointer;border:1px solid var(--line2);background:var(--panel2);color:var(--txt);border-radius:5px;padding:9px 13px;min-height:38px}
-  button:not(:disabled):hover{border-color:var(--mut);background:#2b3740}button:not(:disabled):active{border-color:var(--acc)}
-  button.pri{background:var(--acc);color:#282319;border-color:var(--acc)}button.pri:not(:disabled):hover{background:#ebd4aa;color:#211e17}
-  button.danger{color:var(--red);border-color:#986761}button:disabled{opacity:.5;cursor:default}
-  button.sm{min-height:34px;padding:6px 11px;font-size:13px}
-  input,select,textarea{font:inherit;background:var(--bg);color:var(--txt);border:1px solid var(--line2);border-radius:5px;padding:9px 10px;width:100%;min-width:0}
-  textarea{display:block;resize:vertical;margin:12px 0}input::placeholder,textarea::placeholder{color:#96a5ad}
-  label{display:block;font-size:13px;font-weight:550;color:var(--mut)}label input,label select,label+input{margin-top:5px}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+  :focus:not(:focus-visible){outline:none}
+  #workspaceScroll:focus,.login:focus,#sectionTitle:focus,#directoryResults:focus,#playerRecord:focus{outline:none}
+  .mut{color:var(--mut)}
+  .mono{font:12px/1.6 ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;font-variant-numeric:lining-nums tabular-nums}
+  .eyebrow,th{font-size:10px;font-weight:650;letter-spacing:.085em;text-transform:uppercase;color:var(--mut)}
+
+  button{font:inherit;font-size:13px;font-weight:600;line-height:1.35;cursor:pointer;border:1px solid var(--line2);background:var(--panel2);color:var(--txt);border-radius:5px;padding:9px 13px;min-height:38px;max-width:100%;overflow-wrap:anywhere;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  button:not(:disabled):hover{border-color:#718291;background:#293541}
+  button:not(:disabled):active{background:#313f4c;border-color:var(--focus)}
+  button.pri{background:var(--acc);color:#1b2026;border-color:var(--acc)}
+  button.pri:not(:disabled):hover{background:#d5bf99;border-color:#d5bf99;color:#151a20}
+  button.pri:not(:disabled):active{background:#baa078;border-color:#baa078}
+  button.danger{color:var(--red);border-color:#805759;background:#2b232a}
+  button.danger:not(:disabled):hover{border-color:#b27b7f;background:#392930}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  button.sm{min-height:32px;padding:6px 10px;font-size:12px}
+  input,select,textarea{font:inherit;font-size:14px;line-height:1.5;background:var(--bg);color:var(--txt);border:1px solid var(--line2);border-radius:5px;padding:9px 11px;width:100%;min-width:0;min-height:40px;box-shadow:none;transition:none;animation:none;accent-color:var(--focus);caret-color:var(--txt)}
+  input:focus,select:focus,textarea:focus{border-color:var(--focus);outline:2px solid var(--focus);outline-offset:1px;box-shadow:none;transition:none;animation:none}
+  input:disabled,select:disabled,textarea:disabled{color:var(--mut);background:var(--panel2);border-color:var(--line);cursor:not-allowed;opacity:.75}
+  input::placeholder,textarea::placeholder{color:#7f90a1;opacity:1}
+  input[type=checkbox],input[type=radio]{width:16px;height:16px;min-height:0;padding:0;flex:none;vertical-align:middle}
+  input[type=search]{appearance:none;-webkit-appearance:none}
+  textarea{display:block;resize:vertical;min-height:104px;margin:14px 0}
+  label{display:block;font-size:12px;font-weight:550;line-height:1.5;color:var(--mut);min-width:0}
+  label input,label select,label+input,label+select{margin-top:6px}
+  label .pill{margin-inline-start:6px}
+
   #app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
   .masthead{border-bottom:1px solid var(--line);background:var(--panel);padding-top:env(safe-area-inset-top,0px)}
-  .mast-inner,.workspace{width:100%;max-width:1360px;margin-inline:auto;padding-left:var(--left);padding-right:var(--right)}
-  .mast-inner{display:grid;grid-template-columns:max-content minmax(0,1fr) auto;align-items:center;gap:18px;padding-block:13px}
-  .brand,.identity{display:flex;align-items:center;gap:10px;min-width:0}
-  .brand{font-size:17px;font-weight:700;letter-spacing:-.035em}.brand::before{content:'';width:10px;height:10px;flex:none;background:var(--acc);transform:rotate(45deg);margin-inline:2px}
-  .product{color:var(--mut);border-left:1px solid var(--line2);padding-left:10px;font-size:14px;font-weight:500;letter-spacing:0}
-  .identity{justify-self:end;max-width:100%;color:var(--mut);font-size:13px}.identity #who{overflow-wrap:anywhere}.identity .pill{flex:none}
-  .skip{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:0;transform:translateY(-160%);z-index:2;background:var(--panel);padding:8px 12px}.skip:focus{top:max(8px,env(safe-area-inset-top,0px));transform:none}
+  .mast-inner,.workspace{width:100%;max-width:1440px;margin-inline:auto;padding-left:var(--left);padding-right:var(--right)}
+  .mast-inner{display:grid;grid-template-columns:max-content minmax(0,1fr) auto;align-items:center;gap:20px;min-height:64px;padding-block:12px}
+  .brand,.identity{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand{font-size:16px;font-weight:700;letter-spacing:-.035em;white-space:nowrap}
+  .brand::before{content:'';width:3px;height:19px;flex:none;background:var(--acc)}
+  .product{color:var(--mut);border-left:1px solid var(--line);padding-left:12px;font-size:12px;font-weight:500;letter-spacing:.01em}
+  .identity{justify-self:end;max-width:100%;color:var(--mut);font-size:12px}
+  .identity #who{overflow-wrap:anywhere}.identity .pill{flex:none}
+  #logout{background:transparent;border-color:var(--line)}
+  .skip{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:0;transform:translateY(-160%);z-index:10;background:var(--panel);border:1px solid var(--line2);border-radius:4px;padding:8px 12px}
+  .skip:focus{top:max(8px,env(safe-area-inset-top,0px));transform:none}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-  .workspace{min-height:0;display:grid;grid-template-columns:176px minmax(0,1fr);grid-template-rows:minmax(0,1fr);column-gap:clamp(22px,3vw,44px)}
-  #workspaceScroll,.login{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-padding-block:6px;outline-offset:-2px}
-  #workspaceScroll{position:relative;padding:28px 3px max(48px,env(safe-area-inset-bottom,0px))}
-  #nav{min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;padding:28px 14px max(16px,env(safe-area-inset-bottom,0px)) 3px;border-right:1px solid var(--line)}
-  .nav-group{display:grid;gap:2px}.nav-group+.nav-group{margin-top:20px}.nav-group .eyebrow{padding:3px 9px 5px}
-  nav button{background:transparent;border-color:transparent;color:var(--mut);text-align:left}
-  nav button.on{background:var(--panel2);color:var(--txt);border-inline-start:3px solid var(--acc)}
-  .section-head{border-bottom:1px solid var(--line);padding:0 0 17px;margin-bottom:18px}.section-head .eyebrow{margin:0 0 5px}
-  #view,.card,.tscroll{min-width:0}.card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:clamp(15px,2vw,23px);margin-bottom:14px}
-  .card>p+button,.card>p+.grid2,.card>h2+.row,.withdrawal-review [role=status]:not(:empty),#queueStatus:not(:empty){margin-top:12px}
-  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:min(160px,100%)}
-  .grid2,.directory-search,.control-form{display:grid;gap:14px;grid-template-columns:repeat(2,minmax(0,1fr))}
-  .directory-search,.control-form{margin-top:14px;align-items:end}.directory-search{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
-  .control-form{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}.control-form [role=status],.withdrawal-review [role=status]{color:var(--acc)}
-  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.stat{border-top:2px solid var(--line2);padding-top:10px}
-  .stat span{font-size:13px;color:var(--mut)}.stat b{display:block;font-size:clamp(20px,2.4vw,30px);font-weight:600;overflow-wrap:anywhere}.stat .ok{color:var(--grn)}.stat .warn{color:var(--acc)}
-  .tscroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;margin-top:14px}
-  table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px 9px;border-bottom:1px solid var(--line);vertical-align:middle}th{background:var(--panel2)}
-  tbody tr:last-child td{border:0}td[colspan]{padding:18px 9px}.audit-detail{min-width:18ch;max-width:60ch;overflow-wrap:anywhere}.pill{display:inline-block;vertical-align:middle;white-space:nowrap;font:600 12px/1.6 system-ui;border-radius:4px;padding:1px 7px;background:var(--panel2);color:var(--mut)}
-  .pill.ok{color:var(--grn);background:#233b33}.pill.warn{color:var(--acc);background:#3b3428}
-  .user-row,.player-heading,.record-pager,.record summary,.record-facts div{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .user-row{width:100%;border:0;border-bottom:1px solid var(--line);background:none;border-radius:0;padding:13px 6px;text-align:left}
+  .workspace{min-height:0;display:grid;grid-template-columns:184px minmax(0,1fr);grid-template-rows:minmax(0,1fr);column-gap:clamp(24px,3vw,40px)}
+  #workspaceScroll,.login{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-padding-block:12px}
+  #workspaceScroll{position:relative;padding:28px 4px max(40px,env(safe-area-inset-bottom,0px))}
+  #nav{min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;padding:27px 16px max(20px,env(safe-area-inset-bottom,0px)) 3px;border-right:1px solid var(--line)}
+  .nav-group{display:grid;gap:3px}.nav-group+.nav-group{margin-top:25px}
+  .nav-group .eyebrow{padding:0 11px 7px;font-size:10px;letter-spacing:.09em}
+  nav button{background:transparent;border-color:transparent;color:var(--mut);text-align:left;font-weight:500}
+  #nav button{padding:9px 11px;border-inline-start:2px solid transparent;white-space:nowrap;min-height:37px}
+  nav button:not(:disabled):hover{background:var(--panel);border-color:transparent;color:var(--txt)}
+  #nav button.on{background:var(--panel2);color:var(--txt);border-color:transparent;border-inline-start-color:var(--acc);font-weight:600}
+  .section-head{border-bottom:1px solid var(--line);padding:0 0 20px;margin-bottom:22px}
+  .section-head .eyebrow{margin-bottom:5px;color:var(--mut)}
+  #view,.section-body,.card,.tscroll{min-width:0}
+  .section-body,.record[open] .record-facts{animation:none}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:clamp(16px,2vw,24px);margin-bottom:16px}
+  .card:last-child{margin-bottom:0}
+  .card>p.mut{max-width:90ch}
+  .card>p+button,.card>p+.grid2,.card>p+.row,.card>h2+.row,.withdrawal-review [role=status]:not(:empty),#queueStatus:not(:empty){margin-top:16px}
+  .card>.row>div>.pill+p{margin-top:8px}
+  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .row>*{flex:1;min-width:min(160px,100%)}
+  .grid2,.directory-search,.control-form{display:grid;gap:16px;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .directory-search,.control-form{margin-top:18px;align-items:end}
+  .directory-search{grid-template-columns:minmax(0,2fr) minmax(0,1fr);padding-bottom:18px;border-bottom:1px solid var(--line)}
+  .control-form{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:24px}
+  .control-form:last-child{border-bottom:0;padding-bottom:0;margin-bottom:0}
+  .control-form>button{justify-self:start;align-self:end}
+  .control-form [role=status]{grid-column:1/-1}
+  .control-form [role=status],.withdrawal-review [role=status]{color:var(--red);font-size:13px;overflow-wrap:anywhere}
+  .control-form [role=status]:empty,.withdrawal-review [role=status]:empty,#limitsForm [role=status]:empty{display:none}
+  #limitsForm{display:grid;gap:16px;margin:18px 0 0;max-width:680px}
+  #limitsForm button{justify-self:start}
+  #limitsForm [role=status]{font-size:13px;color:var(--red);overflow-wrap:anywhere}
+  #s2fa .card{margin-top:16px;margin-bottom:0}
+  #s2fa .card>p+p{margin-top:10px}
+  #s2fa .row{margin-top:16px}
+  #en_totp{max-width:260px;letter-spacing:.15em}
+
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}
+  .stat{min-width:0;border-inline-start:1px solid var(--line);padding-inline-start:20px}
+  .stat:first-child{border:0;padding-inline-start:0}
+  .stat span{display:block;font-size:12px;font-weight:500;color:var(--mut)}
+  .stat b{display:block;margin-top:9px;font-size:clamp(21px,2.1vw,28px);font-weight:600;line-height:1.3;letter-spacing:-.025em;overflow-wrap:anywhere;font-variant-numeric:lining-nums tabular-nums}
+  .stat .ok{color:var(--grn)}.stat .warn{color:var(--acc)}
+  .tscroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;margin-top:18px;border:1px solid var(--line);border-radius:5px;scroll-padding-inline:12px}
+  .tscroll:focus-visible{outline-offset:2px}
+  table{width:100%;min-width:520px;border-collapse:separate;border-spacing:0;font-size:13px;line-height:1.5;font-variant-numeric:lining-nums tabular-nums}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{background:var(--panel2);font-size:10px;font-weight:650;white-space:nowrap;padding-block:11px;letter-spacing:.055em}
+  td{max-width:48ch}td.mono{overflow-wrap:anywhere}
+  td small{display:block;margin-top:5px;color:var(--mut);font-size:11px;line-height:1.5}
+  td button{white-space:nowrap}
+  td input{min-height:34px;padding:6px 8px;font-size:12px}
+  td input[data-conf],td input[data-min]{text-align:right}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#1c2630}
+  td[colspan]{padding:26px 18px;text-align:left;color:var(--mut);font-size:13px;white-space:normal}
+  .tscroll[aria-label='Credited totals'] table{min-width:340px}
+  .tscroll[aria-label='Network configuration'] table{min-width:720px}
+  .tscroll[aria-label='Asset configuration'] table{min-width:1020px}
+  .tscroll[aria-label='Deposit ledger'] table{min-width:900px}
+  .tscroll[aria-label='Audit log'] table{min-width:760px}
+  .tscroll[aria-label='Credited totals'] :is(th,td):nth-child(n+2),.tscroll[aria-label='Daily settled bets'] :is(th,td):nth-child(n+2),.tscroll[aria-label='Recent deposits'] :is(th,td):nth-child(3),.tscroll[aria-label='Deposit ledger'] :is(th,td):nth-child(4){text-align:right}
+  .audit-detail{min-width:24ch;max-width:56ch;overflow-wrap:anywhere}
+  .pill{display:inline-block;vertical-align:middle;white-space:nowrap;font:550 11px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif;border:1px solid #3c4a58;border-radius:4px;padding:2px 7px;background:var(--panel2);color:#acbac7;letter-spacing:0}
+  .pill.ok{color:var(--grn);background:#20342d;border-color:#375549}
+  .pill.warn{color:#d9c297;background:#332d25;border-color:#554a39}
+  .pill.off{color:var(--mut);background:#202832;border-color:var(--line)}
+
+  .user-row,.player-heading,.record-pager,.record summary,.record-facts div{display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .user-row{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;border-radius:0;padding:15px 10px;text-align:left;min-height:67px}
+  .user-row:not(:disabled):hover{background:var(--panel2);border-color:var(--line)}
+  .user-row:focus-visible{outline-offset:-2px}
   .user-row>span:first-child,.player-heading>div,.record summary>span{flex:1;min-width:0;overflow-wrap:anywhere}
-  .user-row small,.record small,.player-heading p{display:block;color:var(--mut);font-weight:400;margin-top:3px}
-  .player-heading{margin:16px 0}.player-heading h2{font-size:22px}
-  #playerTabs{display:flex;gap:3px;overflow-x:auto;padding:3px;margin:0 0 12px}#playerTabs button{flex:none}
-  #playerTabs .on{border-inline-start:1px solid transparent;border-bottom:2px solid var(--acc)}
-  .record{border-bottom:1px solid var(--line);padding:11px 0}.record summary{cursor:pointer}.record summary::after{content:'+';color:var(--mut)}.record[open] summary::after{content:'−'}
-  .record summary>b{max-width:45%;overflow-wrap:anywhere}.record-pager{margin-top:14px;font-size:13px;color:var(--mut)}
-  .record-facts{margin:10px 0 18px}.record-facts div{border-bottom:1px solid var(--line);padding:8px 0;font-size:13px}.record-facts dt,.withdrawal-review dt{color:var(--mut)}
-  .record-facts dd{margin:0;text-align:right;max-width:65%;overflow-wrap:anywhere}.pending-only{display:flex;align-items:center;gap:8px}.pending-only input{width:auto;margin:0}
-  .withdrawal-review dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;font-size:13px}.withdrawal-review dd{margin:0;overflow-wrap:anywhere}.withdrawal-review .row{margin-top:12px}
-  .load-state,.empty-state,.load-error{padding:17px 14px;border-inline-start:2px solid var(--line2);background:var(--panel);color:var(--mut);overflow-wrap:anywhere}
-  .load-state{display:flex;align-items:center;gap:10px}.load-state::before{content:'';width:12px;height:12px;flex:none;border:2px solid var(--line2);border-top-color:var(--acc);border-radius:50%}
-  .load-error{border-color:var(--red)}.load-error strong{color:var(--txt)}.load-error button{margin-top:12px}#directoryResults,.card>.empty-state,#playerStats{margin-top:14px}
-  .toast{position:fixed;bottom:max(16px,env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);max-width:calc(100% - var(--left) - var(--right));width:max-content;overflow-wrap:anywhere;background:var(--panel2);border:1px solid var(--line2);border-inline-start:3px solid var(--acc);color:var(--txt);padding:10px 16px;border-radius:5px;z-index:5}.toast:empty{border:0;padding:0}
-  .login{height:100%;padding:clamp(24px,12vh,120px) var(--right) max(24px,env(safe-area-inset-bottom,0px)) var(--left);padding-top:max(clamp(24px,12svh,120px),env(safe-area-inset-top,0px))}.login-inner{max-width:420px;margin-inline:auto}.login .brand{margin-bottom:22px}.login .card{padding:clamp(20px,4vw,30px)}.login .eyebrow{margin-bottom:6px}
-  .login form{display:grid;gap:16px;margin-top:22px}.login .load-state{margin-top:20px}.login button{width:100%}.login [role=alert]{color:var(--red);overflow-wrap:anywhere}.login [role=alert]:not(:empty){margin-top:12px}
-  @keyframes spin{to{transform:rotate(360deg)}}@keyframes reveal{from{opacity:.72;transform:translateY(2px)}}
-  @media(prefers-reduced-motion:no-preference){button{transition:background-color .14s,border-color .14s,color .14s}.load-state::before{animation:spin 1s linear infinite}.section-body,.record[open] .record-facts{animation:reveal .16s ease-out}}
+  .user-row>span:last-child{flex:none;font-size:20px;font-weight:400;color:var(--mut)}
+  .user-row small,.record small,.player-heading p{display:block;color:var(--mut);font-size:12px;font-weight:400;margin-top:4px}
+  .player-heading{margin:20px 0}.player-heading h2{font-size:23px}
+  #playerTabs{display:flex;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;padding:3px 3px 8px;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  #playerTabs button{flex:none;white-space:nowrap;border-bottom:2px solid transparent;border-radius:4px 4px 0 0}
+  #playerTabs .on{background:var(--panel2);color:var(--txt);border-inline-start:1px solid transparent;border-bottom-color:var(--acc)}
+  #playerRecord>h3+label{margin-top:16px;margin-bottom:12px;max-width:360px}
+  .record{border-bottom:1px solid var(--line);padding:0}
+  .record summary{cursor:pointer;list-style:none;padding:15px 3px}
+  .record summary::-webkit-details-marker{display:none}
+  .record summary::after{content:'+';color:var(--mut);font:18px/1 ui-monospace,monospace;flex:none;width:14px;text-align:center}
+  .record[open] summary::after{content:'-'}
+  .record summary>b{max-width:52%;overflow-wrap:anywhere;text-align:right;font-size:13px;font-weight:600;font-variant-numeric:lining-nums tabular-nums;letter-spacing:.01em}
+  .record[open]>summary{border-bottom:1px solid var(--line)}
+  .record>.control-form{padding-bottom:16px;margin-bottom:16px}
+  .record>button{margin-bottom:16px}
+  .record-pager{margin-top:18px;padding-top:14px;font-size:12px;color:var(--mut)}
+  .record-pager span{text-align:center}.record-pager button{min-width:84px}
+  .record-facts{margin:8px 0 22px}
+  .record-facts div{align-items:flex-start;border-bottom:1px solid var(--line);padding:11px 0;font-size:12px}
+  .record-facts dt,.withdrawal-review dt{color:var(--mut);font-weight:400;line-height:1.6}
+  .record-facts dd{margin:0;text-align:right;max-width:65%;overflow-wrap:anywhere;line-height:1.6;font-variant-numeric:lining-nums tabular-nums}
+  .pending-only{display:flex;align-items:center;gap:9px;max-width:none!important}
+  .pending-only input{margin:0}
+  .withdrawal-review h3{font-size:20px;line-height:1.5;font-variant-numeric:lining-nums tabular-nums;letter-spacing:-.015em}
+  .withdrawal-review h3 .pill{margin-inline-start:6px}
+  .withdrawal-review>p.mut{font-size:12px;margin-top:10px}
+  .withdrawal-review dl{display:grid;grid-template-columns:108px minmax(0,1fr);gap:12px 18px;font-size:12px;margin:20px 0;padding-block:16px;border-block:1px solid var(--line)}
+  .withdrawal-review dd{margin:0;min-width:0;overflow-wrap:anywhere}
+  .withdrawal-review dd button{min-height:32px;padding:5px 9px;margin-inline-end:4px}
+  .withdrawal-review .row{margin-top:14px}
+  .withdrawal-review .row>button{flex:0 1 auto;min-width:0}
+  #refreshWithdrawals{margin-top:16px}
+
+  .load-state,.empty-state,.load-error{padding:22px 18px;border:1px solid var(--line);border-radius:5px;background:#141c24;color:var(--mut);font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+  .load-state{display:flex;align-items:center;gap:10px}
+  .load-state::before{content:'';width:6px;height:6px;flex:none;background:var(--focus);border-radius:50%}
+  .empty-state{text-align:left}
+  .load-error{border-inline-start:2px solid var(--red)}
+  .load-error strong{color:var(--txt);font-weight:600}
+  .load-error p{margin-top:5px}.load-error button{margin-top:14px}
+  #directoryResults,.card>.empty-state,#playerStats{margin-top:18px}
+  .toast{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);max-width:calc(100% - var(--left) - var(--right));width:max-content;overflow-wrap:anywhere;background:var(--panel2);border:1px solid var(--line2);color:var(--txt);font-size:13px;padding:12px 16px;border-radius:5px;z-index:20}
+  .toast:empty{display:none}
+  .login{height:100%;padding:clamp(28px,12vh,120px) var(--right) max(28px,env(safe-area-inset-bottom,0px)) var(--left);padding-top:max(clamp(28px,12svh,120px),env(safe-area-inset-top,0px))}
+  .login-inner{max-width:420px;margin-inline:auto}.login .brand{margin-bottom:26px}
+  .login .card{padding:clamp(24px,4vw,32px)}.login .eyebrow{margin-bottom:8px}
+  .login h1{font-size:25px}.login h1+p{margin-top:10px}
+  .login form{display:grid;gap:18px;margin-top:26px}
+  .login .load-state{margin-top:22px}.login button{width:100%;min-height:42px;margin-top:4px}
+  .login [role=alert]{color:var(--red);font-size:13px;overflow-wrap:anywhere}
+  .login [role=alert]:not(:empty){margin-top:16px}
+
+  .custody-head,.custody-actions{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+  .custody-head>div{min-width:0}.custody-head>button{flex:none}
+  .custody-intro .eyebrow{margin-bottom:7px;color:var(--acc)}
+  .custody-intro>p,.custody-block>p{margin-top:10px;max-width:88ch}
+  .custody-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:16px 24px;margin:20px 0 0}
+  .custody-facts div{min-width:0;border-top:1px solid var(--line);padding-top:12px}
+  .custody-facts dt,.custody-detail small{color:var(--mut);font-size:12px;line-height:1.5}
+  .custody-facts dd{margin:7px 0 0;font-size:13px;font-weight:550;line-height:1.6;overflow-wrap:anywhere;font-variant-numeric:lining-nums tabular-nums}
+  .custody-address{display:block;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:12px 13px;margin:9px 0 0;color:#c7d3df;overflow-wrap:anywhere;user-select:all}
+  .custody-form{display:grid;gap:16px;margin-top:18px}
+  .custody-form .grid2{align-items:start}
+  .custody-form .custody-actions{justify-content:flex-start;align-items:end}
+  .custody-actions label{width:min(100%,200px)}
+  .custody-form [role=status]{color:var(--red);font-size:13px;overflow-wrap:anywhere}
+  .custody-form [role=status]:empty{display:none}
+  .custody-form input[data-code]{letter-spacing:.12em}
+  .custody-check{display:flex;align-items:flex-start;gap:10px;font-size:13px;font-weight:400;line-height:1.6;color:#b5c2ce}
+  .custody-check input{margin:2px 0 0}
+  .custody-note{margin-top:18px;padding:13px 15px;border-inline-start:2px solid var(--line2);color:#acbac7;background:var(--bg);font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+  .custody-network{border-top:1px solid var(--line)}
+  .custody-network:first-of-type{margin-top:22px}
+  .custody-network>summary{cursor:pointer;display:grid;grid-template-columns:minmax(130px,1.4fr) minmax(120px,1fr) minmax(120px,1fr) 16px;gap:8px 18px;align-items:center;list-style:none;padding:18px 8px;min-height:85px}
+  .custody-network>summary::-webkit-details-marker{display:none}
+  .custody-network>summary::after{content:'+';color:var(--mut);font:20px/1 ui-monospace,monospace;text-align:center}
+  .custody-network[open]>summary{border-bottom:1px solid var(--line);background:#1c2630}
+  .custody-network[open]>summary::after{content:'-'}
+  .custody-network>summary small,.custody-detail small{display:block;color:var(--mut)}
+  .custody-network>summary .pill{margin-top:6px;min-width:76px;text-align:center}
+  .custody-network>summary b{font-size:14px;font-weight:600}
+  .custody-name small{margin-top:4px}
+  .custody-detail{padding:0 4px 22px;min-width:0}
+  .custody-detail p+p{margin-top:12px}
+  .custody-block{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}
+  .custody-block h3{font-size:14px}
+  .custody-block>p+small{margin-top:16px}
+  .custody-detail .tscroll{margin:16px 0 0}
+  .custody-assets{min-width:580px}
+  .custody-assets td:last-child{min-width:24ch;overflow-wrap:anywhere}
+  .custody-edit>summary{cursor:pointer;color:#c5d0db;font-size:13px;font-weight:600;padding:10px 12px;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;background:#1c2630;border:1px solid var(--line);border-radius:4px}
+  .custody-detail .mono{overflow-wrap:anywhere}
+  .custody-jobs{min-width:800px}
+  .custody-jobs small{display:block;color:var(--mut);margin-top:5px;max-width:30ch}
+  .custody-jobs .mono{white-space:nowrap}
+  .custody-jobs td:last-child{min-width:18ch;font-size:12px;line-height:1.55;color:var(--mut)}
+
+  /* Shared picker CSS loads after this block; keep its focus treatment local and static. */
+  body select.eb-option-trigger:focus,body select.eb-option-trigger:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--focus);box-shadow:none;animation:none;transition:none}
+  body select.eb-option-trigger[aria-expanded=true]{border-color:var(--focus)}
+  body dialog.eb-option-picker{--eb-accent:var(--focus);background:var(--panel);color:var(--txt);border-color:var(--line2);border-radius:6px;box-shadow:none;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+  body dialog.eb-option-picker[open]{animation:none}
+  body dialog.eb-option-picker::backdrop{background:#080d1240}
+  body .eb-option-head{border-color:var(--line);padding-block:6px}
+  body .eb-option-head h2{color:var(--mut);font-family:inherit;letter-spacing:0}
+  body .eb-option-head h2::before{display:none}
+  body .eb-option-picker [role=option]{border-radius:3px;font-size:13px;font-weight:450}
+  body .eb-option-picker [role=option][aria-selected=true]{background:#2a3743;color:var(--txt);font-weight:600}
+  body .eb-option-picker [role=option]:not([aria-disabled=true]):hover{background:#293541}
+  body dialog.eb-option-picker:is([data-above],[data-more]) [role=listbox]{mask-image:none}
+  body dialog.eb-option-picker button.eb-option-close:focus-visible,body dialog.eb-option-picker [role=listbox]:focus-visible:not([aria-activedescendant]),body dialog.eb-option-picker[data-keyboard] [role=listbox]:focus [data-active]{outline-color:var(--focus)}
+
+  @media(hover:hover){.record summary:hover,.custody-network>summary:hover{background:#1c2630}.custody-edit>summary:hover{color:var(--txt)}}
+  @media(max-width:1100px){.stats{gap:16px}.stat{padding-inline-start:16px}.custody-network>summary{grid-template-columns:minmax(120px,1.3fr) minmax(110px,1fr) minmax(110px,1fr) 16px;gap:8px 12px}}
   @media(max-width:800px){
     .workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);padding-inline:0}
-    #nav{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;border:0;border-bottom:1px solid var(--line);padding:12px var(--right) 8px var(--left)}
-    #workspaceScroll{padding:18px var(--right) max(32px,env(safe-area-inset-bottom,0px)) var(--left)}
-    .nav-group{display:flex;flex:none}.nav-group+.nav-group{margin:0;border-left:1px solid var(--line);padding-left:6px}.nav-group .eyebrow{display:none}
-    #nav button.on{border-inline-start:1px solid transparent;border-bottom:2px solid var(--acc)}
+    #nav{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;border:0;border-bottom:1px solid var(--line);padding:10px var(--right) 9px var(--left);scroll-padding-inline:var(--left);scroll-snap-type:x proximity;background:var(--bg)}
+    #workspaceScroll{padding:22px var(--right) max(32px,env(safe-area-inset-bottom,0px)) var(--left)}
+    .nav-group{display:flex;flex:none;gap:3px}.nav-group+.nav-group{margin:0;border-left:1px solid var(--line);padding-left:10px}.nav-group .eyebrow{display:none}
+    #nav button{border-inline-start:1px solid transparent;border-bottom:2px solid transparent;border-radius:4px;padding-inline:12px;scroll-snap-align:start}
+    #nav button.on{border-inline-start-color:transparent;border-bottom-color:var(--acc)}
+    .section-head{padding-bottom:16px;margin-bottom:18px}
+    .stats{gap:18px 16px}.stat b{font-size:23px}
   }
-  @media(max-width:600px){
-    .mast-inner{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding-block:9px}.masthead .brand{font-size:16px;gap:8px}.identity{grid-row:2;grid-column:1/-1;justify-self:start}.mast-inner #logout{grid-row:1;grid-column:2}
-    .grid2,.directory-search,.control-form{grid-template-columns:minmax(0,1fr)}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-    button,button.sm{min-height:42px}input,select,textarea{font-size:16px}.section-head{padding-bottom:12px;margin-bottom:14px}
+  @media(max-width:640px){
+    .mast-inner{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding-block:12px;min-height:0}
+    .masthead .brand{font-size:15px;gap:9px}.product{padding-left:9px;font-size:11px}
+    .identity{grid-row:2;grid-column:1/-1;justify-self:start;gap:9px;font-size:11px}
+    .identity .pill{font-size:11px;padding-block:1px}
+    .mast-inner #logout{grid-row:1;grid-column:2;min-height:40px}
+    .grid2,.directory-search,.control-form{grid-template-columns:minmax(0,1fr)}
+    .directory-search{gap:14px}.control-form{gap:16px}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px}
+    .stat:nth-child(odd){border:0;padding-inline-start:0}.stat:nth-child(n+3){padding-top:16px;border-top:1px solid var(--line)}
+    .stat span{font-size:11px}.stat b{font-size:23px;margin-top:7px}
+    button,button.sm{min-height:44px}#nav button{min-height:44px}
+    input,select,textarea{font-size:16px;min-height:44px}
+    input.mono,select.mono,textarea.mono{font-size:16px}
+    .card{padding:18px 16px;border-radius:6px}
+    .tscroll{margin-top:16px}
+    th,td{padding-inline:11px}
+    td input{font-size:16px;min-height:44px}
+    .player-heading{align-items:flex-start}.player-heading h2{font-size:21px}
+    #playerTabs{margin-inline:-3px;gap:2px}
+    #playerTabs button{padding-inline:11px}
+    .user-row{gap:10px;padding-inline:4px}
+    .user-row .pill{font-size:11px;padding-inline:6px}
+    .record-pager{gap:8px}.record-pager button{min-width:78px;padding-inline:10px}
+    .record-facts div{gap:16px}.record-facts dd{max-width:62%}
+    .withdrawal-review dl{grid-template-columns:minmax(0,1fr);gap:4px;margin-block:18px}
+    .withdrawal-review dd{margin-bottom:10px}.withdrawal-review dd:last-child{margin-bottom:0}
+    .withdrawal-review .row>button{flex:1 1 100%}
+    .withdrawal-review>button{margin-top:6px}
+    .custody-head{align-items:flex-start;gap:14px}.custody-head>button{flex:0 1 auto}
+    .custody-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .custody-network>summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 16px;gap:12px;padding-block:17px}
+    .custody-name{grid-column:1/3}
+    .custody-network>summary::after{grid-column:3;grid-row:1/3;align-self:start}
+    .custody-network>summary .pill{font-size:11px;padding-inline:6px}
+    .custody-detail{padding-inline:0}
+    .custody-actions label{width:100%}.custody-actions>button{width:100%}
+    .custody-check{font-size:12px;line-height:1.6}
+    body dialog.eb-option-picker button.eb-option-close{width:44px;height:44px}
+    body dialog.eb-option-picker [role=option]{min-height:44px}
+    body dialog.eb-option-picker[data-compact] button.eb-option-close{height:30px}
+    body dialog.eb-option-picker[data-compact] [role=option]{min-height:36px}
+    body dialog.eb-option-picker[data-tight] button.eb-option-close{width:28px;height:28px}
+    body dialog.eb-option-picker[data-tight] [role=option]{min-height:30px}
   }
-#merchantForm,#providerForm,#limitsForm{display:grid;gap:9px;margin:14px 0}#merchantForm input,#providerForm select{max-width:540px}#merchantForm button,#providerForm button,#limitsForm button{justify-self:start;min-height:38px}#limitsForm .grid2{max-width:600px}#limitsForm label{margin:0}#limitsForm input{margin-top:4px}#providerForm+.row{margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+  @media(max-width:360px){.brand{font-size:14px}.product{font-size:10px}.mast-inner{gap:8px}.card{padding:16px 13px}.custody-facts{grid-template-columns:minmax(0,1fr)}.stat b{font-size:21px}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+  @media(forced-colors:active){:focus-visible,input:focus,select:focus,textarea:focus,body select.eb-option-trigger:focus-visible{outline-color:Highlight}.pill{border-color:currentColor}#nav button.on,#playerTabs .on{border-color:Highlight}.brand::before,.load-state::before{background:CanvasText}}
+
+  /* Retain row identity and complete monetary precision while wide tables scroll. */
+  .tscroll tbody tr{background:var(--panel)}
+  .tscroll tbody tr:hover{background:#1c2630}
+  .tscroll tbody tr:focus-within{background:#202d39}
+  .tscroll :is(th,td):first-child:not([colspan]){position:sticky;inset-inline-start:0;z-index:1;background:inherit;border-inline-end:1px solid var(--line)}
+  .tscroll thead tr{background:var(--panel2)}
+  .tscroll thead th:first-child{z-index:2}
+  .tscroll td:first-child:not([colspan]){min-width:10ch;color:var(--txt)}
+  .tscroll[aria-label='Credited totals'] td:nth-child(n+2),.tscroll[aria-label='Daily settled bets'] td:nth-child(n+2),.tscroll[aria-label='Recent deposits'] td:nth-child(3),.tscroll[aria-label='Deposit ledger'] td:nth-child(4),.custody-assets td:nth-child(2){font-size:13px;white-space:nowrap;max-width:none;overflow-wrap:normal;font-variant-numeric:lining-nums tabular-nums}
+  .tscroll[aria-label='Recent deposits'] :is(th,td):nth-child(3),.tscroll[aria-label='Deposit ledger'] :is(th,td):nth-child(4){min-width:15ch}
+  .tscroll[aria-label='Network configuration'] :is(th,td):nth-child(4),.tscroll[aria-label='Network configuration'] :is(th,td):nth-child(5),.tscroll[aria-label='Asset configuration'] :is(th,td):nth-child(4),.tscroll[aria-label='Asset configuration'] :is(th,td):nth-child(6),.custody-assets :is(th,td):nth-child(2){text-align:right}
+  .tscroll[aria-label='Network configuration'] td:first-child .mut{display:block;margin-top:3px;font-size:11px}
+  .tscroll[aria-label='Deposit ledger'] td:nth-child(6){min-width:22ch;max-width:30ch;font-size:11px;line-height:1.65}
+  .tscroll[aria-label='Deposit ledger'] td:last-child,.tscroll[aria-label='Stored secrets'] td:nth-child(3),.tscroll[aria-label='Audit log'] td:first-child{min-width:18ch;font-size:12px}
+  .tscroll[aria-label='Stored secrets'] :is(th,td):last-child,.tscroll[aria-label='Network configuration'] :is(th,td):last-child{text-align:right}
+  .custody-jobs td:nth-child(3){min-width:22ch;white-space:normal}
+  .custody-jobs .pill{max-width:26ch;white-space:normal;line-height:1.5}
+  .custody-assets td:nth-child(2){min-width:18ch}
+  button[data-aen]{min-width:58px;text-transform:capitalize}
+  button[data-aen][data-on=true]{background:#20342d;border-color:#375549;color:var(--grn)}
+  button[data-aen][data-on=false]{color:var(--mut);border-color:var(--line2)}
+  button[data-tog][data-on=true]{color:var(--red);border-color:#805759}
+
+  /* Operational forms keep instructions, verification, and actions in a clear order. */
+  .card>.row:has(#pauseBtn){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;border-top:1px solid var(--line);padding-top:18px;margin-top:20px}
+  .row>div:has(>button:only-child){min-width:0}
+  #limitsForm input,.control-form input[inputmode=decimal]{text-align:right;font-variant-numeric:lining-nums tabular-nums}
+  #limitsForm>.grid2{gap:16px 20px}
+  #restrictPlayer label:has([name=reason]){grid-column:1/-1}
+  .control-form label:has([name=reason]) input{letter-spacing:0}
+  input:user-invalid,select:user-invalid,textarea:user-invalid{border-color:var(--red);box-shadow:none;animation:none;transition:none}
+  .custody-form>p.mut{font-size:13px;line-height:1.7;max-width:88ch}
+  .custody-form .custody-actions{border-top:1px solid var(--line);padding-top:16px;gap:14px 18px}
+  .custody-form>.custody-check{padding-block:12px;border-block:1px solid var(--line)}
+  .custody-form>.custody-check+.custody-actions{border-top:0;padding-top:0}
+  #custodyRoot>label:has(#custodySeed){max-width:720px}
+  #custodyRoot>p:first-child{padding-bottom:2px}
+  #custodyNetworks .custody-facts{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .custody-intro>.custody-facts{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #custodySigning:has(>.custody-head>.pill.warn){border-inline-start:2px solid #806d4f}
+  .custody-intro button[data-custody-section],#openDirectWallets{vertical-align:baseline;margin-inline:3px}
+  .custody-head>.pill{flex:none}
+  .custody-edit>summary::-webkit-details-marker{display:none}
+  .custody-edit>summary::after{content:'+';font:18px/1 ui-monospace,monospace;color:var(--mut)}
+  .custody-edit[open]>summary::after{content:'-'}
+  .custody-network>summary>span{min-width:0}
+  .custody-network>summary small{line-height:1.5}
+  .custody-address.mono{font-size:12px;line-height:1.8;letter-spacing:.015em}
+  .custody-check:has(input:checked){color:var(--txt)}
+
+  /* A sparse state still retains the section's next available action. */
+  .load-error{display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .load-error>div{min-width:0;flex:1}
+  .load-error>button{flex:none;min-width:108px;margin:0}
+  .card>.load-state,.card>.empty-state,#directoryResults>.empty-state{border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;padding:24px 0}
+  .card>.load-state:first-child{border-top:0;margin:0;padding:12px 0}
+  .control-form [role=status]:not(:empty),.custody-form [role=status]:not(:empty),.withdrawal-review [role=status]:not(:empty),#limitsForm [data-save-error]:not(:empty),.login [role=alert]:not(:empty){padding:11px 13px;border:1px solid #68454b;border-radius:4px;background:#2b2027;line-height:1.6}
+  #queueStatus:not(:empty){padding:11px 13px;border:1px solid #554a39;border-radius:4px;background:#332d25;color:#d9c297;line-height:1.6}
+  .card:has(>#queueMode){display:grid;grid-template-columns:max-content max-content minmax(0,1fr);gap:12px;align-items:center}
+  .card:has(>#queueMode)>h2,.card:has(>#queueMode)>p{grid-column:1/-1}
+  .card:has(>#queueMode)>p.mut{margin:0}
+  .card:has(>#queueMode)>:is(#queueMode,#refreshWithdrawals){margin-top:4px}
+  .card:has(>#queueMode)>#queueStatus:empty{display:none}
+  .withdrawal-review [data-w=return]{border-color:#65563f;color:#d9c297;background:#2c2822}
+  .withdrawal-review label:has([name=txid]){margin-top:18px}
+  .withdrawal-review [name=txid]{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;font-size:13px}
+  .withdrawal-review>button[data-w]+button[data-w]{margin-inline-start:6px}
+  #playerRecord>h3:not(:first-child){margin-top:26px}
+  #playerRecord>h3+p.mut{font-size:13px;margin-top:10px;margin-bottom:20px}
+  #playerRecord>.record-facts dd{color:#d1dce6;font-weight:500}
+  .record-facts dt{min-width:0;flex:0 1 38%}
+  .record-facts dd{min-width:0;flex:1}
+  .record summary>span>b{font-size:13px;font-weight:550}
+  .record summary>span>small{line-height:1.6}
+  .record-pager>button{flex:none}
+  .record-pager>span{font-variant-numeric:lining-nums tabular-nums;min-width:64px}
+  #playerTabs button.on{font-weight:600}
+  #s2fa .mono{overflow-wrap:anywhere;user-select:all}
+  #s2fa .card>p:nth-child(2){padding:12px 0;border-block:1px solid var(--line)}
+
+  @media(max-width:1000px) and (min-width:801px){.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.stat:nth-child(odd){border-inline-start:0;padding-inline-start:0}.stat:nth-child(n+3){border-top:1px solid var(--line);padding-top:16px}.record summary>b{max-width:55%}}
+  @media(max-width:640px){
+    .card>.row:has(#pauseBtn){grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+    .card>.row:has(#pauseBtn)>div:last-child,.card>.row:has(#pauseBtn) #pauseBtn{width:100%}
+    .card:has(>#queueMode){grid-template-columns:minmax(0,1fr) auto;gap:12px}
+    .card:has(>#queueMode)>#queueMode{white-space:normal}
+    .card:has(>#queueMode)>:is(#queueMode,#refreshWithdrawals){height:100%}
+    .tscroll :is(th,td):first-child:not([colspan]){min-width:9ch;max-width:18ch}
+    .tscroll[aria-label='Asset configuration'] table{min-width:970px}
+    .tscroll[aria-label='Deposit ledger'] table{min-width:900px}
+    .custody-jobs{min-width:780px}
+    .record summary{display:grid;grid-template-columns:minmax(0,1fr) 16px;gap:6px 12px;padding-block:16px}
+    .record summary>span{grid-column:1;grid-row:1}
+    .record summary>b{grid-column:1;grid-row:2;max-width:none;text-align:left;line-height:1.6}
+    .record summary::after{grid-column:2;grid-row:1/3;align-self:center}
+    .record summary:has(>b:empty){row-gap:0}
+    .withdrawal-review dd button{min-height:44px}
+    .withdrawal-review [name=txid]{font-size:16px}
+    .withdrawal-review>button[data-w]{display:block;width:100%;margin-top:12px}
+    .withdrawal-review>button[data-w]+button[data-w]{margin-inline-start:0}
+    #custodyNetworks .custody-facts,.custody-intro>.custody-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .custody-intro>.custody-facts>div:last-child:nth-child(odd){grid-column:1/-1}
+    .custody-edit>summary{min-height:44px}
+    .custody-network>summary{padding-inline:4px}
+    .custody-form .custody-actions{gap:14px}
+    .load-error{align-items:stretch;flex-direction:column;gap:16px}
+    .load-error>button{width:100%;min-height:44px}
+    .record-pager{padding-top:16px}
+    #s2fa .row{align-items:stretch!important}
+    #s2fa .row>div{flex-basis:100%!important}
+    #s2fa .row button,#en_totp{width:100%;max-width:none;min-height:44px}
+  }
+  @media(max-width:360px){#custodyNetworks .custody-facts,.custody-intro>.custody-facts{grid-template-columns:minmax(0,1fr)}.record-facts div{gap:12px}.record-facts dt{flex-basis:36%}.record-facts dd{max-width:64%}}
+  @media(forced-colors:active){.tscroll :is(th,td):first-child:not([colspan]){background:Canvas}.tscroll tbody tr:focus-within{outline:1px solid Highlight;outline-offset:-1px}#custodySigning:has(>.custody-head>.pill.warn){border-color:CanvasText}button[data-aen][data-on=true]{color:ButtonText;border-color:ButtonText}}
+  .empty-state>button,td[colspan]>button{display:block;margin-top:14px}
+  .card>[data-save-error]:not(:empty){margin-top:14px;padding:11px 13px;border:1px solid #68454b;border-radius:4px;background:#2b2027;color:var(--red);font-size:13px;line-height:1.6}
 </style>
 <link rel="stylesheet" href="/admin/option-picker.css">
 <script defer src="/admin/option-picker.js"></script>
@@ -98,7 +434,7 @@
 <!-- LOGIN -->
 <main id="login" class="login" aria-labelledby="loginTitle" tabindex="0">
   <div class="login-inner">
-    <div class="brand">EmpireBlox <span class="product">Treasury</span></div>
+    <div class="brand">BANDITBLOX <span class="product">Treasury</span></div>
     <section class="card">
       <p class="eyebrow">Restricted access</p>
       <h1 id="loginTitle">Operator sign-in</h1>
@@ -120,7 +456,7 @@
   <a class="skip" href="#sectionTitle">Skip to section</a>
   <header class="masthead">
     <div class="mast-inner">
-      <div class="brand">EmpireBlox <span class="product">Treasury</span></div>
+      <div class="brand">BANDITBLOX <span class="product">Treasury</span></div>
       <div class="identity"><span id="who"></span><span class="pill" id="factor"></span></div>
       <button class="sm" id="logout">Log out</button>
     </div>
@@ -128,7 +464,7 @@
   <div class="workspace">
     <nav id="nav" aria-label="Treasury sections">
       <div class="nav-group"><span class="eyebrow">Operations</span><button>Overview</button><button>Users</button><button>Withdrawals</button><button>Deposits</button></div>
-      <div class="nav-group"><span class="eyebrow">Configuration</span><button>Secrets</button><button>Chains</button><button>Assets</button><button>Settings</button></div>
+      <div class="nav-group"><span class="eyebrow">Configuration</span><button>Direct wallets</button><button>Secrets</button><button>Chains</button><button>Assets</button><button>Settings</button></div>
       <div class="nav-group"><span class="eyebrow">Oversight</span><button>Security</button><button>Audit</button></div>
     </nav>
     <main id="workspaceScroll" aria-labelledby="sectionTitle" tabindex="0">
@@ -147,33 +483,43 @@ let toastT, session=0;
 function toast(msg,ms=3500){const t=$('#toast');t.textContent=msg;clearTimeout(toastT);toastT=setTimeout(()=>t.textContent='',ms);}
 
 async function api(path, method='GET', body){
-  const started=session;
+  const started=session,custody=path==='/api/admin/custody'||path.startsWith('/api/admin/custody/');
   const r = await fetch(path, {
     method, credentials:'include',
+    ...(custody?{mode:'same-origin',redirect:'error',cache:'no-store'}:{}),
     headers: body ? {'content-type':'application/json'} : {},
     body: body ? JSON.stringify(body) : undefined,
   });
-  let data = {}; try { data = await r.json(); } catch(e){}
   if(!r.ok){
     if(r.status===401 && started===session && !$('#app').classList.contains('hide')) showLogin('Your session expired. Sign in again.');
-    // A proxy error for a credential write can contain the submitted value.
-    if(path==='/api/admin/secrets' && method==='PUT'){
-      const message=r.status===409?'The merchant key is still needed for outstanding invoices. Pause new deposits and reconcile them before replacing it.':r.status===400?'The secret was not saved. Check the name and value; receiving keys must be watch-only.':'The secret could not be saved. Try again.';
+    if(custody){
+      const message=r.status===403?'Change not authorized. Verify operator 2FA and enter a fresh authenticator code.':r.status===429?'Too many attempts. Wait for a new authenticator code.':r.status===409?'Configuration changed or there is an unresolved sweep. Refresh status before trying again.':r.status===400?'The service rejected these settings. Check the network, public address and worker configuration.':'Custody service unavailable. Refresh status before trying again.';
       throw Object.assign(new Error(message),{status:r.status});
     }
-    throw Object.assign(new Error(data.error || ('Error '+r.status)),{status:r.status});
+    // A proxy error for a credential write can contain the submitted value.
+    if(path==='/api/admin/secrets' && method==='PUT'){
+      const message=r.status===409?'Manage enrolled network RPCs through Direct wallets.':r.status===400?'The secret was not saved. Check the network name and value; receiving keys must be watch-only.':'The secret could not be saved. Try again.';
+      throw Object.assign(new Error(message),{status:r.status});
+    }
+    if(path==='/api/admin/2fa/enable' && method==='POST'){
+      const message=r.status===429?'Too many attempts. Wait for a new authenticator code.':'Could not enable two-factor authentication. Enter a fresh six-digit authenticator code and try again.';
+      throw Object.assign(new Error(message),{status:r.status});
+    }
+    const data=await r.json().catch(()=>({}));throw Object.assign(new Error(data.error || ('Error '+r.status)),{status:r.status});
   }
-  return data;
+  if(custody && method!=='GET')return;
+  return r.json().catch(()=>({}));
 }
 
 function showLogin(message=''){
   ++session;++userEpoch;clearTimeout(queueTimer);clearTimeout(searchTimer);clearTimeout(toastT);
+  clearCustodyInputs();
   current='Overview';adminName='';playerId='';searchText='';directoryPage=recordsPage=queuePage=0;
   playerStatus=transactionType='all';pendingOnly=false;queueScope='open';
   $('#view').replaceChildren();$('#sectionStatus').textContent='';$('#who').textContent='';$('#toast').textContent='';
   $('#l_pass').value='';$('#l_totp').value='';$('#l_totp').required=false;$('#l_totp_wrap').hidden=true;
-  $('#sessionCheck').hidden=true;$('#loginForm').hidden=false;$('#l_err').textContent=message;
-  $('#app').classList.add('hide');$('#login').classList.remove('hide');document.title='Operator sign-in · EmpireBlox Treasury';
+  $('#sessionCheck').hidden=true;$('#loginForm').hidden=false;clearFeedback($('#l_err'));$('#l_err').textContent=message;
+  $('#app').classList.add('hide');$('#login').classList.remove('hide');document.title='Operator sign-in · BANDITBLOX Treasury';
   $('#l_user').focus();
 }
 
@@ -182,21 +528,21 @@ $('#loginForm').onsubmit = async e => {
   e.preventDefault();
   const button=$('#l_btn');if(button.disabled)return;
   button.disabled=true;button.textContent='Signing in…';
-  $('#l_err').textContent='';
+  clearFeedback($('#l_err'));
   try{
     const body = { username:$('#l_user').value.trim(), password:$('#l_pass').value };
     const totp = $('#l_totp').value.trim(); if(totp) body.totp = totp;
     const res = await fetch('/api/admin/login',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
     const data = await res.json();
     if(!res.ok){
-      if(data.need2fa){$('#l_totp_wrap').hidden=false;$('#l_totp').required=true;$('#l_totp').focus();return;}
-      $('#l_err').textContent = data.error || 'Login failed'; return;
+      if(data.need2fa){$('#l_totp_wrap').hidden=false;$('#l_totp').required=true;fieldError($('#l_err'),'Enter your authenticator code to continue.',[$('#l_totp')]);$('#l_totp').focus();return;}
+      fieldError($('#l_err'),'Sign-in failed. Check your operator credentials and authenticator code.',$('#l_totp').required?[$('#l_totp')]:[$('#l_user'),$('#l_pass')]);return;
     }
     await boot(true);
-  }catch(e){ $('#l_err').textContent = 'Could not sign in. '+e.message; }
+  }catch{ fieldError($('#l_err'),'Could not sign in. Try again.'); }
   finally{button.disabled=false;button.textContent='Sign in';}
 };
-$('#l_user').oninput=()=>{$('#l_totp_wrap').hidden=true;$('#l_totp').required=false;$('#l_totp').value='';};
+$('#l_user').oninput=()=>{clearFeedback($('#l_err'));$('#l_totp_wrap').hidden=true;$('#l_totp').required=false;$('#l_totp').value='';};
 $('#logout').onclick = async () => {
   const button=$('#logout'),started=session;button.disabled=true;
   try{await api('/api/admin/logout','POST');if(started===session)showLogin();}
@@ -206,7 +552,7 @@ $('#logout').onclick = async () => {
 
 // ---- Nav ----
 const sections={Overview:renderOverview,Users:renderUsers,Withdrawals:renderWithdrawals,Deposits:renderDeposits,
-  Secrets:renderSecrets,Chains:renderChains,Assets:renderAssets,Settings:renderSettings,Security:renderSecurity,Audit:renderAudit};
+  'Direct wallets':renderDirectWallets,Secrets:renderSecrets,Chains:renderChains,Assets:renderAssets,Settings:renderSettings,Security:renderSecurity,Audit:renderAudit};
 let current = 'Overview', adminName = '';
 function markCurrent(nav,name){
   for(const b of nav.querySelectorAll('button')){
@@ -219,7 +565,7 @@ function markCurrent(nav,name){
 function openSection(name){
   current=name;
   markCurrent($('#nav'),current);$('#sectionGroup').textContent=$('#nav .on').parentElement.firstElementChild.textContent;
-  $('#sectionTitle').textContent=current;document.title=current+' · EmpireBlox Treasury';
+  $('#sectionTitle').textContent=current;document.title=current+' · BANDITBLOX Treasury';
   render();$('#workspaceScroll').scrollTop=0;$('#nav .on').scrollIntoView({block:'nearest',inline:'nearest'});
 }
 $('#nav').onclick=e=>{
@@ -243,6 +589,39 @@ const fmt = (amt, dec) => { // integer minor units -> human string
 };
 const short = s => s? (s.length>18?s.slice(0,8)+'…'+s.slice(-6):s) : '';
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const setupAction=()=>'<button type="button" class="sm" data-open-section="Direct wallets">Review deposit setup</button>';
+$('#view').addEventListener('click',e=>{const button=e.target.closest('[data-open-section]');if(button)openSection(button.dataset.openSection);});
+let fieldErrorId=0;
+function clearFieldError(field){
+  const id=field.dataset.fieldError;if(!id)return;
+  const descriptions=(field.getAttribute('aria-describedby')||'').split(/\s+/).filter(value=>value && value!==id);
+  if(descriptions.length)field.setAttribute('aria-describedby',descriptions.join(' '));else field.removeAttribute('aria-describedby');
+  field.removeAttribute('aria-invalid');delete field.dataset.fieldError;
+}
+function clearFeedback(status){
+  if(!status)return;
+  for(const field of document.querySelectorAll('[data-field-error]'))if(field.dataset.fieldError===status.id)clearFieldError(field);
+  status.textContent='';
+}
+function fieldError(status,message,fields=[]){
+  if(!status)return;
+  clearFeedback(status);if(!status.id)status.id='admin-field-error-'+(++fieldErrorId);
+  status.dataset.fieldFeedback='';status.textContent=message;
+  for(const field of fields.filter(field=>field && !field.disabled)){
+    const descriptions=new Set((field.getAttribute('aria-describedby')||'').split(/\s+/).filter(Boolean));descriptions.add(status.id);
+    field.setAttribute('aria-describedby',[...descriptions].join(' '));field.setAttribute('aria-invalid','true');field.dataset.fieldError=status.id;
+  }
+}
+function clearEditedError(e){
+  const field=e.target,scope=field.form||field.closest?.('.card');
+  const status=document.getElementById(field.dataset?.fieldError)||scope?.querySelector('[data-save-error],[data-field-feedback]')||field.closest?.('.card')?.querySelector('[data-field-feedback]');
+  clearFeedback(status);
+}
+document.addEventListener('input',clearEditedError);document.addEventListener('change',clearEditedError);
+document.addEventListener('invalid',e=>{
+  const field=e.target,scope=field.form||field.closest('.card'),status=scope?.querySelector('[data-save-error],[role=status],[role=alert]')||field.closest('.card')?.querySelector('[role=alert]');
+  if(status)fieldError(status,'Check the highlighted fields before continuing.',[...scope.querySelectorAll('input,select,textarea')].filter(input=>input.willValidate && !input.validity.valid));
+},true);
 const loading=label=>`<p role="status" class="load-state">Loading ${esc(label)}…</p>`;
 function loadError(host,label,error,retry){
   if(!host.isConnected)return;
@@ -252,17 +631,18 @@ function loadError(host,label,error,retry){
 }
 async function updateControl(control,send,success,refresh=true){
   if(control.disabled)return;
-  const feedback=control.form?.querySelector('[data-save-error]');if(feedback)feedback.textContent='';
+  const scope=control.form||control.closest('.card'),feedback=scope?.querySelector('[data-save-error]');clearFeedback(feedback);
   control.disabled=true;
   try{
     const result=await send();if(!control.isConnected)return;
     toast(typeof success==='function'?success(result):success);if(refresh)render();
-  }catch(e){if(control.isConnected){if(feedback)feedback.textContent=e.message;toast(e.message,6000);}}
+  }catch(e){if(control.isConnected){control.disabled=false;fieldError(feedback,e.message,control.matches('input,select,textarea')?[control]:[...(scope?.querySelectorAll('input:not([type=hidden]),select,textarea')||[])]);toast(e.message,6000);}}
   finally{control.disabled=false;}
 }
 
 async function render(){
   clearTimeout(searchTimer);clearTimeout(queueTimer);++userEpoch;
+  clearCustodyInputs();
   const view=$('#view'),v=document.createElement('div'),label=current.toLowerCase();
   // Each navigation owns its response target, including its error and completion states.
   if(view.contains(document.activeElement))$('#sectionTitle').focus({preventScroll:true});
@@ -278,17 +658,181 @@ async function renderOverview(v){
   if(!v.isConnected)return;
   v.innerHTML = `
     <div class="card"><div class="stats">
-      <div class="stat"><span>Deposit provider</span><b>${d.deposit_provider==='direct'?'Direct wallet':'OxaPay'}</b></div>
+      <div class="stat"><span>Deposit method</span><b>Direct wallets</b></div>
       <div class="stat"><span>Payments in progress</span><b>${esc(d.pending)}</b></div>
       <div class="stat"><span>Assets credited</span><b>${d.credited.length}</b></div>
-      <div class="stat"><span>New deposits</span><b class="${d.deposits_paused||d.deposit_provider==='oxapay'&&!d.oxapay_ready?'warn':'ok'}">${d.deposits_paused?'Paused':d.deposit_provider==='oxapay'&&!d.oxapay_ready?'Setup needed':'Enabled'}</b></div>
+      <div class="stat"><span>New deposits</span><b class="${d.deposits_paused?'warn':'ok'}">${d.deposits_paused?'Paused':'Enabled'}</b></div>
     </div></div>
     <div class="card"><h2>Credited totals</h2><div class="tscroll" tabindex="0" role="region" aria-label="Credited totals"><table><thead><tr><th>Asset</th><th>Count</th><th>Total credited</th></tr></thead><tbody>
       ${d.credited.map(c=>`<tr><td>${esc(c.asset_id)}</td><td>${c.n}</td><td class="mono">${esc(fmt(c.total,c.decimals))}</td></tr>`).join('')||'<tr><td colspan=3 class=mut>No assets credited yet.</td></tr>'}
     </tbody></table></div></div>
     <div class="card"><h2>Recent deposits</h2><div class="tscroll" tabindex="0" role="region" aria-label="Recent deposits"><table><thead><tr><th>Source</th><th>Asset</th><th>Amount</th><th>Status</th><th>Reference</th></tr></thead><tbody>
-      ${d.recent.map(x=>`<tr><td>${x.provider==='oxapay'?'OxaPay':esc(x.chain_id)}</td><td>${esc(x.asset_id)}</td><td class="mono">${esc(fmt(x.amount,x.decimals))}</td><td><span class="pill ${x.status==='credited'?'ok':'warn'}">${esc(x.status)}</span></td><td class="mono mut">${esc(short(x.track_id||x.txid||x.id))}</td></tr>`).join('')||'<tr><td colspan=5 class=mut>No deposits yet</td></tr>'}
+      ${d.recent.map(x=>`<tr><td>${x.provider==='archived'?'Archived payment':esc(x.chain_id)}</td><td>${esc(x.asset_id)}</td><td class="mono">${esc(fmt(x.amount,x.decimals))}</td><td><span class="pill ${x.status==='credited'?'ok':'warn'}">${esc(x.status)}</span></td><td class="mono mut">${esc(short(x.track_id||x.txid||x.id))}</td></tr>`).join('')||'<tr><td colspan=5 class=mut>No deposits yet.'+setupAction()+'</td></tr>'}
     </tbody></table></div></div>`;
+}
+
+const custodyRoutes={
+  ETH:{name:'Ethereum',native:'ETH',token:'USDT.ERC20',mainnet:'Ethereum mainnet (chain ID 1)'},
+  BSC:{name:'BNB Smart Chain',native:'BNB',token:'USDT.BEP20',mainnet:'BNB Smart Chain mainnet (chain ID 56)'},
+  POL:{name:'Polygon',native:'POL',token:'USDT.POL',mainnet:'Polygon PoS mainnet (chain ID 137)'},
+  SOL:{name:'Solana',native:'SOL',mainnet:'Solana mainnet-beta'},
+};
+const hexAddress=v=>typeof v==='string' && /^0x[\da-f]{40}$/i.test(v) && !/^0x0{40}$/i.test(v);
+const publicDestination=(id,v)=>id==='SOL'?typeof v==='string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v) && v!=='1'.repeat(32):hexAddress(v);
+const custodySecure=()=>location.protocol==='https:' && window.isSecureContext && !!window.crypto?.subtle;
+const authField='<label>Fresh authenticator code<input data-code type="password" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="6 digits"></label>';
+const custodyPill=(flag,yes,no)=>`<span class="pill ${flag===true?'ok':flag===false?'warn':''}">${flag===true?yes:flag===false?no:'Not reported'}</span>`;
+const custodyFact=(label,value)=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
+
+async function custodyPublicKey(info){
+  if(!custodySecure() || !/^[\da-f]{64}$/.test(info.id) || typeof info.spki!=='string' || info.spki.length>8192)return null;
+  try{
+    const der=Uint8Array.from(atob(info.spki),c=>c.charCodeAt(0));
+    const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',der));
+    if(Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('')!==info.id)return null;
+    const key=await crypto.subtle.importKey('spki',der,{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
+    return key.algorithm.modulusLength===3072?key:null;
+  }catch{return null;}
+}
+
+// Never name or serialize the seed input. Only the worker-key envelope crosses the API boundary.
+function readCustodySeed(input){
+  const hex=input.value;input.value='';
+  if(hex.length!==64 || !/^[\da-f]+$/i.test(hex))return null;
+  const raw=new Uint8Array(32);
+  for(let i=0;i<raw.length;i++)raw[i]=parseInt(hex.slice(i*2,i*2+2),16);
+  return raw;
+}
+function clearCustodyInputs(){document.querySelectorAll('.custody-form input[type=password]').forEach(input=>{input.value='';});}
+window.addEventListener('pagehide',clearCustodyInputs);
+
+function custodyNetwork(n,canEdit,key){
+  const id=n.id,r=custodyRoutes[id],sol=id==='SOL',name=n.display_name||r.name;
+  const active=n.sweeps_enabled===true,dest=publicDestination(id,n.destination)?n.destination:null;
+  const assets=Array.isArray(n.assets)?n.assets.filter(a=>a.id===r.native || (r.token && a.id===r.token)):[];
+  const reasons=[];
+  if(key.ready!==true)reasons.push('a ready signing key');if(n.rpc_configured!==true)reasons.push('a configured RPC');
+  if(n.scan_ready!==true)reasons.push('a current scanner checkpoint');if(!dest)reasons.push('a saved collection address');
+  const checkpoint=n.last_scanned!=null && /^\d+$/.test(String(n.last_scanned)) && Number(n.last_scanned)>0?(sol?'Slot ':'Block ')+n.last_scanned:'Not established';
+  const workerStates={offline:'Offline',ready:'Running',paused:'Paused',awaiting_key:'Awaiting enrollment',awaiting_rpc:'Awaiting RPC',degraded:'Needs attention'};
+  return `<details class="custody-network" data-network="${id}" name="custody-network"><summary>
+    <span class="custody-name"><b>${esc(name)}</b><small>${sol?'SOL only':r.native+' and USDT'}</small></span>
+    <span><small>Address issuance</small>${custodyPill(n.ready,'Ready','Not ready')}</span>
+    <span><small>Automatic sweeps</small>${custodyPill(n.sweeps_enabled,'Enabled','Off')}</span></summary>
+    <div class="custody-detail"><dl class="custody-facts">
+      ${custodyFact('Mainnet RPC',n.rpc_configured===true?'Configured':n.rpc_configured===false?'Not set':'Not reported')}
+      ${custodyFact('Scanner',n.scan_ready===true?'Current':n.scan_ready===false?'Not current':'Not reported')}
+       ${custodyFact('Last checkpoint',checkpoint)}${custodyFact('Required confirmations',n.required_conf??'Not reported')}
+       ${custodyFact('Sweep worker',Object.hasOwn(workerStates,n.worker_status)?workerStates[n.worker_status]:'Not reported')}
+       ${custodyFact('Worker last checked',n.worker_checked_at?when(n.worker_checked_at):'Not reported')}
+    </dl><div class="custody-block"><h3>Deposit rules</h3><p class="mut">Use an HTTPS RPC for ${r.mainnet}. ${sol?'It must serve finalized full blocks, parsed transactions and transaction history. SOL fees come from the deposit address; the remaining amount must meet account rent requirements.':'It must serve full blocks, receipts and block-hash-filtered token logs. The worker also needs fee estimates and signed transaction submission. Native sweeps pay their fees in '+r.native+'; USDT needs a funded '+r.native+' sponsor on this chain.'}</p>
+    ${assets.length?`<div class="tscroll" tabindex="0" role="region" aria-label="${esc(name)} deposit rules"><table class="custody-assets"><thead><tr><th>Asset</th><th>Minimum deposit</th><th>Contract</th></tr></thead><tbody>${assets.map(a=>{
+      const min=/^\d+$/.test(String(a.min_deposit))&&Number.isInteger(a.decimals)&&a.decimals>=0&&a.decimals<=36?fmt(a.min_deposit,a.decimals)+' '+(a.id===r.token?'USDT':r.native):'Not reported';
+      return `<tr><td><b>${esc(a.id===r.token?'USDT':r.native)}</b>${a.enabled===false?'<small>Disabled</small>':''}</td><td>${esc(min)}</td><td>${a.id===r.token?`<small>Pinned USDT contract</small><span class="mono">${esc(hexAddress(a.token_address)?a.token_address:'Not reported')}</span>`:'Native coin'}</td></tr>`;
+    }).join('')}</tbody></table></div>`:'<p class="custody-note">Asset minimums and contracts were not reported by the service.</p>'}
+    </div><div class="custody-block"><h3>Collection wallet</h3><p class="mut">${sol?'Use a separate public Solana address that you control, not an EVM address.':'You can use one public EVM collection address on Ethereum, BNB Smart Chain and Polygon. Save and verify it separately on each network.'} Never use a player deposit address or the fee sponsor.</p>
+    <small>Saved destination on ${esc(name)}</small><code class="custody-address mono">${esc(dest||'Not configured')}</code></div>
+    ${canEdit && !active && typeof n.sweeps_enabled==='boolean'?`<details class="custody-block custody-edit"><summary>Edit network settings</summary><form class="custody-form" data-network-settings autocomplete="off" novalidate>
+      <div class="grid2"><label>${n.rpc_configured?'Replacement':'Mainnet'} RPC URL<input data-rpc type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="https://" aria-describedby="rpc-help-${id}"></label>
+      <label>New public collection address<input data-destination type="text" autocomplete="off" autocapitalize="off" spellcheck="false" ${n.destination_locked?'disabled':''} placeholder="${sol?'Public Solana address':'0x...'}"></label></div>
+      <p id="rpc-help-${id}" class="mut">RPC credentials are write-only. Leave fields blank to keep their saved values. Saving does not enable sweeps.${n.destination_locked?' The saved collection address is pinned and cannot be replaced here.':''}</p>
+      <div class="custody-actions">${authField}<button type="submit">Save network settings</button></div><p role="status"></p></form></details>`:''}
+    <div class="custody-block"><h3>Sweep control</h3><p class="mut">${active?'Pausing stops new signatures and broadcasts. Already submitted transactions cannot be cancelled and will still be checked. Pause before changing the RPC.':reasons.length?'Before enabling sweeps, this network needs '+esc(reasons.join(', '))+'.':'Enabling starts automatic collection to the saved destination. It does not enable player address issuance.'}</p>
+    ${canEdit && typeof n.sweeps_enabled==='boolean' && (active||!reasons.length)?`<form class="custody-form" data-sweep-toggle autocomplete="off" novalidate>
+      ${active?'':`<label class="custody-check"><input type="checkbox" data-verified>I verified the full saved address on my receiving wallet for ${esc(name)}.</label>`}
+      <div class="custody-actions">${authField}<button type="submit" class="${active?'danger':'pri'}">${active?'Pause':'Enable'} sweeps</button></div><p role="status"></p></form>`:''}</div></div></details>`;
+}
+
+function custodyJobs(jobs){
+  const states={queued:'Queued',sponsor_signed:'Gas funding signed',sponsor_pending:'Gas funding pending',sponsored:'Gas funding confirmed',sweep_signed:'Sweep signed',sweep_pending:'Sweep pending',completed:'Completed',dust:'Below sweep threshold',review:'Needs review'};
+  const reasons={wrong_chain:'Check RPC network',orphaned:'Deposit reorganization',unowned:'Ownership not verified',dust:'Fees exceed collectible amount',fee_limit:'Fee exceeds limit',insufficient_funds:'Check source balance and native gas funding',expired:'Transaction expired',nonce_conflict:'Nonce conflict',invalid_receipt:'Receipt not verified',ambiguous:'Ambiguous chain evidence',not_final:'Awaiting finality',unavailable:'Worker or RPC unavailable',invalid_intent:'Job validation failed'};
+  if(!jobs.length)return '<p class="empty-state">No sweep jobs reported.</p>';
+  return `<div class="tscroll" tabindex="0" role="region" aria-label="Recent sweep jobs"><table class="custody-jobs"><thead><tr><th>Network / asset</th><th>Job</th><th>Status</th><th>Transaction</th><th>Updated</th></tr></thead><tbody>${jobs.map(j=>{
+    const r=custodyRoutes[j.chain_id],ref=String(j.txid??'');
+    const txid=(j.chain_id==='SOL'?/^[1-9A-HJ-NP-Za-km-z]{64,88}$/:/^0x[\da-f]{64}$/i).test(ref)?ref:'';
+    const jobId=String(j.id??''),validJob=/^(?:\d{1,20}|[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12})$/i.test(jobId);
+    return `<tr><td>${Object.hasOwn(custodyRoutes,j.chain_id)?esc(j.chain_id):'Unknown'}<small>${r && [r.native,r.token].includes(j.asset_id)?esc(j.asset_id):'Not reported'}</small></td>
+      <td class="mono" title="${validJob?esc(jobId):''}">${validJob?esc(short(jobId)):'Not reported'}</td><td><span class="pill ${j.status==='completed'?'ok':j.status==='review'?'warn':''}">${Object.hasOwn(states,j.status)?states[j.status]:'Status unavailable'}</span>${Object.hasOwn(reasons,j.last_error)?`<small>${reasons[j.last_error]}</small>`:''}</td>
+      <td class="mono" title="${esc(txid)}">${txid?esc(short(txid)):'None reported'}</td><td>${esc(when(j.updated_at))}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+async function renderDirectWallets(v){
+  const [d,me]=await Promise.all([api('/api/admin/custody'),api('/api/admin/me')]);
+  if(!v.isConnected)return;
+  if(!Array.isArray(d.networks) || !Array.isArray(d.jobs))throw new Error('Custody status is incomplete.');
+  const key=d.key||{},secure=custodySecure(),canEdit=secure && me.totp_enabled===true;
+  const pub=canEdit && key.configured===false?await custodyPublicKey(key):null;
+  if(!v.isConnected)return;
+  const networks=Object.keys(custodyRoutes).map(id=>d.networks.find(n=>n.id===id)||{id});
+  const fee=hexAddress(key.fee_address)?key.fee_address:null;
+  const readyLabel=key.configured===true?(key.ready===true?'Ready':'Awaiting worker'):key.configured===false?'Not enrolled':'Not reported';
+  v.innerHTML=`<section class="card custody-intro"><div class="custody-head"><div><p class="eyebrow">Deposit operations</p><h2>Permanent deposit addresses</h2></div><button type="button" id="refreshCustody">Refresh status</button></div>
+    <p class="mut">Players keep their assigned addresses. The scanner verifies deposits for credit; the signing worker separately sweeps eligible funds to your collection wallet.</p>
+    <dl class="custody-facts">${custodyFact('Deposit method','Direct wallets')}${custodyFact('New deposits',d.deposits_paused===true?'Paused':d.deposits_paused===false?'Not paused':'Not reported')}${custodyFact('Signing key',readyLabel)}</dl>
+    <p class="mut">Players choose a coin and network, then send to their permanent address. Confirmed transfers credit the actual amount received. Pause new requests in <button type="button" class="sm" data-custody-section="Settings">Settings</button>.</p></section>
+    ${!canEdit?`<section class="card custody-intro"><h2>Read-only access</h2><p>${!secure?'Open the operator panel over HTTPS in a secure browser with WebCrypto. Do not enter a seed, RPC credential or authenticator code here.':'Enable operator two-factor authentication before enrolling a seed or changing any network settings.'}</p>${!me.totp_enabled?'<button type="button" data-custody-section="Security">Open Security</button>':''}</section>`:''}
+    <section class="card" id="custodySigning"><div class="custody-head"><h2>Signing worker</h2>${custodyPill(key.ready,'Key ready','Not ready')}</div>
+    ${/^[\da-f]{64}$/.test(key.id)?`<div class="custody-block"><small class="mut">Worker key ID (SHA-256 fingerprint)</small><code class="custody-address mono">${esc(key.id)}</code></div>`:''}
+    ${key.configured===true?`<p class="custody-note">Seed enrolled. ${key.ready===true?'The worker has published its public receiving material.':'Wait for the isolated worker to unlock the seed and publish its public receiving material.'} The seed cannot be viewed or replaced here.</p>`:
+    pub?`<form class="custody-form" id="custodyRoot" autocomplete="off" novalidate><p class="mut">Generate a new, cryptographically random 32-byte seed offline, dedicated to this treasury. Verify the worker fingerprint against your deployment and back up the worker's wrapping key volume separately. Enrollment is one-time: this browser seals the seed to that worker; the API receives only ciphertext. Never enter a personal seed phrase, an existing wallet key or a cold wallet private key.</p>
+      <label>Dedicated custody seed (64 hex characters)<input id="custodySeed" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="Offline-generated seed, no 0x prefix"></label>
+      <label class="custody-check"><input type="checkbox" id="custodyBackup">I verified my offline backup of this dedicated seed and the worker key ID above.</label>
+      <div class="custody-actions">${authField}<button class="pri" type="submit">Encrypt and enroll seed</button></div><p role="status"></p></form>`:
+    `<p class="custody-note">${canEdit?'No usable worker enrollment key is available. Start or check the isolated signing worker, then refresh status.':'Seed enrollment is unavailable.'}</p>`}</section>
+    <section class="card"><h2>Gas sponsorship</h2><p class="mut">The signing worker publishes this public EVM fee address for USDT sweeps. It is not a collection wallet or player deposit address. The worker obtains fees from each network's RPC before signing; no fee is quoted by this panel.</p>
+      <code class="custody-address mono" id="custodyFeeAddress">${esc(fee||'No fee address published by the worker')}</code><p class="custody-note">Fund this address separately with ETH on Ethereum, BNB on BNB Smart Chain and POL on Polygon. Balances do not cross networks, and USDT cannot pay gas. Native SOL pays its own fee; do not send SOL to the EVM address.</p></section>
+    <section class="card" id="custodyNetworks"><h2>Network routing</h2><p class="mut">Readiness is for new addresses, independent of the global pause. Issuance requires an enabled chain and asset, a current scanner checkpoint and worker-managed receiving material. Turning sweeps off does not turn the scanner off.</p>
+    ${networks.map(n=>custodyNetwork(n,canEdit,key)).join('')}</section>
+    <section class="card"><h2>Recent sweep jobs</h2><p class="mut">Only credited deposits at worker-managed addresses are eligible. Funds at older watch-only addresses or imported Solana addresses must be collected manually with their original signer. A job under review is not a request to resend.</p>${custodyJobs(d.jobs)}</section>`;
+
+  v.querySelectorAll('[data-custody-section]').forEach(b=>b.onclick=()=>openSection(b.dataset.custodySection));
+  async function refresh(id){
+    await render();if(current!=='Direct wallets')return;
+    const net=id && $(`[data-network="${id}"]`);if(net){net.open=true;net.querySelector('summary').focus();}
+    else $('#refreshCustody')?.focus({preventScroll:true});
+  }
+  $('#refreshCustody').onclick=()=>refresh(v.querySelector('.custody-network[open]')?.dataset.network);
+  for(const form of v.querySelectorAll('.custody-form'))form.onsubmit=async e=>{
+    e.preventDefault();const button=form.querySelector('button'),code=form.querySelector('[data-code]'),status=form.querySelector('[role=status]');
+    if(button.disabled || !canEdit || !custodySecure())return;
+    const totp=code.value;code.value='';clearFeedback(status);
+    const id=form.closest('[data-network]')?.dataset.network,n=id && networks.find(n=>n.id===id);
+    button.disabled=true;let success='';
+    try{
+      if(form.id==='custodyRoot'){
+        const raw=readCustodySeed(form.querySelector('#custodySeed'));
+        if(!raw){fieldError(status,'Enter exactly 64 hexadecimal characters from your dedicated offline seed.',[form.querySelector('#custodySeed')]);return;}
+        let sealed;
+        try{
+          if(!form.querySelector('#custodyBackup').checked){fieldError(status,'Verify the offline seed backup and the worker key ID before enrollment.',[form.querySelector('#custodyBackup')]);return;}
+          if(!/^\d{6}$/.test(totp)){fieldError(status,'Enter a fresh six-digit authenticator code.',[code]);return;}
+          try{sealed=await crypto.subtle.encrypt({name:'RSA-OAEP',label:new TextEncoder().encode(key.id)},pub,raw);}
+          catch{status.textContent='Encryption failed. Nothing was submitted. Check the worker key and refresh status.';return;}
+        }finally{raw.fill(0);}
+        if(!form.isConnected)return;
+        await api('/api/admin/custody/root','POST',{key_id:key.id,sealed_base64:btoa(String.fromCharCode(...new Uint8Array(sealed))),totp});
+        success='Encrypted seed submitted. Check the worker status.';
+      }else{
+        const body={totp};
+        if(form.hasAttribute('data-network-settings')){
+          const rpc=form.querySelector('[data-rpc]'),url=rpc.value.trim();rpc.value='';const dest=form.querySelector('[data-destination]').value.trim();
+          if(!url && !dest){fieldError(status,'Enter a new RPC URL or collection address.',[rpc,form.querySelector('[data-destination]')]);return;}
+          if(url){try{const u=new URL(url);if(!/^https:\/\//i.test(url) || /[\s\\]/.test(url) || !u.hostname || u.hash || u.username || u.password)throw 0;}catch{fieldError(status,'Use a mainnet HTTPS RPC URL without a fragment or embedded user credentials.',[rpc]);return;}body.rpc_url=url;}
+          if(dest){if(n.destination_locked || !publicDestination(id,dest) || (fee && dest.toLowerCase()===fee.toLowerCase())){fieldError(status,'Enter a valid, unlocked public collection address for this network, not the fee sponsor.',[form.querySelector('[data-destination]')]);return;}body.destination=dest;}
+          success='Network settings saved. Sweep activation is separate.';
+        }else{
+          body.enabled=!n.sweeps_enabled;
+          if(body.enabled){if(!form.querySelector('[data-verified]').checked){fieldError(status,'Verify the full saved collection address before enabling sweeps.',[form.querySelector('[data-verified]')]);return;}body.destination=n.destination;}
+          success=body.enabled?'Automatic sweeps enabled.':'Automatic sweeps paused. Submitted transactions can still settle.';
+        }
+        if(!/^\d{6}$/.test(totp)){fieldError(status,'Enter a fresh six-digit authenticator code.',[code]);return;}
+        await api('/api/admin/custody/networks/'+id,'PUT',body);
+      }
+      if(form.isConnected){toast(success);await refresh(id);}
+    }catch(err){if(form.isConnected)fieldError(status,err.status?err.message:'Could not confirm the change. Refresh status before trying again.',[403,429].includes(err.status)?[code]:err.status===400 && form.hasAttribute('data-network-settings')?[form.querySelector('[data-rpc]'),form.querySelector('[data-destination]')]:[]);}
+    finally{button.disabled=false;}
+  };
 }
 
 async function renderSecrets(v){
@@ -297,27 +841,25 @@ async function renderSecrets(v){
   v.innerHTML = `
     <div class="card">
       <h2>Set a secret</h2>
-      <p class="mut">Manage the OxaPay merchant key in Settings. The receiving keys, RPC endpoints and Solana pool here are only for direct wallets. Never enter a seed phrase or a signing key.</p>
+      <p class="mut">These watch-only keys and imported addresses support legacy receiving wallets. Configure managed receiving wallets and RPCs in Direct wallets. Never enter a seed phrase or a signing key here.</p>
       <div class="grid2">
         <div><label for="s_name">Secret name</label><select id="s_name"><option value="" disabled selected>Choose a key or endpoint</option>
           <optgroup label="Receiving keys">${['EVM','ETH','BSC','POL','BTC','TRON'].map(id=>`<option>xpub:${id}</option>`).join('')}</optgroup>
           <optgroup label="Network endpoints">${['ETH','BSC','POL','BTC','SOL','TRON'].map(id=>`<option>rpc:${id}</option>`).join('')}</optgroup>
-          <option value="custom">Custom name</option></select>
-          <label id="customNameField" for="customName" hidden>Custom secret name<input id="customName" maxlength="64" autocomplete="off"></label></div>
+          </select></div>
         <div><label for="s_val">Value</label><input id="s_val" type="password" autocomplete="off" placeholder="xpub… or https://rpc-url…"></div>
       </div>
-      <div style="margin-top:12px"><button class="pri" id="s_save">Save secret</button></div>
+      <div style="margin-top:12px"><button class="pri" id="s_save">Save secret</button></div><p role="status" data-save-error></p>
     </div>
     <div class="card"><h2>Solana receiving addresses</h2><p class="mut">${pool.remaining} unassigned. Import unique public wallet addresses generated by your offline signer, one per line. Each address belongs to one player.</p>
-      <textarea id="solOwners" rows="4" aria-label="Solana public wallet addresses"></textarea><button class="pri" id="importSol">Import public addresses</button></div>
-    <div class="card"><h2>Stored secrets</h2><div class="tscroll" tabindex="0" role="region" aria-label="Stored secrets"><table><thead><tr><th>Name</th><th>Hint</th><th>Updated</th><th>By</th><th></th></tr></thead><tbody>
-      ${d.secrets.map(s=>`<tr><td class="mono">${esc(s.name)}</td><td class="mono mut">${esc(s.hint||'')}</td><td class="mut">${new Date(s.updated_at).toLocaleString()}</td><td class="mut">${esc(s.updated_by||'')}</td><td><button class="sm danger" data-del="${esc(s.name)}">Delete</button></td></tr>`).join('')||'<tr><td colspan=5 class=mut>No secrets set</td></tr>'}
+      <textarea id="solOwners" rows="4" aria-label="Solana public wallet addresses"></textarea><button class="pri" id="importSol">Import public addresses</button><p role="status" data-save-error></p></div>
+    <div class="card"><h2>Stored secrets</h2><div class="tscroll" tabindex="0" role="region" aria-label="Stored secrets"><table><thead><tr><th>Name</th><th>Hint</th><th>Updated</th><th>By</th><th>Actions</th></tr></thead><tbody>
+      ${d.secrets.map(s=>`<tr><td class="mono">${esc(s.name)}</td><td class="mono mut">${esc(s.hint||'')}</td><td class="mut">${new Date(s.updated_at).toLocaleString()}</td><td class="mut">${esc(s.updated_by||'')}</td><td><button class="sm danger" data-del="${esc(s.name)}" aria-label="Delete secret ${esc(s.name)}">Delete</button></td></tr>`).join('')||'<tr><td colspan=5 class=mut>No secrets set</td></tr>'}
     </tbody></table></div></div>`;
   $('#importSol').onclick=e=>updateControl(e.currentTarget,()=>api('/api/admin/sol-addresses','POST',{addresses:$('#solOwners').value.trim().split(/\s+/)}),d=>d.added+' addresses imported');
-  $('#s_name').onchange=e=>{$('#customNameField').hidden=e.target.value!=='custom';};
   $('#s_save').onclick = e => {
-    const choice=$('#s_name').value,name=choice==='custom'?$('#customName').value.trim():choice,value=$('#s_val').value.trim();
-    if(!name||!value) return toast('Name and value required');
+    const name=$('#s_name').value,value=$('#s_val').value.trim();
+    if(!name||!value){fieldError(e.currentTarget.closest('.card').querySelector('[data-save-error]'),'Name and value required',[!name && $('#s_name'),!value && $('#s_val')]);return;}
     updateControl(e.currentTarget,()=>api('/api/admin/secrets','PUT',{name,value}),'Secret saved');
   };
   v.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>updateControl(b,()=>api('/api/admin/secrets/'+encodeURIComponent(b.dataset.del),'DELETE'),'Secret deleted'));
@@ -327,16 +869,16 @@ async function renderChains(v){
   const d = await api('/api/admin/chains');
   if(!v.isConnected)return;
   v.innerHTML = `<div class="card"><h2>Network configuration</h2><p class="mut">Configure the RPC endpoint and receiving keys or Solana address pool before enabling a chain.</p>
-    <div class="tscroll" tabindex="0" role="region" aria-label="Network configuration"><table><thead><tr><th>Chain</th><th>Kind</th><th>Enabled</th><th>Required conf</th><th>Last scanned</th><th></th></tr></thead><tbody>
+    <div class="tscroll" tabindex="0" role="region" aria-label="Network configuration"><table><thead><tr><th>Chain</th><th>Kind</th><th>Enabled</th><th>Required conf</th><th>Last scanned</th><th>Actions</th></tr></thead><tbody>
     ${d.chains.map(c=>`<tr>
       <td><b>${esc(c.id)}</b> <span class="mut">${esc(c.display_name)}</span></td>
       <td>${esc(c.kind)}</td>
       <td><span class="pill ${c.enabled?'ok':'off'}">${c.enabled?'on':'off'}</span></td>
       <td><input style="width:90px" aria-label="Required confirmations for ${esc(c.id)}" type="number" value="${c.required_conf}" data-conf="${esc(c.id)}"></td>
       <td class="mono mut">${esc(c.last_scanned)}</td>
-      <td><button class="sm" data-tog="${esc(c.id)}" data-on="${c.enabled}">${c.enabled?'Disable':'Enable'}</button></td>
+      <td><button class="sm" data-tog="${esc(c.id)}" data-on="${c.enabled}" aria-label="${c.enabled?'Disable':'Enable'} ${esc(c.display_name||c.id)} network (${esc(c.id)})">${c.enabled?'Disable':'Enable'}</button></td>
     </tr>`).join('')||'<tr><td colspan=6 class=mut>No chains configured.</td></tr>'}
-    </tbody></table></div></div>`;
+    </tbody></table></div><p role="status" data-save-error></p></div>`;
   v.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>updateControl(b,()=>api('/api/admin/chains/'+b.dataset.tog,'PATCH',{enabled:b.dataset.on!=='true'}),'Chain updated'));
   v.querySelectorAll('[data-conf]').forEach(i=>i.onchange=()=>updateControl(i,()=>api('/api/admin/chains/'+i.dataset.conf,'PATCH',{required_conf:Number(i.value)}),'Confirmations updated',false));
 }
@@ -350,9 +892,9 @@ async function renderAssets(v){
       <td><b>${esc(a.id)}</b></td><td>${a.kind==='ledger'?'—':esc(a.chain_id)}</td><td>${esc(a.kind)}</td><td>${a.decimals}</td>
       <td>${a.kind==='token'?`<input style="width:300px" aria-label="Token address for ${esc(a.id)}" class="mono" value="${esc(a.token_address||'')}" data-tok="${esc(a.id)}">`:'<span class=mut>—</span>'}</td>
       <td><input style="width:170px" aria-label="Minimum deposit for ${esc(a.id)}" class="mono" value="${esc(a.min_deposit)}" data-min="${esc(a.id)}"></td>
-      <td><button class="sm" data-aen="${esc(a.id)}" data-on="${a.enabled}">${a.enabled?'on':'off'}</button></td>
+      <td><button class="sm" data-aen="${esc(a.id)}" data-on="${a.enabled}" aria-label="${esc(a.id)} asset enabled${a.kind==='ledger'?'':' on '+esc(a.chain_id)}" aria-pressed="${a.enabled}">${a.enabled?'on':'off'}</button></td>
     </tr>`).join('')||'<tr><td colspan=7 class=mut>No assets configured.</td></tr>'}
-    </tbody></table></div></div>`;
+    </tbody></table></div><p role="status" data-save-error></p></div>`;
   v.querySelectorAll('[data-aen]').forEach(b=>b.onclick=()=>updateControl(b,()=>api('/api/admin/assets/'+b.dataset.aen,'PATCH',{enabled:b.dataset.on!=='true'}),'Asset updated'));
   v.querySelectorAll('[data-min]').forEach(i=>i.onchange=()=>updateControl(i,()=>api('/api/admin/assets/'+i.dataset.min,'PATCH',{min_deposit:i.value.trim()}),'Minimum updated',false));
   v.querySelectorAll('[data-tok]').forEach(i=>i.onchange=()=>updateControl(i,()=>api('/api/admin/assets/'+i.dataset.tok,'PATCH',{token_address:i.value.trim()}),'Token address updated',false));
@@ -361,8 +903,8 @@ async function renderAssets(v){
 async function renderDeposits(v){
   const d = await api('/api/admin/deposits');
   if(!v.isConnected)return;
-  v.innerHTML = `<div class="card"><h2>Deposit ledger</h2><p class="mut">Hosted invoices and direct transfers. Only credited records have been added to player balances.</p><div class="tscroll" tabindex="0" role="region" aria-label="Deposit ledger"><table><thead><tr><th>Source</th><th>Asset</th><th>User</th><th>Amount</th><th>Status</th><th>Reference</th><th>Seen</th></tr></thead><tbody>
-    ${d.deposits.map(x=>`<tr><td>${x.provider==='oxapay'?'OxaPay':esc(x.chain_id)}</td><td>${esc(x.asset_id)}</td><td class="mono mut">${esc(short(x.user_id))}</td><td class="mono">${esc(fmt(x.amount,x.decimals))}</td><td><span class="pill ${x.status==='credited'?'ok':'warn'}">${esc(x.status)}</span>${x.review_reason?`<small>${esc(x.review_reason)}</small>`:''}${x.required_conf!=null?`<small>${x.confirmations}/${x.required_conf} confirmations</small>`:''}</td><td class="mono mut">${esc(x.track_id||x.txid||x.id)}</td><td class="mut">${new Date(x.first_seen_at).toLocaleString()}</td></tr>`).join('')||'<tr><td colspan=7 class=mut>No deposits</td></tr>'}
+  v.innerHTML = `<div class="card"><h2>Deposit ledger</h2><p class="mut">Direct transfers and archived historical payments. Only credited records have been added to player balances.</p><div class="tscroll" tabindex="0" role="region" aria-label="Deposit ledger"><table><thead><tr><th>Source</th><th>Asset</th><th>User</th><th>Amount</th><th>Status</th><th>Reference</th><th>Seen</th></tr></thead><tbody>
+    ${d.deposits.map(x=>`<tr><td>${x.provider==='archived'?'Archived payment':esc(x.chain_id)}</td><td>${esc(x.asset_id)}</td><td class="mono mut">${esc(short(x.user_id))}</td><td class="mono">${esc(fmt(x.amount,x.decimals))}</td><td><span class="pill ${x.status==='credited'?'ok':'warn'}">${esc(x.status)}</span>${x.required_conf!=null?`<small>${x.confirmations}/${x.required_conf} confirmations</small>`:''}</td><td class="mono mut">${esc(x.track_id||x.txid||x.id)}</td><td class="mut">${new Date(x.first_seen_at).toLocaleString()}</td></tr>`).join('')||'<tr><td colspan=7 class=mut>No deposits recorded.'+setupAction()+'</td></tr>'}
   </tbody></table></div></div>`;
 }
 
@@ -418,13 +960,13 @@ async function renderWithdrawals(v, data){
       const button=e.target.closest('[data-w]');
       if(!button)return;
       const action=button.dataset.w, txid=card.querySelector('[name=txid]')?.value.trim();
-      const status=card.querySelector('[role=status]');
-      if(action==='sent' && !txid){status.textContent='Enter the transaction ID from the sending wallet.';return;}
+      const status=card.querySelector('[role=status]');clearFeedback(status);
+      if(action==='sent' && !txid){fieldError(status,'Enter the transaction ID from the sending wallet.',[card.querySelector('[name=txid]')]);return;}
       if(action==='return' && !confirm('Return this reserved amount to the player?'))return;
       if(action==='sent' && !confirm('Record the broadcast transaction and settle this withdrawal?'))return;
       button.disabled=true;
       try{await api('/api/admin/withdrawals/'+card.dataset.id,'POST',{action,txid:action==='sent'?txid:undefined});if(v.isConnected)await render();}
-      catch(err){status.textContent=err.message;button.disabled=false;}
+      catch(err){fieldError(status,err.message,action==='sent'?[card.querySelector('[name=txid]')]:[]);button.disabled=false;}
     };
   }
 }
@@ -450,14 +992,14 @@ function renderUsers(v){
         try{
           const d=await api('/api/admin/users?'+new URLSearchParams({q:searchText,status:playerStatus,page:String(directoryPage)}));
           if(turn!==userEpoch)return;
-          host.innerHTML=(d.rows.map(u=>`<button class="user-row" data-player="${esc(u.id)}"><span><b>${esc(u.username)}</b><small>${esc(u.email)}</small></span><span class="pill ${u.status==='active'?'ok':'warn'}">${esc(u.status)}</span><span aria-hidden="true">›</span></button>`).join('')||'<p class="empty-state">No matching users.</p>')+pageButtons(directoryPage,d.more);
+          host.innerHTML=(d.rows.map(u=>`<button class="user-row" data-player="${esc(u.id)}"><span><b>${esc(u.username)}</b><small>${esc(u.email)}</small></span><span class="pill ${u.status==='active'?'ok':'warn'}">${esc(u.status)}</span><span aria-hidden="true">›</span></button>`).join('')||'<div class="empty-state"><p>No matching users.</p>'+(searchText || playerStatus!=='all' || directoryPage?'<button type="button" class="sm" data-clear-users>Clear directory filters</button>':'')+'</div>')+pageButtons(directoryPage,d.more);
           $('#sectionStatus').textContent=d.rows.length+' '+(d.rows.length===1?'result':'results')+' on page '+(directoryPage+1)+'.';
         }catch(err){if(turn===userEpoch)loadError(host,'users',err,()=>search());}
         finally{if(turn===userEpoch)host.setAttribute('aria-busy','false');}
       }
       if(delay)searchTimer=setTimeout(fetchRows,delay);else fetchRows();
     }
-    host.onclick=e=>{const item=e.target.closest('[data-player]'),step=e.target.closest('[data-step]');if(item){playerId=item.dataset.player;playerTab='Overview';recordsPage=0;render();}else if(step){directoryPage+=Number(step.dataset.step);search();}};
+    host.onclick=e=>{const item=e.target.closest('[data-player]'),step=e.target.closest('[data-step]');if(e.target.closest('[data-clear-users]')){searchText='';playerStatus='all';directoryPage=0;$('#playerSearch').value='';$('#playerStatus').value='all';search();$('#playerSearch').focus({preventScroll:true});}else if(item){playerId=item.dataset.player;playerTab='Overview';recordsPage=0;render();}else if(step){directoryPage+=Number(step.dataset.step);search();}};
     $('#playerSearch').oninput=e=>{searchText=e.target.value;directoryPage=0;search(160);};
     $('#playerStatus').onchange=e=>{playerStatus=e.target.value;directoryPage=0;search();};
     search();return;
@@ -490,7 +1032,7 @@ async function renderPlayerRecord(host,root,d,seq,loadTab){
     const level=d.vip.levels.filter(l=>l.earned).at(-1);
     host.innerHTML='<h3>Account details</h3>'+facts([['Player ID',u.id],['Registered',when(u.created_at)],['Suspended until',u.suspended_until?when(u.suspended_until):null],['Player moderator',u.is_admin?'Yes':'No'],['Settled wager (USDT)',d.vip.wagered_usdt],['VIP progress (USD)',d.vip.wagered_usd],['Level',level?level.symbol+' '+level.tier+' '+level.rank:'Unranked'],['Bets placed',d.activity.bets],['Winning bets',d.activity.wins]])+
       '<h3>Available balances</h3>'+ (d.balances.length?facts(d.balances.map(b=>[b.symbol,fmt(b.amount,b.decimals)])):'<p class="mut">No available balances.</p>')+
-      '<h3>Deposit addresses</h3>'+(d.addresses.length?facts(d.addresses.map(a=>[a.chain_id,a.address])):'<p class="mut">No addresses issued.</p>');return;
+      '<h3>Deposit addresses</h3>'+(d.addresses.length?facts(d.addresses.map(a=>[a.chain_id,a.address])):'<div class="empty-state"><p>No addresses issued.</p>'+setupAction()+'</div>');return;
   }
   if(playerTab==='Controls'){
     const catalog=await api('/api/assets');if(seq!==userEpoch)return;
@@ -524,12 +1066,13 @@ async function renderPlayerRecord(host,root,d,seq,loadTab){
   host.innerHTML=`<h3>${playerTab}</h3>`+(key==='transactions'?`<label>Transaction type<select id="adminTransactionType">${Object.entries({all:'All transactions',deposits:'Deposits',withdrawals:'Withdrawals',bets:'Bets',rewards:'Rewards',adjustments:'Balance adjustments'}).map(([value,label])=>`<option value="${value}" ${transactionType===value?'selected':''}>${label}</option>`).join('')}</select></label>`:'')+(key==='deposits'?`<label class="pending-only"><input type="checkbox" id="pendingDeposits" ${pendingOnly?'checked':''}> Pending confirmations or credit</label>`:'')+(records.rows.map((r,i)=>{
     const time=when(r.created_at||r.first_seen_at);
     const amt=r.amount??r.delta??r.stake, quantity=amt==null?'':fmt(amt,r.decimals)+' '+r.symbol;
-    const label=r.game||r.kind||r.action||(r.provider==='oxapay'?'OxaPay invoice':r.chain_id);
+    const label=r.game||r.kind||r.action||(r.provider==='archived'?'Archived payment':r.chain_id);
     return `<details class="record"><summary><span><b>${esc(label)}</b><small>${esc(time)} · ${esc(r.status||r.withdrawal_status||'')}</small></span><b>${esc(quantity)}</b></summary>
       ${facts([['ID',r.id],['Reference',r.ref||r.track_id],['Status',r.status],['Network',r.chain_id],['Destination',r.address||r.destination],['Transaction ID',r.txid],['Confirmations',r.required_conf!=null?r.confirmations+' / '+r.required_conf:null],['Credit held',r.review_hold!=null?(r.review_hold?'Yes':'No'):null],['Payout',r.payout!=null?fmt(r.payout,r.decimals):null],['Reviewer',r.reviewer],['Operator',r.actor],['Reason',r.reason],['Details',r.details?JSON.stringify(r.details):null],['Journal',r.journal_id]])}
       ${key==='bets'?`<button class="sm" data-bet-detail="${i}">View game result</button><div class="game-facts"></div>`:''}
       ${key==='deposits'&&r.provider==='direct'&&['pending','confirmed'].includes(r.status)?`<form class="control-form" data-deposit-action><input type="hidden" name="deposit" value="${esc(r.id)}"><input type="hidden" name="action" value="${r.review_hold?'release_deposit':'hold_deposit'}"><label>Review reason<input required name="reason" maxlength="300"></label><button>${r.review_hold?'Release review hold':'Hold credit for review'}</button><p role="status"></p></form>`:''}</details>`;
-  }).join('')||`<p class="empty-state" role="status">No ${key==='actions'?'audit entries':key} for this selection.</p>`)+pageButtons(recordsPage,records.more);
+  }).join('')||`<div class="empty-state"><p role="status">No ${key==='actions'?'audit entries':key} for this selection.</p>${recordsPage || (key==='deposits' && pendingOnly) || (key==='transactions' && transactionType!=='all')?'<button type="button" class="sm" data-clear-records>Reset record filters</button>':''}</div>`)+pageButtons(recordsPage,records.more);
+  host.querySelector('[data-clear-records]')?.addEventListener('click',()=>{recordsPage=0;transactionType='all';pendingOnly=false;loadTab();});
   if($('#adminTransactionType'))$('#adminTransactionType').onchange=e=>{transactionType=e.target.value;recordsPage=0;loadTab();};
   if($('#pendingDeposits'))$('#pendingDeposits').onchange=e=>{pendingOnly=e.target.checked;recordsPage=0;loadTab();};
   host.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{recordsPage+=Number(b.dataset.step);loadTab();});
@@ -546,13 +1089,13 @@ function wireControl(form,root,name){
   let request=operationId();
   form.oninput=()=>{request=operationId();};
   form.onsubmit=async e=>{
-    e.preventDefault();const values=Object.fromEntries(new FormData(form)),status=form.querySelector('[role=status]');
+    e.preventDefault();const values=Object.fromEntries(new FormData(form)),status=form.querySelector('[role=status]');clearFeedback(status);
     if(values.until)values.until=new Date(values.until).toISOString();
     const info=[values.action,name,values.amount,values.asset,values.until,values.deposit,values.reason].filter(Boolean).join(' · ');
     if(!confirm('Confirm this change?\n'+info))return;
     const button=form.querySelector('button');button.disabled=true;
     try{await api(root+'/actions','POST',{...values,request});if(form.isConnected){toast('Change recorded');await render();}}
-    catch(err){status.textContent=err.message;button.disabled=false;}
+    catch(err){fieldError(status,err.message,[...form.querySelectorAll('input:not([type=hidden]),select,textarea')]);button.disabled=false;}
   };
 }
 
@@ -560,18 +1103,13 @@ async function renderSettings(v){
   const [d,limits] = await Promise.all([api('/api/admin/settings'),api('/api/admin/bet-limits')]);
   if(!v.isConnected)return;
   const paused=d.deposits_paused;
-  v.innerHTML=`<section class="card"><h2>OxaPay checkout</h2><p class="mut">Players enter an amount in their playing currency. OxaPay hosts checkout; the treasury credits only verified payments.</p>
-    <form id="merchantForm"><label for="merchantKey">Merchant API key <span class="pill ${d.merchant_configured?'ok':'warn'}">${d.merchant_configured?'Configured':'Not set'}</span></label>
-      <input id="merchantKey" type="password" required autocomplete="new-password" maxlength="512" placeholder="${d.merchant_configured?'Enter a replacement key':'Enter your OxaPay merchant key'}"><div style="margin-top:10px"><button class="pri">Save merchant key</button></div></form>
-    <p class="mut">${d.public_origin?'Callback URL: <span class="mono">'+esc(d.public_origin)+'/api/oxapay/webhook</span>':'Deployment setup needed: set PUBLIC_SITE_ORIGIN to the public HTTPS site serving this treasury.'}</p></section>
-    <section class="card"><h2>Deposit method</h2><form id="providerForm"><label for="provider">Accept new deposits through</label><select id="provider"><option value="oxapay" ${d.deposit_provider==='oxapay'?'selected':''}>OxaPay hosted checkout</option><option value="direct" ${d.deposit_provider==='direct'?'selected':''}>Direct wallet addresses</option></select><button type="submit">Save method</button></form>
-    <div class="row"><div><span class="pill ${paused||d.deposit_provider==='oxapay'&&!d.oxapay_ready?'warn':'ok'}">${paused?'Paused':d.deposit_provider==='oxapay'&&!d.oxapay_ready?'Setup needed':'New deposits enabled'}</span><p class="mut">Pausing stops new invoices and address requests. Previously issued payments can still confirm and credit.</p></div>
+  v.innerHTML=`<section class="card"><h2>Direct deposits</h2><p class="mut">Players choose a coin and network to receive a permanent wallet address. There is no amount-entry or external checkout step. Configure the signer, RPCs and collection wallets in <button type="button" class="sm" id="openDirectWallets">Direct wallets</button>.</p>
+    <div class="row"><div><span class="pill ${paused?'warn':'ok'}">${paused?'Paused':'New deposit requests enabled'}</span><p class="mut">Pausing stops new address requests. Previously issued addresses remain monitored and eligible transfers can still confirm and credit.</p></div>
     <div style="flex:0 0 auto"><button class="${paused?'pri':'danger'}" id="pauseBtn">${paused?'Resume deposits':'Pause deposits'}</button></div></div></section>
     <section class="card"><h2>Wager limits</h2><p class="mut">Limits apply across paid games in USDT at the market rate when a stake is accepted. Additional stakes count toward the maximum for the hand.</p>
       <form id="limitsForm"><div class="grid2"><label>Minimum bet (USDT)<input name="minimum" inputmode="decimal" required value="${esc(limits.min_usdt)}"></label>
       <label>Maximum bet (USDT)<input name="maximum" inputmode="decimal" value="${esc(limits.max_usdt??'')}" placeholder="No maximum"></label></div><button type="submit" class="pri">Save wager limits</button><span role="status" class="warn" data-save-error></span></form></section>`;
-  $('#merchantForm').onsubmit=e=>{e.preventDefault();const key=$('#merchantKey');updateControl(e.target.querySelector('button'),async()=>{await api('/api/admin/secrets','PUT',{name:'oxapay:merchant',value:key.value.trim()});key.value='';},'Merchant key saved');};
-  $('#providerForm').onsubmit=e=>{e.preventDefault();updateControl(e.target.querySelector('button'),()=>api('/api/admin/settings','PATCH',{key:'deposit_provider',value:$('#provider').value}),'Deposit method updated');};
+  $('#openDirectWallets').onclick=()=>openSection('Direct wallets');
   $('#pauseBtn').onclick=e=>updateControl(e.currentTarget,()=>api('/api/admin/settings','PATCH',{key:'deposits_paused',value:!paused}),paused?'Deposits resumed':'New deposits paused');
   $('#limitsForm').onsubmit=e=>{e.preventDefault();const f=e.target;updateControl(f.querySelector('button'),()=>api('/api/admin/bet-limits','PUT',{min_usdt:f.elements.minimum.value.trim(),max_usdt:f.elements.maximum.value.trim()||null}),'Wager limits saved');};
 }
@@ -596,10 +1134,10 @@ async function renderSecurity(v){
       <p class="mut" style="font-size:13px">Add this to your authenticator app, then enter a code to confirm.</p>
       <p><b>Secret:</b> <span class="mono">${esc(d.secret)}</span></p>
       <p class="mono mut" style="word-break:break-all;font-size:11px">${esc(d.uri)}</p>
-      <div class="row" style="align-items:flex-end"><div style="flex:1"><label for="en_totp">Code</label><input id="en_totp" inputmode="numeric" autocomplete="one-time-code"></div><div style="flex:0 0 auto"><button class="pri" id="en_btn">Enable</button></div></div>
+      <div class="row" style="align-items:flex-end"><div style="flex:1"><label for="en_totp">Code</label><input id="en_totp" inputmode="numeric" autocomplete="one-time-code"></div><div style="flex:0 0 auto"><button class="pri" id="en_btn">Enable</button></div></div><p role="status" data-save-error></p>
     </div>`;
     $('#en_totp').focus();
-    $('#en_btn').onclick=e=>updateControl(e.currentTarget,()=>api('/api/admin/2fa/enable','POST',{totp:$('#en_totp').value.trim()}),'2FA enabled');
+    $('#en_btn').onclick=e=>{const input=$('#en_totp');if(!/^\d{6}$/.test(input.value.trim())){fieldError(e.currentTarget.closest('.card').querySelector('[data-save-error]'),'Enter a fresh six-digit authenticator code.',[input]);return;}updateControl(e.currentTarget,()=>api('/api/admin/2fa/enable','POST',{totp:input.value.trim()}),'2FA enabled');};
   };
 }
 

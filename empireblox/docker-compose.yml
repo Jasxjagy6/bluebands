@@ -9,7 +9,6 @@ x-backend-env: &backend-env
   TREASURY_MASTER_KEY: ${TREASURY_MASTER_KEY}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   ALLOW_ORIGIN: ${ALLOW_ORIGIN:-}
-  PUBLIC_SITE_ORIGIN: ${PUBLIC_SITE_ORIGIN:-}
   ADMIN_EMAIL: ${ADMIN_EMAIL:-}
   ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
   NODE_ENV: production
@@ -76,6 +75,22 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  custody_worker:
+    image: empireblox-treasury:latest
+    restart: unless-stopped
+    command: ["node", "dist/custody/worker.js"]
+    environment:
+      <<: *backend-env
+      CUSTODY_KEY_DIR: /var/lib/empireblox-custody/private
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - custody_keys:/var/lib/empireblox-custody
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -98,4 +113,5 @@ services:
 
 volumes:
   dbdata:
+  custody_keys:
   caddy_data:

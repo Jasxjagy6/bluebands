@@ -29,6 +29,8 @@ export class EvmWatcher {
   private async observe(c: PoolClient, asset: Asset, user: string, address: string, hash: string,
     index: number, amount: bigint, height: number, blockHash: string, confirmations: number) {
     if (amount <= 0n || amount < BigInt(asset.min_deposit)) return;
+    // Sponsor gas is an internal transfer to a player address, not a deposit.
+    if((await c.query('select 1 from custody_sweep_steps where chain_id=$1 and txid=$2',[this.chainId,hash.toLowerCase()])).rowCount)return;
     await c.query(`
       insert into deposits(chain_id,asset_id,user_id,address,txid,log_index,amount,block_number,block_hash,required_conf)
       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)

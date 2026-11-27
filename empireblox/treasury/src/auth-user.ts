@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { query, tx, pool } from './db.js';
 import { hashPassword, verifyPassword } from './authutil.js';
 import { newServerSeed, hashSeed } from './fair.js';
+import { allocateCustodyAddresses } from './derive.js';
 
 const SESSION_DAYS = 30;
 
@@ -40,6 +41,15 @@ export async function registerUser(email: string, username: string, password: st
     const user=r.rows[0];
     if(!user) throw new Error('That email or username is already taken');
     await ensureFair(c,user.id);
+    // Issuance is opportunistic; e.g. a reserved-address collision must fail
+    // closed for the wallet, not undo an otherwise valid account or session.
+    await c.query('savepoint signup_addresses');
+    try { await allocateCustodyAddresses(c,user.id); }
+    catch {
+      await c.query('rollback to savepoint signup_addresses');
+      console.warn('[custody] signup address allocation deferred');
+    }
+    await c.query('release savepoint signup_addresses');
     return {user,token:await createSession(user.id,c)};
   });
 }

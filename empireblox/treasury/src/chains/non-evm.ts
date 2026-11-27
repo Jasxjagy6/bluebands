@@ -1,9 +1,11 @@
 import type { PoolClient } from 'pg';
 import { id } from 'ethers';
-import { tx } from '../db.js';
+import { base58 } from '@scure/base';
+import { query, tx } from '../db.js';
 import { getSecret } from '../vault.js';
 import { creditConfirmedDeposit } from '../ledger.js';
 import { associatedTokenAccount, TOKEN_PROGRAM, tronAddress } from './receive.js';
+import { createSolRpc, SOL_MAX_VERSION } from './sol-rpc.js';
 
 type Payment={address:string;asset:string;amount:bigint;txid:string;index:number};
 type Block={height:number;hash:string;parent:string;payments:Payment[]};
@@ -40,10 +42,13 @@ export function solanaPayments(block:any,r:Routes):Payment[]{
   const result:Payment[]=[];
   for(const entry of block.transactions){
     const meta=entry.meta;
-    if(!meta)throw new Error('Missing transaction metadata');
+    if(!meta || !Object.hasOwn(meta,'err') || (meta.err!==null && (typeof meta.err!=='object'||Array.isArray(meta.err))) ||
+      !Array.isArray(entry.transaction?.message?.instructions) || !Array.isArray(entry.transaction.message.accountKeys))throw new Error('Missing transaction metadata');
     if(meta.err)continue;
+    if(!Array.isArray(meta.innerInstructions))throw new Error('Missing transaction metadata');
     const message=entry.transaction.message,txid=entry.transaction.signatures[0];
     const destinations=new Map<string,{owner:string;asset:string;mint:string}>();
+    if(r.tokens.size&&!Array.isArray(meta.postTokenBalances))throw new Error('Missing token metadata');
     for(const balance of meta.postTokenBalances||[]){
       const asset=r.tokens.get(balance.mint);
       if(!asset || !r.owners.has(balance.owner))continue;
@@ -51,13 +56,24 @@ export function solanaPayments(block:any,r:Routes):Payment[]{
       if(address===associatedTokenAccount(balance.owner,balance.mint))
         destinations.set(address,{owner:balance.owner,asset,mint:balance.mint});
     }
-    const inner=new Map<number,any[]>((meta.innerInstructions||[]).map((i:any)=>[i.index,i.instructions]));
+    const inner=new Map<number,any[]>();
+    for(const nested of meta.innerInstructions){
+      if(!Number.isSafeInteger(nested.index)||nested.index<0||nested.index>=message.instructions.length||inner.has(nested.index)||!Array.isArray(nested.instructions))
+        throw new Error('Invalid inner instructions');
+      inner.set(nested.index,nested.instructions);
+    }
     let index=0;
     for(const [i,ix] of message.instructions.entries())for(const op of [ix,...(inner.get(i)||[])]){
+      if(!op||typeof op.programId!=='string'||(op.programId===SYSTEM&&!op.parsed))throw new Error('Incomplete parsed instruction');
       const n=index++, type=op.parsed?.type, info=op.parsed?.info;
-      if(!info || !['transfer','transferChecked','transferWithSeed'].includes(type) || info.source===info.destination)continue;
-      if(op.programId===SYSTEM && r.native && r.owners.has(info.destination) && info.lamports!==undefined)
-        result.push({txid,index:n,address:info.destination,asset:r.native,amount:integer(info.lamports)});
+      if(op.parsed&&(typeof type!=='string'||!info||typeof info!=='object'||Array.isArray(info)))throw new Error('Incomplete parsed instruction');
+      if(!['transfer','transferChecked','transferWithSeed'].includes(type))continue;
+      if(op.programId===SYSTEM){
+        if(typeof info.source!=='string'||typeof info.destination!=='string'||info.lamports===undefined)throw new Error('Incomplete native transfer');
+        const amount=integer(info.lamports);
+        if(info.source!==info.destination&&r.native && r.owners.has(info.destination))result.push({txid,index:n,address:info.destination,asset:r.native,amount});
+      }
+      if(!info||info.source===info.destination)continue;
       const target=destinations.get(info.destination);
       if(op.programId===TOKEN_PROGRAM && target && (!info.mint || info.mint===target.mint))
         result.push({txid,index:n,address:target.owner,asset:target.asset,amount:integer(info.tokenAmount?.amount??info.amount)});
@@ -138,7 +154,7 @@ class Network{
   }
   async hash(n:number):Promise<string>{
     if(this.id==='BTC')return this.rpc.call('getblockhash',[n]);
-    if(this.id==='SOL')return (await this.rpc.call('getBlock',[n,{commitment:'finalized',transactionDetails:'none',rewards:false,maxSupportedTransactionVersion:0}])).blockhash;
+    if(this.id==='SOL')return (await this.rpc.call('getBlock',[n,{commitment:'finalized',transactionDetails:'none',rewards:false,maxSupportedTransactionVersion:SOL_MAX_VERSION}])).blockhash;
     return (await this.rpc.post('/walletsolidity/getblockbynum',{num:n})).blockID;
   }
   async block(n:number,r:Routes):Promise<Block>{
@@ -148,7 +164,7 @@ class Network{
       return {height:n,hash,parent:b.previousblockhash,payments:bitcoinPayments(b,r)};
     }
     if(this.id==='SOL'){
-      const b=await this.rpc.call('getBlock',[n,{commitment:'finalized',encoding:'jsonParsed',transactionDetails:'full',maxSupportedTransactionVersion:0,rewards:false}]);
+      const b=await this.rpc.call('getBlock',[n,{commitment:'finalized',encoding:'jsonParsed',transactionDetails:'full',maxSupportedTransactionVersion:SOL_MAX_VERSION,rewards:false}]);
       return {height:n,hash:b.blockhash,parent:b.previousBlockhash,payments:solanaPayments(b,r)};
     }
     const b=await this.rpc.post('/walletsolidity/getblockbynum',{num:n});
@@ -160,6 +176,10 @@ class Network{
 export class NonEvmWatcher{
   constructor(readonly chainId:string){}
   async tick(){
+    if(this.chainId==='SOL'){
+      try{return await this.solTick();}
+      catch(error){await query("update chains set scan_ready_at=null where id='SOL'").catch(()=>{});throw error;}
+    }
     await tx(async c=>{
       const cid=this.chainId;
       const chain=(await c.query('select * from chains where id=$1 and enabled for update skip locked',[cid])).rows[0];
@@ -184,7 +204,8 @@ export class NonEvmWatcher{
       const end=Math.min(head,cursor+40);
       const assets=(await c.query("select * from assets where chain_id=$1 and enabled and (symbol<>'USDT' or chain_id='SOL')",[cid])).rows;
       const minimum=new Map(assets.map(a=>[String(a.id),BigInt(a.min_deposit)]));
-      const owners=new Map((await c.query<{address:string;user_id:string}>('select address,user_id from deposit_addresses where chain_id=$1',[cid])).rows.map(a=>[a.address,a.user_id]));
+      const assigned=(await c.query<{address:string;user_id:string;custody_kind:string}>('select address,user_id,custody_kind from deposit_addresses where chain_id=$1',[cid])).rows;
+      const owners=new Map(assigned.map(a=>[a.address,a.user_id])),managed=new Set(assigned.filter(a=>a.custody_kind==='managed').map(a=>a.address));
       const routes:Routes={owners,native:assets.find(a=>a.kind==='native')?.id,tokens:new Map(assets.filter(a=>a.token_address).map(a=>[a.token_address,a.id]))};
       for(const height of await network.heights(cursor+1,end)){
         let block:Block;
@@ -193,6 +214,7 @@ export class NonEvmWatcher{
         if(!block.hash || (parent && block.parent!==parent))throw new Error('Inconsistent block history');
         parent=block.hash;
         for(const p of block.payments){
+          if(cid==='SOL' && managed.has(p.address) && p.asset!=='SOL')continue;
           if(p.amount<=0n || p.amount<minimum.get(p.asset)!)continue;
           await c.query(`insert into deposits(chain_id,asset_id,user_id,address,txid,log_index,amount,block_number,block_hash,required_conf)
             values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) on conflict(chain_id,txid,log_index) do update set
@@ -206,6 +228,167 @@ export class NonEvmWatcher{
       await this.confirm(c,network,head,end);
       await c.query("update chains set last_scanned=$2,scan_ready_at=case when $2=$3::bigint then now() end where id=$1",[cid,end,head]);
       await c.query('delete from scanned_blocks where chain_id=$1 and height<$2',[cid,end-Math.max(256,chain.required_conf+40)]);
+    });
+  }
+  private async solTick(){
+    await tx(async c=>{
+      const chain=(await c.query("select * from chains where id='SOL' and enabled for update skip locked")).rows[0];
+      if(!chain)return;
+      const endpoint=await getSecret('rpc:SOL',c);if(!endpoint)throw new Error('Solana RPC unavailable');
+      const rpc=createSolRpc(endpoint,{throttle:process.env.NODE_ENV!=='test'}),finalized={commitment:'finalized'};
+      const number=(value:unknown)=>{if(!Number.isSafeInteger(value)||Number(value)<0)throw new Error('Invalid Solana evidence');return Number(value);};
+      const bytes=(value:unknown,length:number)=>{try{if(typeof value!=='string'||base58.decode(value).length!==length)throw 0;return value;}catch{throw new Error('Invalid Solana evidence');}};
+      if(await rpc('getGenesisHash')!==SOL_GENESIS)throw new Error('Solana network mismatch');
+      const head=number(await rpc('getSlot',[finalized]));
+      const first=Math.max(number(await rpc('getFirstAvailableBlock')),number(await rpc('minimumLedgerSlot')));
+      if(!head||first>head)throw new Error('Solana history unavailable');
+      const blocks=new Map<number,any>();
+      const block=async(height:number)=>{
+        if(!blocks.has(height)){
+          const value=await rpc('getBlock',[height,{...finalized,transactionDetails:'signatures',rewards:false,maxSupportedTransactionVersion:SOL_MAX_VERSION}]);
+          if(!value||!Array.isArray(value.signatures))throw new Error('Solana block unavailable');
+          bytes(value.blockhash,32);for(const signature of value.signatures)bytes(signature,64);
+          blocks.set(height,value);
+        }
+        return blocks.get(height)!;
+      };
+      const tip=await block(head),time=number(tip.blockTime),age=Math.floor(Date.now()/1000)-time;
+      if(age < -30 || age>120)throw new Error('Solana head is stale');
+      let cursor=number(Number(chain.last_scanned));
+      if(head<cursor)throw new Error('Solana head regressed');
+      const checkpoints=(await c.query<{height:string;hash:string}>("select height,hash from scanned_blocks where chain_id='SOL' order by height desc limit 33")).rows;
+      const anchor=checkpoints[0];
+      if(anchor && (Number(anchor.height)<first || Number(anchor.height)>head))throw new Error('Solana retained history unavailable');
+      if(anchor && (await block(Number(anchor.height))).blockhash!==anchor.hash){
+        let shared:typeof anchor|undefined;
+        for(const old of checkpoints.slice(1,33)){
+          if(Number(old.height)<first)break;
+          if((await block(Number(old.height))).blockhash===old.hash){shared=old;break;}
+        }
+        if(!shared)throw new Error('Solana historical reconciliation required');
+        const common=Number(shared.height);
+        if((await c.query("select 1 from deposits where chain_id='SOL' and block_number>$1 and journal_id is not null limit 1",[common])).rowCount)
+          throw new Error('Credited Solana reorganization requires reconciliation');
+        await c.query("update deposits set status='orphaned',confirmations=0 where chain_id='SOL' and block_number>$1 and journal_id is null",[common]);
+        await c.query("delete from scanned_blocks where chain_id='SOL' and height>$1",[common]);
+        await c.query('update sol_address_scans set last_scanned=least(last_scanned,$1),target_slot=null,before_signature=null,before_slot=null,overlap_signature=null,overlap_slot=null,anchor_signature=null,anchor_slot=null,newest_signature=null,newest_slot=null',[common]);
+        await c.query("update chains set last_scanned=least(last_scanned,$1),scan_ready_at=null where id='SOL'",[common]);
+        return;
+      }
+      const assigned=(await c.query<{id:string;address:string;user_id:string;custody_kind:string}>("select id,address,user_id,custody_kind from deposit_addresses where chain_id='SOL'")).rows;
+      // A populated old wallet with no recorded coverage cannot safely start at today's head.
+      if(assigned.length && (!cursor || first>cursor))throw new Error('Solana receive history requires reconciliation');
+      const assets=(await c.query("select * from assets where chain_id='SOL' and enabled")).rows;
+      const minimum=new Map(assets.map(a=>[String(a.id),BigInt(a.min_deposit)]));
+      const owners=new Map(assigned.map(a=>[a.address,a.user_id])),managed=new Set(assigned.filter(a=>a.custody_kind==='managed').map(a=>a.address));
+      const routes:Routes={owners,native:assets.find(a=>a.kind==='native')?.id,tokens:new Map(assets.filter(a=>a.token_address).map(a=>[a.token_address,a.id]))};
+      const target=anchor && Number(anchor.height)>cursor?Number(anchor.height):head;
+      const targetBlock=await block(target);
+      await c.query("insert into scanned_blocks(chain_id,height,hash) values('SOL',$1,$2) on conflict do nothing",[target,targetBlock.blockhash]);
+      const proof=async(signature:string,at:number,queryAddress?:string)=>{
+        const value=await rpc('getTransaction',[signature,{...finalized,encoding:'jsonParsed',maxSupportedTransactionVersion:SOL_MAX_VERSION}]);
+        if(!value||number(value.slot)!==at||value.transaction?.signatures?.[0]!==signature||
+          ![undefined,'legacy',0,1].includes(value.version)||!value.meta)throw new Error('Solana transaction unavailable');
+        if(queryAddress&&!value.transaction.message?.accountKeys?.some((key:any)=>key.pubkey===queryAddress))throw new Error('Unrelated Solana history entry');
+        // Also validates that the parser has the complete inner-instruction metadata.
+        const payments=solanaPayments({transactions:[value]},routes),canonical=await block(at);
+        if(canonical.signatures.filter((s:string)=>s===signature).length!==1)throw new Error('Noncanonical Solana transaction');
+        return {payments,hash:canonical.blockhash,meta:value.meta};
+      };
+      // Bootstrap and an invalidated RPC lease must prove parsing even when owned history is empty.
+      if(!assigned.length||!chain.scan_ready_at){
+        const sample=await rpc('getSignaturesForAddress',[SYSTEM,{...finalized,minContextSlot:head,limit:4}]);
+        if(!Array.isArray(sample)||sample.length<1||sample.length>4)throw new Error('Solana indexed history unavailable');
+        for(const row of sample){
+          bytes(row.signature,64);number(row.slot);
+          if(row.confirmationStatus!=='finalized'||!Object.hasOwn(row,'err')||
+            (row.err!==null&&(typeof row.err!=='object'||Array.isArray(row.err))))throw new Error('Invalid Solana history probe');
+        }
+        const selected=sample.find(row=>row.err===null);if(!selected)throw new Error('Solana history capability unavailable');
+        const signature=selected.signature,at=number(selected.slot);
+        if(at<first)throw new Error('Invalid Solana history probe');
+        const verified=await proof(signature,at);
+        if(verified.meta.err!==null)throw new Error('Invalid Solana history probe');
+        const status=await rpc('getSignatureStatuses',[[signature],{searchTransactionHistory:true}]);
+        if(!status?.context||number(status.context.slot)<Math.max(head,at)||status.value?.length!==1||
+          status.value[0]?.confirmationStatus!=='finalized'||number(status.value[0].slot)!==at||!Object.hasOwn(status.value[0],'err')||
+          (status.value[0].err===null)!==(verified.meta.err===null))throw new Error('Solana status history unavailable');
+        if(!assigned.length){
+          await c.query("update chains set last_scanned=$1,scan_ready_at=clock_timestamp() where id='SOL'",[head]);
+          return;
+        }
+      }
+      const queries:string[]=[];
+      for(const owner of assigned){
+        const addresses=[owner.address,...(owner.custody_kind==='legacy'?[...routes.tokens.keys()].map(mint=>associatedTokenAccount(owner.address,mint)):[])];
+        for(const address of addresses){
+          queries.push(address);
+          await c.query('insert into sol_address_scans(query_address,address_id,last_scanned) values($1,$2,$3) on conflict do nothing',[address,owner.id,cursor]);
+        }
+      }
+      const scan=(await c.query(`select * from sol_address_scans where query_address=any($1::text[]) and last_scanned<$2
+        order by updated_at,query_address limit 1 for update`,[queries,target])).rows[0];
+      if(scan){
+        const baseline=number(Number(scan.last_scanned));
+        if(first>baseline || (scan.target_slot!==null&&Number(scan.target_slot)!==target))throw new Error('Solana scan history unavailable');
+        const before=scan.before_signature as string|null,limit=10;
+        const page=await rpc('getSignaturesForAddress',[scan.query_address,{...finalized,minContextSlot:head,limit,...(before?{before}:{} )}]);
+        if(!Array.isArray(page)||page.length>limit)throw new Error('Incomplete Solana signature page');
+        if(before&&(!page.length||page[0].signature!==scan.overlap_signature||number(page[0].slot)!==Number(scan.overlap_slot)))
+          throw new Error('Discontinuous Solana signature page');
+        const seen=new Set<string>();let previous=scan.before_slot===null?Number.MAX_SAFE_INTEGER:Number(scan.before_slot),done=false;
+        const anchorRequired=scan.anchor_signature&&Number(scan.anchor_slot)>=first;
+        let newest:string|null=scan.newest_signature,newestSlot:number|null=scan.newest_slot===null?null:Number(scan.newest_slot);
+        for(const row of page){
+          const signature=bytes(row.signature,64),at=number(row.slot);
+          if(at>previous||signature===before||seen.has(signature)||row.confirmationStatus!=='finalized'||!Object.hasOwn(row,'err')||
+            (row.err!==null&&(typeof row.err!=='object'||Array.isArray(row.err))))throw new Error('Invalid Solana signature page');
+          previous=at;seen.add(signature);
+          if(at>target)continue;
+          if(newest===null){newest=signature;newestSlot=at;}
+          if(at<=baseline){
+            if(!anchorRequired||signature===scan.anchor_signature){done=true;break;}
+            continue;
+          }
+          const verified=await proof(signature,at,scan.query_address);
+          if((row.err===null)!==(verified.meta.err===null))throw new Error('Inconsistent Solana transaction status');
+          for(const p of verified.payments){
+            if(managed.has(p.address)&&p.asset!=='SOL')continue;
+            const min=minimum.get(p.asset);if(min===undefined||p.amount<=0n||p.amount<min)continue;
+            await c.query(`insert into deposits(chain_id,asset_id,user_id,address,txid,log_index,amount,block_number,block_hash,required_conf)
+              values('SOL',$1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict(chain_id,txid,log_index) do update set
+              status='pending',block_number=excluded.block_number,block_hash=excluded.block_hash,amount=excluded.amount,
+              asset_id=excluded.asset_id,user_id=excluded.user_id,address=excluded.address,required_conf=excluded.required_conf,confirmed_at=null
+              where deposits.status='orphaned' and deposits.journal_id is null`,
+              [p.asset,owners.get(p.address),p.address,p.txid,p.index,p.amount.toString(),at,verified.hash,chain.required_conf]);
+          }
+          await c.query("insert into scanned_blocks(chain_id,height,hash) values('SOL',$1,$2) on conflict do nothing",[at,verified.hash]);
+        }
+        if(!done&&page.length<limit){
+          if(anchorRequired)throw new Error('Solana signature anchor missing');
+          done=true;
+        }
+        if(done)await c.query(`update sol_address_scans set last_scanned=$2,target_slot=null,before_signature=null,before_slot=null,overlap_signature=null,overlap_slot=null,
+          anchor_signature=$3,anchor_slot=$4,newest_signature=null,newest_slot=null,updated_at=clock_timestamp() where query_address=$1`,
+          [scan.query_address,target,newest??(anchorRequired?scan.anchor_signature:null),newestSlot??(anchorRequired?Number(scan.anchor_slot):null)]);
+        else await c.query(`update sol_address_scans set target_slot=$2,before_signature=$3,before_slot=$4,newest_signature=$5,newest_slot=$6,
+          overlap_signature=$7,overlap_slot=$8,updated_at=clock_timestamp() where query_address=$1`,
+          [scan.query_address,target,page[page.length-2].signature,page[page.length-2].slot,newest,newestSlot,page[page.length-1].signature,page[page.length-1].slot]);
+      }
+      const pending=(await c.query("select * from deposits where chain_id='SOL' and status in ('pending','confirmed') and not review_hold and journal_id is null and block_number<=$1 order by block_number,id limit 20",[target])).rows;
+      for(const deposit of pending){
+        if((await block(Number(deposit.block_number))).blockhash!==deposit.block_hash)throw new Error('Noncanonical Solana deposit');
+        const confirmations=head-Number(deposit.block_number)+1;
+        await c.query(`update deposits set confirmations=$2,status=case when $2>=required_conf then 'confirmed' else 'pending' end,
+          confirmed_at=case when $2>=required_conf then now() end where id=$1`,[deposit.id,confirmations]);
+        if(confirmations>=deposit.required_conf)await creditConfirmedDeposit(c,deposit.id);
+      }
+      const remaining=(await c.query('select 1 from sol_address_scans where query_address=any($1::text[]) and last_scanned<$2 limit 1',[queries,target])).rowCount;
+      if(!remaining){
+        const targetAge=Math.floor(Date.now()/1000)-number(targetBlock.blockTime);
+        await c.query("update chains set last_scanned=$1,scan_ready_at=case when $2 then clock_timestamp() else null end where id='SOL'",[target,targetAge>=-30&&targetAge<=120]);
+        await c.query("delete from scanned_blocks where chain_id='SOL' and height<$1",[target-Math.max(512,chain.required_conf+40)]);
+      }
     });
   }
   private async confirm(c:PoolClient,network:Network,head:number,end:number){

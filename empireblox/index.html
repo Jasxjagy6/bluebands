@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,interactive-widget=resizes-content">
-<title>EmpireBlox | Games & Wallet</title>
-<meta name="description" content="EmpireBlox games, crypto balances and deposits.">
+<title>BANDITBLOX | Games & Wallet</title>
+<meta name="description" content="BANDITBLOX games, crypto balances and deposits.">
 <link rel="icon" href="/assets/dice-white.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Rubik:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&display=swap" rel="stylesheet">
 <style>
 /*
 VOICE: a night-time game lobby, dark charcoal, confident, fast.
@@ -23,7 +23,7 @@ LAYOUT: fixed top bar, then each page uses the full width and height below it; s
 html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--txt);font:500 15px/1.45 Inter,system-ui,"Segoe UI",Arial,sans-serif}
 body{position:fixed;inset:0;height:100dvh}
 #pageScroll{position:absolute;inset:var(--top) 0 var(--mobile-tabs,0px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:none}
-#pageScroll:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+#pageScroll:focus-visible{outline:2px solid var(--focus,#738598);outline-offset:-2px}
 body:has(>.modal:not([hidden])) #pageScroll,body.currency-sheet-open #pageScroll{overflow-y:hidden}
 button{font:inherit;color:inherit}
 svg{display:block}
@@ -37,7 +37,7 @@ h2{font-size:18px;font-weight:800}
 /* top bar */
 .top{position:fixed;inset:0 0 auto;z-index:30;height:var(--top);display:flex;align-items:center;gap:22px;padding:0 24px;background:rgba(13,15,19,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .logo{width:272px;flex:none;display:flex;align-items:center;gap:4px;font-weight:900;font-style:italic;font-size:27px;letter-spacing:-.01em;line-height:1;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
-.top .logo:focus:not(:focus-visible){outline:none}.top .logo:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:5px}
+.top .logo:focus:not(:focus-visible){outline:none}.top .logo:focus-visible{outline:2px solid var(--focus,#738598);outline-offset:2px;border-radius:5px}
 .logo .g{background:linear-gradient(180deg,#ffe07a,#f0a92a);-webkit-background-clip:text;background-clip:text;color:transparent}
 .logo img{height:44px;width:auto;display:block}
 .nav{display:flex;align-items:center;gap:4px;height:100%}
@@ -75,7 +75,7 @@ main{padding:20px 24px 28px}
 .chat-empty{margin:auto;color:var(--dim);text-align:center;font-size:14px;padding:20px}
 .chat-f{padding:12px 14px 14px;border-top:1px solid var(--line)}
 .chat-in{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:5px 5px 5px 14px}
-.chat-in:focus-within{border-color:var(--acc)}
+.chat-in:focus-within{border-color:var(--focus,#738598)}
 .chat-in input{flex:1;background:none;border:0;outline:0;color:var(--txt);font:600 15px Inter,sans-serif;height:38px}
 .chat-in button{width:38px;height:38px;border-radius:9px;border:0;background:var(--panel3);color:var(--mut);display:grid;place-items:center;cursor:pointer}
 .chat-in button:not(:disabled):hover{color:var(--acc)}.chat-in button svg{width:18px;height:18px}
@@ -133,7 +133,7 @@ main{padding:20px 24px 28px}
 .link svg{width:16px;height:16px}.link:hover{color:var(--txt)}
 .lbl{display:flex;justify-content:space-between;color:var(--mut);font-size:13px;font-weight:700;margin:18px 0 8px}.lbl b{color:var(--txt)}
 .amt{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:5px 5px 5px 12px;height:48px}
-.amt:focus-within{border-color:var(--acc)}
+.amt:focus-within{border-color:var(--focus,#738598)}
 .amt input{flex:1;background:none;border:0;outline:0;color:var(--txt);font:800 16px Inter,sans-serif;width:100%}
 .amt button{background:var(--panel3);border:0;border-radius:7px;height:36px;min-width:42px;padding:0 10px;font-weight:800;font-size:13px;cursor:pointer;color:var(--mut)}
 .amt button:hover{color:var(--txt)}
@@ -146,7 +146,7 @@ input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid var(--acc);cursor:pointer}
 input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:4px solid var(--acc);cursor:pointer}
 input[type=range]:disabled{opacity:.5}
-:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+:focus-visible{outline:2px solid var(--focus,#738598);outline-offset:2px}
 
 /* mines */
 .game{display:grid;grid-template-columns:340px minmax(0,1fr);min-height:calc(100vh - var(--top) - 48px);background:var(--bg2);border:1px solid var(--line);border-radius:16px;overflow:hidden}
@@ -626,7 +626,7 @@ input[type=range]:disabled{opacity:.5}
 .arow .g{background:var(--grn);color:#062b1c}.arow .t{background:var(--red);color:#fff}.arow .adm-t{background:var(--panel3);color:var(--txt)}
 @media(max-width:1100px){.arow{grid-template-columns:1fr 1fr;}.arow.hd{display:none}.arow .em{grid-column:1/-1}}
 .msg .del{margin-left:auto;border:0;background:none;color:var(--dim);cursor:pointer;font-size:14px;padding:0 4px}.msg .del:hover{color:var(--red)}
-.tin{height:46px;border-radius:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--txt);padding:0 14px;font:inherit;font-weight:600;min-width:0}.tin:focus{outline:none;border-color:var(--acc)}
+.tin{height:46px;border-radius:10px;border:1px solid var(--line2);background:var(--panel2);color:var(--txt);padding:0 14px;font:inherit;font-weight:600;min-width:0}.tin:focus{outline:none;border-color:var(--focus,#738598)}
 /* battle creator */
 .cb{max-width:1100px;margin:12px auto 0;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px}
 .cb h2{margin:0 0 14px}.cbsec{margin-bottom:22px}.cbsec h3{margin:0 0 4px;font-size:16px}.cbsec .small{margin:0 0 10px}
@@ -678,7 +678,7 @@ input[type=range]:disabled{opacity:.5}
 .jres .lbl2{color:var(--mut);font-size:20px;font-weight:700}
 @media(max-width:860px){.cbtypes{grid-template-columns:1fr}.cbfoot{flex-direction:column;align-items:stretch}.vjack h3{font-size:22px}}
 /* ===== polish pass ===== */
-::selection{background:#f7c94855}
+::selection{background:#43566b;color:#f4f7fa}
 *{scrollbar-width:thin;scrollbar-color:#2d313b transparent}
 ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#2d313b;border-radius:9px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-thumb:hover{background-color:#3a3f4b}
 .page.on{animation:pgin .28s ease-out both}
@@ -689,7 +689,7 @@ input[type=range]:disabled{opacity:.5}
 .btn.gold:not(:disabled){box-shadow:0 4px 0 #a8770c,0 10px 24px -10px #f7c948aa}
 .btn.gold:not(:disabled):hover{box-shadow:0 5px 0 #a8770c,0 14px 30px -10px #f7c948cc}
 .btn:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
-button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid #f7c948;outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus,#738598);outline-offset:2px}
 .game,.upg,.cb,.ccard,.ic2,.brow,.pod,.lbrow,.pk-card,.cbtype,.tg,.cbcase,.astats div,.arow{box-shadow:0 1px 0 #ffffff08 inset,0 12px 32px -22px #000}
 .ccard{transition:transform .18s,border-color .18s,box-shadow .18s}
 .ccard:hover{border-color:color-mix(in srgb,var(--g) 55%,transparent);box-shadow:0 18px 40px -22px var(--g),0 1px 0 #ffffff10 inset}
@@ -700,8 +700,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-v
 .seg button{transition:background .15s,color .15s}
 .gbtn{transition:color .15s,background .15s}
 .me-chip{transition:border-color .15s,background .15s}.me-chip:hover{border-color:var(--line2)}
-.amt,.tin,.fsel{transition:border-color .15s,box-shadow .15s}
-.amt:focus-within{border-color:#f7c94888;box-shadow:0 0 0 3px #f7c9481a}
+.amt,.tin,.fsel{transition:none}
+.amt:focus-within{border-color:var(--focus,#738598);box-shadow:none}
 .msg .bub{box-shadow:0 1px 0 #ffffff06 inset}
 #toast{backdrop-filter:blur(8px)}
 .dlg{animation:dlgin .22s cubic-bezier(.2,.9,.3,1.2) both}
@@ -854,7 +854,7 @@ h1{font-size:clamp(26px,2.4vw,34px)}
 .pfv{display:flex;align-items:center;gap:8px;height:44px;padding:0 8px 0 13px;border-radius:9px;background:var(--bg2);border:1px solid var(--line);margin-bottom:16px}
 .pfv span,.pfv input{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9aa0b2;font:600 13.5px Inter,system-ui,sans-serif;background:none;border:0;outline:none}
 .pfv input{color:var(--txt);font-weight:700}
-.pfv.edit{border-color:var(--line2)}.pfv.edit:focus-within{border-color:#f7c94888}
+.pfv.edit{border-color:var(--line2)}.pfv.edit:focus-within{border-color:var(--focus,#738598)}
 .pfcp{flex:none;width:30px;height:30px;border-radius:7px;border:0;background:none;color:#7e8499;cursor:pointer;display:grid;place-items:center}.pfcp:hover{color:var(--txt);background:var(--panel3)}.pfcp svg{width:16px;height:16px}
 .pfsep{height:1px;background:var(--line2);margin:4px 0 18px}
 .pfrot{width:100%;height:46px;margin-top:4px}
@@ -906,25 +906,27 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 24px 26px}
 </style>
 <link rel="stylesheet" href="/assets/wallet/wallet.css">
 <link rel="stylesheet" href="/assets/wallet/option-picker.css">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/game-screens.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gemMid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe680"/><stop offset="1" stop-color="#f2b51d"/></linearGradient><radialGradient id="bombG" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#9ea2ff"/><stop offset=".45" stop-color="#5a5fd0"/><stop offset="1" stop-color="#22246e"/></radialGradient></defs></svg>
 <header class="top">
   <button class="chatbtn" id="chatOpen" aria-label="Open chat"><i data-ic="chat"></i><span class="mobile-tab-label">Chat</span></button>
-  <a class="logo" href="/" aria-label="EmpireBlox home"><img src="/assets/logo.webp" alt="EmpireBlox" width="320" height="58"></a>
-  <nav class="nav">
+  <a class="logo" href="/" aria-label="BANDITBLOX home"><img src="/assets/banditblox-logo.svg" alt="BANDITBLOX" width="320" height="58"></a>
+  <nav class="nav" aria-label="Main navigation">
     <div class="games">
-      <button class="gbtn" id="gamesBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="gmenu"><i data-ic="pad"></i><span>Games</span><i data-ic="chev"></i></button>
+      <button class="gbtn" id="gamesBtn" aria-label="Games" aria-haspopup="menu" aria-expanded="false" aria-controls="gmenu"><i data-ic="pad"></i><span>Games</span><i data-ic="chev"></i></button>
       <div class="gmenu" id="gmenu" role="menu" hidden>
-        <button role="menuitem" data-p="mines" class="on"><i data-ic="mines"></i>Mines</button>
+        <button role="menuitem" data-p="mines"><i data-ic="mines"></i>Mines</button>
         <button role="menuitem" data-p="cases"><i data-ic="cases"></i>Cases</button>
         <button role="menuitem" data-p="battles"><i data-ic="swords"></i>Battles</button>
         <button role="menuitem" data-p="upgrader"><i data-ic="up"></i>Upgrader</button>
         <button role="menuitem" data-p="blackjack"><i data-ic="cards"></i>Blackjack</button>
       </div>
     </div>
-    <button class="gbtn" id="rewardsBtn" data-p="rewards"><i data-ic="gift"></i><span>Rewards</span></button>
-    <button class="gbtn" id="lbBtn" data-p="leaderboard"><i data-ic="trophy"></i><span>Leaderboard</span></button>
+    <button class="gbtn" id="rewardsBtn" data-p="rewards" aria-label="Rewards"><i data-ic="gift"></i><span>Rewards</span></button>
+    <button class="gbtn" id="lbBtn" data-p="leaderboard" aria-label="Leaderboard"><i data-ic="trophy"></i><span>Leaderboard</span></button>
   </nav>
   <div class="wallet" hidden></div>
   <div id="auth"></div>
@@ -932,24 +934,33 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 24px 26px}
 <div id="pageScroll" role="region" aria-label="Page content" tabindex="0">
 <div class="shell">
 <aside class="chat" id="chat" aria-label="Live chat">
-  <div class="chat-h"><span>Live chat</span><span class="live" id="chatCount" hidden></span><button class="x" id="chatClose" aria-label="Close chat">✕</button></div>
+  <div class="chat-h"><div class="chat-heading"><span class="eyebrow">Community</span><span class="chat-title">Live chat</span></div><span class="live" id="chatCount" hidden></span><button class="x" id="chatClose" aria-label="Close chat">✕</button></div>
   <div class="msgs" id="msgs"><div class="chat-empty">Connecting to chat…</div></div>
   <div class="chat-f">
-    <form class="chat-in" id="chatForm"><input id="chatIn" maxlength="200" autocomplete="off" placeholder="Sign in to chat"><button id="chatSend" aria-label="Send"><i data-ic="send"></i></button></form>
+    <form class="chat-in" id="chatForm"><label class="sr-only" for="chatIn">Chat message</label><input id="chatIn" maxlength="200" autocomplete="off" placeholder="Sign in to chat"><button id="chatSend" aria-label="Send"><i data-ic="send"></i></button></form>
     <div class="chat-meta"><span id="chatSlow">Slowmode 3s</span><button class="rules" id="chatRules" type="button">Chat rules</button></div>
   </div>
 </aside>
 
 <main>
   <section class="page on" id="home" aria-labelledby="homeTitle">
-    <h1 id="homeTitle">Games</h1>
-    <div class="home-games">
-      <button data-game-page="mines"><i data-ic="mines"></i><strong>Mines</strong></button>
-      <button data-game-page="blackjack"><i data-ic="cards"></i><strong>Blackjack</strong></button>
-      <button data-game-page="cases"><i data-ic="cases"></i><strong>Cases</strong></button>
-      <button data-game-page="battles"><i data-ic="swords"></i><strong>Case battles</strong></button>
-      <button data-game-page="upgrader"><i data-ic="up"></i><strong>Upgrader</strong></button>
+    <div class="lobby-welcome"><span><span class="lobby-mark" aria-hidden="true"></span>WELCOME TO BANDITBLOX</span><span class="lobby-edition">The original collection</span></div>
+    <div class="lobby-feature-grid">
+      <header class="lobby-feature">
+        <div class="lobby-feature-copy"><span class="eyebrow">Your lobby. Your way to play.</span><h1 id="homeTitle">Five games.<br><em>Your next move.</em></h1><p>Quick rounds, classic hands and head-to-head battles. Find your kind of game.</p><button type="button" class="lobby-explore" data-explore-games>Explore games <i data-ic="back"></i></button></div>
+        <img class="lobby-dice" src="/assets/lobby-dice.svg" alt="" width="520" height="360" draggable="false">
+      </header>
+      <aside class="lobby-wallet" aria-labelledby="lobbyWalletTitle"><div class="lobby-wallet-top"><span class="eyebrow">The wallet</span><span class="lobby-wallet-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 8H5a2 2 0 0 1 0-4h13v4M4 7v12a1 1 0 0 0 1 1h15V8m0 4h-5v4h5"/></svg></span></div><h2 id="lobbyWalletTitle">Every balance.<br> One place.</h2><p>Deposit, withdraw and manage your currencies in one wallet.</p><div class="lobby-wallet-bottom"><div class="lobby-currencies" aria-label="ETH, BNB, POL, SOL and USDT"><img src="/assets/wallet/eth.svg" alt="" width="28" height="28"><img src="/assets/wallet/bnb.svg" alt="" width="28" height="28"><img src="/assets/wallet/matic.svg" alt="" width="28" height="28"><img src="/assets/wallet/sol.svg" alt="" width="28" height="28"><img src="/assets/wallet/usdt.svg" alt="" width="28" height="28"></div><button type="button" data-lobby-wallet>Open wallet <span aria-hidden="true">&rarr;</span></button></div></aside>
     </div>
+    <header class="lobby-header"><div class="lobby-collection-title"><i data-ic="pad"></i><h2 id="lobbyGamesTitle" tabindex="-1">Our games</h2><span class="catalog-count" id="lobbyGameCount" role="status">5 games</span></div><div class="lobby-filters" role="group" aria-label="Filter games"><button type="button" data-game-filter="all" aria-pressed="true">All games</button><button type="button" data-game-filter="solo" aria-pressed="false">Solo</button><button type="button" data-game-filter="multiplayer" aria-pressed="false">Multiplayer</button></div></header>
+    <div class="home-games" aria-label="Game collection">
+      <button class="lobby-game" type="button" data-game-page="mines" data-game-category="solo" aria-label="Play Mines"><span class="lobby-game-art" aria-hidden="true"><span class="game-format">Original</span><img src="/assets/lobby-mines.svg" alt="" width="640" height="320" draggable="false"></span><span class="lobby-game-info"><strong>Mines<span class="game-arrow" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></strong><span class="game-description">Find the gems.<br>Choose when to cash out.</span><span class="game-card-footer"><span>Solo play</span><span>01</span></span></span></button>
+      <button class="lobby-game" type="button" data-game-page="blackjack" data-game-category="solo" aria-label="Play Blackjack"><span class="lobby-game-art" aria-hidden="true"><span class="game-format">Table game</span><img src="/assets/lobby-blackjack.svg" alt="" width="640" height="320" draggable="false"></span><span class="lobby-game-info"><strong>Blackjack<span class="game-arrow" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></strong><span class="game-description">A classic table.<br>Your next move.</span><span class="game-card-footer"><span>Solo play</span><span>02</span></span></span></button>
+      <button class="lobby-game" type="button" data-game-page="cases" data-game-category="solo" aria-label="Play Cases"><span class="lobby-game-art" aria-hidden="true"><span class="game-format">Unboxing</span><img src="/assets/lobby-cases.svg" alt="" width="640" height="320" draggable="false"></span><span class="lobby-game-info"><strong>Cases<span class="game-arrow" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></strong><span class="game-description">Pick a case.<br>Discover what's inside.</span><span class="game-card-footer"><span>Solo play</span><span>03</span></span></span></button>
+      <button class="lobby-game" type="button" data-game-page="battles" data-game-category="multiplayer" aria-label="Play Case battles"><span class="lobby-game-art" aria-hidden="true"><span class="game-format">Multiplayer</span><img src="/assets/lobby-battles.svg" alt="" width="640" height="320" draggable="false"></span><span class="lobby-game-info"><strong>Case battles<span class="game-arrow" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></strong><span class="game-description">Same cases.<br>A head-to-head showdown.</span><span class="game-card-footer"><span>Multiplayer</span><span>04</span></span></span></button>
+      <button class="lobby-game" type="button" data-game-page="upgrader" data-game-category="solo" aria-label="Play Upgrader"><span class="lobby-game-art" aria-hidden="true"><span class="game-format">Original</span><img src="/assets/lobby-upgrader.svg" alt="" width="640" height="320" draggable="false"></span><span class="lobby-game-info"><strong>Upgrader<span class="game-arrow" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></strong><span class="game-description">Choose a target.<br>Take your chance.</span><span class="game-card-footer"><span>Solo play</span><span>05</span></span></span></button>
+    </div>
+    <div class="lobby-footnote"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M10 9v5m0-8v1"/></svg><p>Play with real funds. Review the game rules and your selected currency before placing a bet.</p></div>
   </section>
   <!-- MINES -->
   <section class="page" id="mines">
@@ -1133,12 +1144,12 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 24px 26px}
 
   <!-- REWARDS -->
   <section class="page" id="rewards" aria-labelledby="rewardsTitle">
-    <div class="lobby-rewards"><h1 id="rewardsTitle">Rewards</h1><div id="vipLobby" aria-live="polite"></div></div>
+    <div class="lobby-rewards"><span class="eyebrow">Player benefits</span><h1 id="rewardsTitle">Rewards</h1><p class="rewards-intro">Your progress, levels and available rewards in one place.</p><div id="vipLobby" aria-live="polite"></div></div>
   </section>
 
   <!-- LEADERBOARD -->
   <section class="page" id="leaderboard">
-    <div class="lb-h"><h1><i data-ic="trophy"></i>Weekly Leaderboard</h1><p>Wagers are ranked in the selected currency. Each week starts on Monday at 00:00 UTC.</p></div>
+    <div class="lb-h"><span class="eyebrow">Weekly standings</span><h1><i data-ic="trophy"></i>Weekly Leaderboard</h1><p>Wagers are ranked in the selected currency. Each week starts on Monday at 00:00 UTC.</p></div>
     <div class="podium" id="lbPodium"></div>
     <div class="cdown" id="lbCount" aria-label="Time left this week"><div><b id="cdD">00</b><span>Days</span></div><div><b id="cdH">00</b><span>Hours</span></div><div><b id="cdM">00</b><span>Min</span></div><div><b id="cdS">00</b><span>Sec</span></div></div>
     <div class="lbt"><div class="lbrow hd"><span style="text-align:center">#</span><span>User</span><span class="r wgc">Wagered</span></div><div id="lbMe"></div><div id="lbRows"><div class="lbempty">Loading…</div></div></div>
@@ -1148,13 +1159,12 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 24px 26px}
 </main>
 
 </div>
-<footer>Crypto deposits and wagers use real funds.</footer>
+<footer class="site-footer"><span class="footer-wordmark">BANDITBLOX</span><span>Crypto deposits and wagers use real funds.</span><span class="footer-meta">Play responsibly.</span></footer>
 </div>
 <div class="modal" id="authModal" hidden>
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <button class="dlg-x" id="authClose" aria-label="Close">✕</button>
-    <span class="av bacon" id="authAv"></span>
-    <h2 id="authTitle">Create your account</h2>
+    <div class="auth-heading"><span class="av bacon" id="authAv"></span><div><span class="eyebrow">BANDITBLOX account</span><h2 id="authTitle">Create your account</h2></div></div>
     <div class="seg auth-tabs" id="authTabs"><button data-v="signup" class="on">Sign up</button><button data-v="login">Log in</button></div>
     <form id="fSignup" class="af" novalidate>
       <label class="fl" for="suName">Username</label><div class="amt"><input id="suName" maxlength="20" autocomplete="username" placeholder="2 to 20 letters, numbers or _"></div>
@@ -1230,6 +1240,13 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 24px 26px}
     <div class="row2"><button class="btn dark" type="button" id="nmCancel">Cancel</button><button class="btn gold" id="nmGo">Save</button></div></form>
 </div>
 
+<div class="page-transition" id="pageTransition" role="status" aria-live="polite" aria-atomic="true" hidden>
+  <div class="page-transition-inner">
+    <div class="transition-wordmark" data-brand="BANDITBLOX" aria-hidden="true"><img class="transition-logo-base" src="/assets/banditblox-logo.svg" alt="" width="640" height="116" draggable="false"><img class="transition-logo-reveal" src="/assets/banditblox-logo.svg" alt="" width="640" height="116" draggable="false"><span class="sr-only">BANDITBLOX</span></div>
+    <span class="transition-track" aria-hidden="true"><span></span></span>
+    <p id="pageTransitionLabel">Opening game</p>
+  </div>
+</div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="/app.js"></script>

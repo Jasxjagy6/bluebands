@@ -13,11 +13,16 @@ function human(amount, decimals) {
   return (n < 0n ? '−' : '') + (decimals ? digits.slice(0, -decimals) : digits) + (fraction ? '.' + fraction : '');
 }
 
-let assets = [], routes = [], chains = [], denominations = [], user = null, balances = new Map();
+// A withdrawal route is not proof that the same network can receive a deposit.
+const directNetworks = {USDT:{ETH:'USDT.ERC20',BSC:'USDT.BEP20',POL:'USDT.POL'},ETH:{ETH:'ETH'},BNB:{BSC:'BNB'},POL:{POL:'POL'},SOL:{SOL:'SOL'}};
+const currencyNames = {USDT:'Tether',ETH:'Ethereum',BNB:'BNB',POL:'Polygon',SOL:'Solana',BTC:'Bitcoin',TRX:'TRON'};
+const directId=(symbol,chain)=>Object.hasOwn(directNetworks,symbol) && Object.hasOwn(directNetworks[symbol],chain)?directNetworks[symbol][chain]:null;
+const intakeReady=r=>r?.enabled===true && r.available===true;
+let assets = [], routes = [], directRoutes = [], chains = [], denominations = [], user = null, balances = new Map();
 let refreshId = 0, accountVersion = 0, currencySaving = null, walletFresh = false;
 let catalogRequest, catalogLoaded = false, addressVersion = 0, historyVersion = 0;
-let depositAsset = null, depositProvider = null, oxapayReady = false, depositsPaused = false;
-let invoiceId = null, invoiceExpiry, view = 'deposit';
+let depositAsset = null, directSymbol = '', directChain = '', depositsPaused = true;
+let view = 'profile';
 export let sessionState = 'checking';
 const meta = id => assets.find(a => a.id === id) || routes.find(a=>a.id===id) || balances.get(id) || denominations.find(a=>a.id===id);
 const current = () => assets.find(a => a.id === user?.display_ccy) || assets[0];
@@ -28,6 +33,7 @@ export function displayAmount(amount,asset){
   const units=BigInt(amount),places=Math.min(asset.decimals,displayPlaces[asset.symbol]??asset.decimals);
   const scale=10n**BigInt(asset.decimals-places),absolute=units<0n?-units:units;
   const rounded=(absolute+scale/2n)/scale;
+  if(absolute>0n && rounded===0n)return human(units,asset.decimals);
   return human(units<0n?-rounded:rounded,places);
 }
 const amountOf=a=>displayAmount(balances.get(a.id)?.amount||'0',a);
@@ -42,20 +48,26 @@ async function api(path, options = {}) {
 function catalog() {
   if (!catalogRequest) catalogRequest = api('/assets').then(d => {
     assets = d.currencies; routes = d.transferRoutes; chains = d.chains; denominations=d.denominations; catalogLoaded = true;
-    depositProvider = ['direct','oxapay'].includes(d.deposit_provider) ? d.deposit_provider : null;
-    oxapayReady = d.oxapay_ready === true; depositsPaused = d.deposits_paused === true;
-  }).catch(err => { depositProvider=null; oxapayReady=false; throw err; }).finally(() => { catalogRequest = null; });
+    directRoutes = Array.isArray(d.directRoutes) ? d.directRoutes.filter(r=>typeof r?.id==='string' && directId(r.symbol,r.chain_id)===r.id && r.kind===(r.symbol==='USDT'?'token':'native')) : [];
+    depositsPaused = d.deposits_paused !== false;
+  }).catch(err => { directRoutes=[]; depositsPaused=true; throw err; }).finally(() => { catalogRequest = null; });
   return catalogRequest;
 }
 
 const header = $('.top .wallet');
 header.insertAdjacentHTML('afterbegin', `<div id="ebwPill" hidden>
   <button type="button" id="ebwCcy" aria-haspopup="dialog" aria-expanded="false" aria-controls="ebwMenu"><span id="ebwIco"></span><b id="ebwBal">—</b><small id="ebwSym"></small><svg class="currency-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
-  <button type="button" class="wallet-primary header-icon" id="ebwDep" aria-label="Deposit" title="Deposit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+  <button type="button" class="wallet-primary header-icon" id="ebwDep" aria-label="Wallet" title="Wallet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 8H5a2 2 0 0 1 0-4h13v4M4 7v12a1 1 0 0 0 1 1h15V8m0 4h-5v4h5"/></svg><span>Wallet</span></button></div>
   <button type="button" class="header-icon" id="noticeBell" aria-label="Notifications" title="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="noticePopup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17c2-2 2-4 2-7a5 5 0 0 1 10 0c0 3 0 5 2 7zM10 20a2 2 0 0 0 4 0"/></svg></button>`);
 document.body.insertAdjacentHTML('beforeend', `<dialog class="currency-menu" id="ebwMenu" hidden aria-labelledby="currencySheetTitle" aria-describedby="currencySheetHint">
-    <header class="sheet-heading"><div><h2 id="currencySheetTitle"></h2><p id="currencySheetHint"></p></div><button type="button" data-close-sheet aria-label="Close currency selector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
-    <div class="sheet-columns" aria-hidden="true"><span>Asset</span><span id="sheetColumn"></span></div><div class="sheet-list"></div>
+    <header class="sheet-heading"><button type="button" data-wallet-back hidden aria-label="Back to wallet">‹</button><span class="wallet-sheet-emblem" aria-hidden="true"><img src="/assets/dice-gold.png" alt=""></span><div><span class="wallet-sheet-eyebrow">BANDITBLOX / MY WALLET</span><h2 id="currencySheetTitle" tabindex="-1"></h2><p id="currencySheetHint"></p></div><button type="button" data-close-sheet aria-label="Close currency selector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
+    <nav class="wallet-view-tabs" aria-label="Wallet views" hidden><button type="button" data-wallet-view="balances" aria-current="page">Balances</button><button type="button" data-wallet-view="deposit">Deposit</button><button type="button" data-wallet-view="withdraw">Withdraw</button></nav>
+    <div id="walletPopupLoading" class="wallet-popup-loading" role="status" hidden><span class="wallet-loading-ring" aria-hidden="true"></span><span id="walletLoadingLabel">Loading wallet…</span></div>
+    <div id="walletSummary" hidden><div class="wallet-pass"><svg class="pass-blocks" viewBox="0 0 108 92" aria-hidden="true" fill="none" stroke="currentColor"><path d="m10 51 21-12 21 12v24L31 87 10 75Zm0 0 21 12 21-12M31 63v24m21-36 21-12 21 12v24L73 87 52 75m0-24 21 12 21-12M73 63v24M31 15 52 3l21 12v24L52 51 31 39Zm0 0 21 12 21-12M52 27v24"/></svg>
+      <div class="pass-topline"><span class="pass-label">Playing balance</span><span class="pass-tag">Your balance</span></div><div class="pass-amount"><strong id="walletSummaryBalance"></strong><span id="walletSummarySymbol"></span></div><p class="pass-context">Your selected currency for new bets</p></div>
+      <div class="wallet-money-actions"><button type="button" id="makeDeposit" data-wallet-view="deposit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg><span>Deposit</span><span class="money-action-arrow" aria-hidden="true">↗</span></button><button type="button" id="makeWithdrawal" data-wallet-view="withdraw"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M4 16v4h16v-4"/></svg><span>Withdraw</span></button></div><p class="wallet-overview-hint">Choose a balance below to view deposit details.</p></div><div id="walletPopupPane" hidden></div>
+    <label class="wallet-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m12 12 5 5"/></svg><input type="search" id="walletSearch" aria-label="Search playing currencies" placeholder="Search currencies" autocomplete="off" spellcheck="false" aria-controls="playingCurrencyList"></label>
+    <div class="sheet-columns" aria-hidden="true"><span>Currency</span><span>Available balance</span></div><div class="sheet-list" id="playingCurrencyList"></div>
     <div class="sheet-feedback"><span role="status"></span><button type="button" data-retry-currencies hidden>Try again</button></div>
     <button type="button" class="menu-profile" data-profile>View profile &amp; balances <span aria-hidden="true">&rarr;</span></button></dialog>
   <dialog id="noticePopup" aria-labelledby="popupHeading"><header><div><div class="popup-title"><h2 id="popupHeading">Notifications</h2><span id="popupUnread" hidden></span></div><p>Recent account activity</p></div><button type="button" id="closeNotices" aria-label="Close notifications" autofocus>×</button></header>
@@ -65,12 +77,12 @@ $('.shell').insertAdjacentHTML('beforebegin',`<main id="accountPage" hidden aria
   <div class="account-toolbar"><nav class="account-crumb" aria-label="Breadcrumb"><a href="/" id="walletClose">Lobby</a><span aria-hidden="true">/</span><span>My account</span></nav><div id="railActions"></div></div>
   <div class="account-layout"><aside class="account-rail" aria-label="Account navigation"><header class="rail-identity"><img src="/assets/bacon.png" alt=""><div><small>Player account</small><strong id="railName"></strong></div></header>
     <nav id="walletNav" aria-label="Account sections"></nav></aside>
-    <section class="account-main" aria-labelledby="walletTitle"><header class="account-title"><h1 id="walletTitle" tabindex="-1"></h1></header></section></div></main>`);
+    <section class="account-main" aria-labelledby="walletTitle"><header class="account-title"><h1 id="walletTitle" tabindex="-1"></h1><p id="walletDescription"></p></header></section></div></main>`);
 const menu=$('#ebwMenu'),trigger=$('#ebwCcy'),accountPage=$('#accountPage'),pageScroll=$('#pageScroll');
 const accountPath=mode=>'/account/'+mode;
 function routeSection(){
   const match=/^\/account(?:\/([a-z]+))?\/?$/.exec(location.pathname);
-  return match && (Object.hasOwn(accountSections,match[1])?match[1]:'profile');
+  return match && (Object.hasOwn(accountSections,match[1])||['deposit','withdraw'].includes(match[1])?match[1]:'profile');
 }
 
 function renderHeader() {
@@ -85,15 +97,16 @@ function renderHeader() {
   $('#ebwBal').textContent=amount ?? '—';
   trigger.title=amount!==null?`${amount} ${a.symbol} available`:'Balance unavailable';
   trigger.setAttribute('aria-label', a ? `Choose currency, ${a.symbol} ${a.id==='USDT'?'balance':'on '+network(a.chain_id)}, ${trigger.title}` : 'Choose currency');
-  if (menu.open) { if (sheetMode==='deposit' && depositProvider!=='direct') closeMenu(true); else renderMenu(); }
+  if (menu.open) renderMenu();
   const available=$('#withdrawAvailable'),asset=assets.find(a=>a.id===withdrawCurrency);
   if(available && asset)available.textContent=(walletFresh?amountOf(asset):'—')+' '+asset.symbol;
+  const popupAvailable=$('#popupWithdrawAvailable'),popupAsset=assets.find(a=>a.id===popupWithdraw)||a;
+  if(popupAvailable && popupAsset)popupAvailable.textContent=(walletFresh?amountOf(popupAsset):'—')+' '+popupAsset.symbol;
   window.dispatchEvent(new Event('eb-currency'));
 }
 
 function applyAccount(data) {
   sessionState = 'ready';
-  if (history.state?.oxapayAttempt && history.state.oxapayAttempt.owner!==data?.user?.id) history.replaceState({...history.state,oxapayAttempt:null},'');
   if (user?.id !== data?.user?.id) {
     accountVersion++;
     currencySaving = null;
@@ -126,16 +139,6 @@ async function refresh() {
     applyAccount(data);
     if (!user || accountPage.hidden) return;
     if (view === 'profile') renderProfile();
-    if (view === 'deposit') {
-      const host=$('#walletContent');
-      if (invoiceId!==null) { if ($('#invoiceReceipt')) void loadInvoice(true); }
-      else if (host.dataset.provider!==(depositProvider||'unavailable')) { void renderSection(); return; }
-      else if (depositProvider==='oxapay') updateHostedForm();
-      else if (depositProvider==='direct' && $('#addressResult')) {
-        if (!depositAsset || !routes.some(a=>a.id===depositAsset.id && a.enabled===depositAsset.enabled)) renderDeposit();
-        else void loadAddress(depositAsset,true);
-      }
-    }
     if (!$('#walletHistory').hidden) void loadHistory();
   } catch (err) {
     if (seq !== refreshId) return;
@@ -143,17 +146,6 @@ async function refresh() {
     else {
       walletFresh = false; renderHeader();
       if (user && !accountPage.hidden && view === 'profile') renderProfile();
-      if (user && !accountPage.hidden && view === 'deposit') {
-        const host=$('#walletContent');
-        if(invoiceId!==null && $('#invoiceReceipt'))void loadInvoice(true);
-        else if(host.dataset.provider!==(depositProvider||'unavailable'))void renderSection();
-        else if($('#oxapayForm'))updateHostedForm();
-        else if($('#addressResult')){
-          ++addressVersion;
-          $('#addressResult').removeAttribute('aria-busy');
-          $('#addressResult').innerHTML = notice('Could not verify the deposit address.','address');
-        }
-      }
     }
   }
 }
@@ -165,36 +157,54 @@ window.ebAsset = id => id ? meta(id) : current();
 window.ebBalance = () => current() && walletFresh ? balances.get(current().id)?.amount || '0' : null;
 
 const phoneWallet=matchMedia('(max-width:740px)');
-const sheetList=menu.querySelector('.sheet-list'), sheetStatus=menu.querySelector('[role=status]');
+const sheetList=menu.querySelector('.sheet-list'), sheetStatus=menu.querySelector('.sheet-feedback [role=status]');
 let sheetMode='play', sheetVersion=0, sheetError='';
-function sheetTrigger(){return sheetMode==='deposit'?$('#ebwDep'):trigger;}
+let walletTab='balances', popupWithdraw='';
+const moneyPane=$('#walletPopupPane');
+function sheetTrigger(){return sheetMode==='wallet'?$('#ebwDep'):trigger;}
 function closeMenu(focus=false){
   const opener=sheetTrigger();
   ++sheetVersion;
   if(menu.open)menu.close();menu.hidden=true;
   trigger.setAttribute('aria-expanded','false');describePlus();
-  sheetList.replaceChildren();sheetStatus.textContent='';sheetError='';
+  sheetList.replaceChildren();$('#walletSearch').value='';sheetStatus.textContent='';sheetError='';
+  walletTab='balances';moneyPane.replaceChildren();moneyPane.hidden=true;
+  menu.removeAttribute('data-loading');menu.removeAttribute('aria-busy');$('#walletPopupLoading').hidden=true;
   if(focus)opener.focus({preventScroll:true});
 }
 function positionMenu(){
   if(!menu.open)return;
-  const r=sheetTrigger().getBoundingClientRect(),vv=window.visualViewport,edge=8,top=r.bottom+4;
+  const r=sheetTrigger().getBoundingClientRect(),vv=window.visualViewport,edge=12,wallet=sheetMode==='wallet';
   const x=vv?.offsetLeft||0,y=vv?.offsetTop||0,w=vv?.width||document.documentElement.clientWidth,h=vv?.height||innerHeight;
-  const floor=y+h-edge,aboveTabs=Math.min(floor,pageScroll.getBoundingClientRect().bottom-4);
-  const room=Math.max(0,(aboveTabs-top>=150?aboveTabs:floor)-top);
-  const width=Math.min(w-2*edge,phoneWallet.matches?304:328);
-  menu.style.width=width+'px';menu.style.maxHeight=Math.min(386,room)+'px';
-  menu.style.left=Math.max(x+edge,Math.min(x+w-width-edge,r.right-width))+'px';menu.style.top=top+'px';
+  const top=r.bottom+6,floor=y+h-edge,aboveTabs=Math.min(floor,pageScroll.getBoundingClientRect().bottom-4);
+  const room=Math.max(0,wallet?h-2*edge:(aboveTabs-top>=150?aboveTabs:floor)-top);
+  const width=Math.min(w-2*edge,wallet?464:292);
+  menu.style.width=width+'px';menu.style.maxHeight=Math.min(wallet?720:386,room)+'px';
+  menu.style.left=x+(w-width)/2+'px';
+  menu.style.top=(wallet?y+Math.max(edge,(h-menu.getBoundingClientRect().height)/2):top)+'px';
   menu.toggleAttribute('data-compact',room<270);
   menu.toggleAttribute('data-tight',room<140);
   menu.toggleAttribute('data-above',sheetList.scrollTop>2);
   menu.toggleAttribute('data-more',sheetList.scrollHeight-sheetList.clientHeight-sheetList.scrollTop>2);
 }
 function renderMenu(){
-  const deposit=sheetMode==='deposit',chosen=current()?.id;
+  if(menu.hasAttribute('data-loading')){positionMenu();return;}
+  const chosen=current();
+  if(sheetMode==='wallet'){
+    $('#walletSummaryBalance').textContent=chosen && walletFresh?amountOf(chosen):'—';
+    $('#walletSummarySymbol').textContent=chosen?.symbol||'';
+    if(walletTab!=='balances'){
+      if(walletTab==='deposit' && moneyPane.querySelector('.direct-form'))renderDeposit(moneyPane);
+      if(walletTab==='withdraw' && $('#popupWithdrawalRecords'))void refreshWithdrawalHistory();
+      positionMenu();return;
+    }
+  }
+  const filter=$('#walletSearch').value.trim().toLowerCase();
+  let found=0;
   // Update live balances in place so a refresh cannot discard a focused row or its scroll position.
   const rows=new Map(Array.from(sheetList.children,b=>[b.dataset.asset,b]));
-  assets.forEach((a,i)=>{
+  const visibleAssets=sheetMode==='wallet'?[...assets,...Array.from(balances.values()).filter(b=>!assets.some(a=>a.id===b.asset_id)&&BigInt(b.amount)>0n).map(b=>({id:b.asset_id,symbol:b.symbol,decimals:b.decimals,chain_id:b.chain_id}))]:assets;
+  visibleAssets.forEach((a,i)=>{
     let b=rows.get(a.id);
     if(!b){
       b=document.createElement('button');b.type='button';b.dataset.asset=a.id;
@@ -202,20 +212,20 @@ function renderMenu(){
     }
     if(sheetList.children[i]!==b)sheetList.insertBefore(b,sheetList.children[i]||null);
     rows.delete(a.id);
-    const count=routes.filter(r=>r.symbol===a.symbol && r.enabled).length;
     b.querySelector('small').textContent=a.id==='USDT'?'Tether':network(a.chain_id);
-    b.querySelector('b').textContent=deposit?(count?`${count} network${count===1?'':'s'}`:'Unavailable'):(walletFresh?amountOf(a):'—');
-    b.querySelector('.sheet-mark').textContent=deposit?(count?'›':''):a.id===chosen?'✓':'';
-    b.disabled=deposit && !count;
-    if(deposit)b.removeAttribute('aria-pressed');else b.setAttribute('aria-pressed',String(a.id===chosen));
-    if(!deposit && currencySaving)b.setAttribute('aria-disabled','true');else b.removeAttribute('aria-disabled');
-    b.toggleAttribute('data-saving',!deposit && a.id===currencySaving);
+    b.querySelector('b').textContent=walletFresh?amountOf(a):'—';
+    b.querySelector('.sheet-mark').textContent=sheetMode==='wallet'?'›':a.id===chosen?.id?'✓':'';
+    if(sheetMode==='wallet')b.removeAttribute('aria-pressed');else b.setAttribute('aria-pressed',String(a.id===chosen?.id));
+    if(currencySaving)b.setAttribute('aria-disabled','true');else b.removeAttribute('aria-disabled');
+    b.toggleAttribute('data-saving',a.id===currencySaving);
+    b.hidden=![a.symbol,currencyNames[a.symbol],network(a.chain_id)].some(v=>v?.toLowerCase().includes(filter));
+    if(!b.hidden)found++;
   });
   rows.forEach(b=>b.remove());
-  const msg=sheetError || (!catalogLoaded?'Loading currencies…':!assets.length?'No currencies are available.':!deposit && currencySaving?`Saving ${meta(currencySaving)?.symbol || currencySaving} as your playing currency…`:'');
+  const msg=sheetError || (!catalogLoaded?'Loading currencies…':!assets.length?'No currencies are available.':currencySaving?`Saving ${meta(currencySaving)?.symbol || currencySaving} as your playing currency…`:!found?'No matching currencies.':'');
   if(sheetStatus.textContent!==msg)sheetStatus.textContent=msg;
   sheetStatus.parentElement.hidden=!msg;
-  menu.querySelector('[data-retry-currencies]').hidden=catalogLoaded || !sheetError;
+   menu.querySelector('[data-retry-currencies]').hidden=!sheetError;
   positionMenu();
 }
 async function loadSheetCatalog(){
@@ -224,28 +234,71 @@ async function loadSheetCatalog(){
   try{await catalog();if(version===sheetVersion)renderHeader();}
   catch{if(version===sheetVersion){sheetError='Currencies could not be loaded.';renderMenu();}}
 }
-function openSheet(mode){
-  if(menu.open && sheetMode===mode){closeMenu(true);return;}
-  closeNoticePopup();closeMenu();sheetMode=mode;const opener=sheetTrigger(),deposit=mode==='deposit';
+function openSheet(mode,next,asset){
+  window.ebCancelPageTransition?.();
+  if(menu.open && sheetMode===mode && !next){closeMenu(true);return;}
+  closeNoticePopup();closeMenu();sheetMode=mode;const opener=sheetTrigger(),wallet=mode==='wallet';
   menu.dataset.mode=mode;
-  $('#currencySheetTitle').textContent=deposit?'Deposit currency':'Playing currency';
-  $('#currencySheetHint').textContent=deposit?'Choose an asset, then its deposit network.':'Choose the balance to use for new bets.';
-  $('#sheetColumn').textContent=deposit?'Deposit routes':'Available balance';
-  menu.querySelector('[data-profile]').hidden=deposit;
-  menu.hidden=false;renderMenu();
-  if(phoneWallet.matches)menu.showModal();else menu.show();
+  menu.querySelector('.wallet-view-tabs').hidden=!wallet;
+  $('#currencySheetTitle').textContent=wallet?'Wallet':'Playing currency';
+  $('#currencySheetHint').textContent=wallet?'':'Choose the balance to use for new bets.';
+  menu.querySelector('[data-close-sheet]').setAttribute('aria-label',wallet?'Close wallet':'Close currency selector');
+  $('#walletSummary').hidden=!wallet;
+  for(const el of menu.querySelectorAll('.wallet-search,[data-profile]'))el.hidden=wallet;
+  menu.querySelector('[data-wallet-back]').hidden=true;menu.dataset.view='balances';sheetList.hidden=false;menu.querySelector('.sheet-columns').hidden=false;
+  menu.hidden=false;
+  if(wallet)startWalletLoading('Loading wallet…');else renderMenu();
+  if(wallet||phoneWallet.matches)menu.showModal();else menu.show();
   positionMenu();opener.setAttribute('aria-expanded','true');
-  const active=menu.querySelector('[aria-pressed=true]')||menu.querySelector('[data-asset]:enabled')||menu.querySelector('[data-close-sheet]');
+  const active=wallet?$('#currencySheetTitle'):menu.querySelector('[aria-pressed=true]')||$('#walletSearch');
   active.focus({preventScroll:true});
   if(sheetList.contains(active)){
     const scroller=menu.hasAttribute('data-tight')?menu:sheetList,box=scroller.getBoundingClientRect(),row=active.getBoundingClientRect();
     scroller.scrollTop+=Math.min(0,row.top-box.top)+Math.max(0,row.bottom-box.bottom);
     positionMenu();
   }
-  if(!catalogLoaded)void loadSheetCatalog();
+  if(wallet)void walletView(next||'balances',asset||current());
+  else if(!catalogLoaded)void loadSheetCatalog();
+}
+function startWalletLoading(label){
+  menu.setAttribute('data-loading','');menu.setAttribute('aria-busy','true');
+  $('#walletPopupLoading').hidden=false;$('#walletLoadingLabel').textContent=label;
+}
+async function walletView(next,asset=current()){
+  if(!menu.open||sheetMode!=='wallet'||!user)return;
+  const seq=++sheetVersion;walletTab=next;menu.dataset.view=next;moneyPane.replaceChildren();
+  for(const tab of menu.querySelectorAll('.wallet-view-tabs button')){
+    if(tab.dataset.walletView===next)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');
+  }
+  const home=next==='balances';moneyPane.hidden=home;$('#walletSummary').hidden=!home;sheetList.hidden=!home;
+  menu.querySelector('.sheet-columns').hidden=!home;sheetStatus.parentElement.hidden=true;menu.querySelector('[data-wallet-back]').hidden=home;
+  $('#currencySheetTitle').textContent=home?'Wallet':next==='deposit'?'Deposit':'Withdraw';
+  $('#currencySheetHint').textContent=home?'':next==='deposit'?'Choose the currency and network you will send.':'Review the network, address and amount before confirming.';menu.scrollTop=0;
+  startWalletLoading(home?'Loading wallet…':next==='deposit'?'Preparing your deposit…':'Loading withdrawal options…');
+  positionMenu();$('#currencySheetTitle').focus({preventScroll:true});
+  try{
+    await Promise.all([catalog(),new Promise(resolve=>setTimeout(resolve,matchMedia('(prefers-reduced-motion:reduce)').matches?0:260))]);
+    if(seq!==sheetVersion||!menu.open)return;
+    if(next==='deposit'){
+      const symbol=asset?.symbol||'USDT';moneyPane.dataset.currency=symbol;moneyPane.dataset.network=Object.keys(directNetworks[symbol]||{})[0]||'';
+      renderDeposit(moneyPane);
+    }else if(next==='withdraw'){popupWithdraw=asset?.id;await showWithdraw(seq,moneyPane);}
+  }catch(err){
+    if(seq!==sheetVersion)return;
+    if(err.status===401)return applyAccount(null);
+    if(home){sheetError='Could not refresh wallet currencies.';}else{
+      moneyPane.innerHTML=notice('Could not load '+(next==='deposit'?'deposit':'withdrawal')+' options.','wallet-view');
+    }
+  }finally{
+    if(seq===sheetVersion){menu.removeAttribute('data-loading');menu.removeAttribute('aria-busy');$('#walletPopupLoading').hidden=true;renderMenu();positionMenu();}
+  }
+}
+async function popupWithdrawal(){
+  return walletView('withdraw',meta(popupWithdraw)||current());
 }
 trigger.onclick=()=>openSheet('play');
-phoneWallet.addEventListener('change',()=>{if(menu.open)closeMenu(true);});
+$('#walletSearch').oninput=()=>{sheetList.scrollTop=0;renderMenu();};
+phoneWallet.addEventListener('change',()=>{if(menu.open && sheetMode==='play')closeMenu(true);else positionMenu();});
 menu.addEventListener('cancel',e=>{e.preventDefault();closeMenu(true);});
 menu.onclick = async e => {
   if(e.target===menu){
@@ -253,15 +306,28 @@ menu.onclick = async e => {
     if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)closeMenu(true);
     return;
   }
+  const action=e.target.closest('[data-wallet-view]');
+  if(action){
+    if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+    e.preventDefault();return walletView(action.dataset.walletView);
+  }
   const b=e.target.closest('button');
   if(!b)return;
   if(b.hasAttribute('data-close-sheet'))return closeMenu(true);
-  if(b.hasAttribute('data-retry-currencies'))return loadSheetCatalog();
+  if(b.hasAttribute('data-wallet-back'))return walletView('balances');
+  if(b.dataset.retry==='wallet-view')return walletView(walletTab,meta(moneyPane.dataset.currency)||current());
+  if(b.dataset.retry==='wallet-withdraw')return popupWithdrawal();
+  if(b.closest('#walletPopupPane')&&b.dataset.retry==='address'){delete moneyPane.querySelector('[id$="AddressResult"]').dataset.key;return renderDeposit(moneyPane);}
+  if(b.closest('#walletPopupPane')&&b.dataset.retry==='balance')return refresh();
+  if(b.hasAttribute('data-cancel-withdraw')){
+    b.disabled=true;
+    try{await api('/me/withdrawals/'+b.dataset.cancelWithdraw+'/cancel',{method:'POST'});await refresh();await refreshWithdrawalHistory();}
+    catch(err){b.disabled=false;b.textContent=err.message;}return;
+  }
+  if(b.hasAttribute('data-retry-currencies'))return sheetMode==='wallet'?walletView('balances'):loadSheetCatalog();
   if(b.hasAttribute('data-profile')){closeMenu();return open('profile');}
   if(!b.dataset.asset || b.disabled)return;
-  if(sheetMode==='deposit'){
-    closeMenu();return open('deposit',true,b.dataset.asset);
-  }
+  if(sheetMode==='wallet')return walletView('deposit',meta(b.dataset.asset));
   if(currencySaving)return;
   if(b.dataset.asset===user.display_ccy)return closeMenu(true);
   const version=accountVersion,sheet=sheetVersion;
@@ -283,11 +349,11 @@ menu.onclick = async e => {
 document.addEventListener('pointerdown', e => { if (menu.open && !menu.contains(e.target) && !sheetTrigger().contains(e.target)) closeMenu(); });
 document.addEventListener('focusin', e => { if (menu.open && !menu.contains(e.target) && !sheetTrigger().contains(e.target)) closeMenu(); });
 document.addEventListener('keydown', e => {
-  if (menu.hidden) return;
+  if (menu.hidden||e.defaultPrevented||e.target.closest('.eb-option-picker[open]')) return;
   if (e.key === 'Escape') {e.preventDefault();e.stopImmediatePropagation();return closeMenu(true);}
-  if (!['ArrowDown','ArrowUp','Home','End'].includes(e.key)) return;
+  if (sheetMode!=='play' || !['ArrowDown','ArrowUp','Home','End'].includes(e.key) || (e.target.id==='walletSearch' && !e.key.startsWith('Arrow'))) return;
   e.preventDefault();
-  const buttons=[...sheetList.querySelectorAll('button:enabled')],index=buttons.indexOf(document.activeElement);
+  const buttons=[...sheetList.querySelectorAll('button:enabled:not([hidden])')],index=buttons.indexOf(document.activeElement);
   if(!buttons.length)return;
   const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:e.key==='ArrowDown'?(index+1)%buttons.length:((index<=0?buttons.length:index)-1);
   buttons[next]?.focus();
@@ -296,27 +362,40 @@ window.addEventListener('resize', positionMenu);
 window.addEventListener('scroll', positionMenu, true);
 window.visualViewport?.addEventListener('resize', positionMenu);
 window.visualViewport?.addEventListener('scroll', positionMenu);
+new ResizeObserver(()=>{if(menu.open)positionMenu();}).observe(menu);
 
 function placeholder(label,layout='list'){
   const blocks=layout==='stats'?'<i></i><i></i><i></i><i></i><i class="skeleton-chart"></i>':'<i></i><i></i><i></i>';
   return `<div class="wallet-skeleton skeleton-${layout}" role="status" aria-label="${esc(label)}"><span aria-hidden="true">${blocks}</span></div>`;
 }
 function loading(el,label,layout){
-  if(el.contains(document.activeElement))$('#walletTitle').focus({preventScroll:true});
+  if(el.contains(document.activeElement))(el.closest('#ebwMenu')?$('#currencySheetTitle'):$('#walletTitle')).focus({preventScroll:true});
   el.setAttribute('aria-busy','true');
-  el.innerHTML=placeholder(label,layout);
+  el.innerHTML=el.closest('#walletPopupPane')?`<div class="wallet-inline-loading" role="status"><span class="wallet-loading-ring" aria-hidden="true"></span><span>${esc(label)}</span></div>`:placeholder(label,layout);
 }
 function notice(message, retry) {
   return `<div class="wallet-notice" role="status"><span>${esc(message)}</span>${retry ? `<button type="button" class="wallet-link" data-retry="${retry}">Try again</button>` : ''}</div>`;
 }
 export const accountSections = {
-  profile: 'Profile', deposit: 'Deposit', withdraw: 'Withdraw',
+  profile: 'Profile',
   stats: 'Statistics', transactions: 'Transactions', bets: 'Bet history', rewards:'Rewards', notifications:'Notifications', security:'Security'
+};
+const sectionDescriptions={
+  profile:'Your balances, deposit receipts and account details.',
+  stats:'Review settled results by currency and time period.',
+  transactions:'Deposits, wagers, payouts and balance adjustments.',
+  bets:'Your bets, outcomes and individual round details.',
+  rewards:'Wager progress and earned level bonuses.',
+  notifications:'Account updates and receipts in one place.',
+  security:'Manage your account details and password.'
 };
 const paths = {
   profile: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0M4.5 21v-2a7.5 7.5 0 0 1 15 0v2',
   deposit: 'M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4',
   withdraw: 'M12 15V3m-5 5 5-5 5 5M4 16v4h16v-4',
+  copy: 'M9 9h11v12H9ZM5 16H3V3h12v2',
+  clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5v5l3 2',
+  pause: 'M9 5v14M15 5v14',
   stats: 'M4 20h16M6 16v-4m6 4V5m6 11V9',
   transactions: 'M3 8h16m-4-4 4 4-4 4M21 16H5m4-4-4 4 4 4',
   bets: 'M5 3h14v18l-3-2-4 2-4-2-3 2ZM8 8h8m-8 5h5',
@@ -335,18 +414,7 @@ const states={active:'In play',playing:'In play',insurance:'In play',open:'Waiti
 const timeOf=v=>new Date(v).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 const receiptDate=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 const receiptTime=v=>v?`<time datetime="${esc(v)}">${esc(receiptDate.format(new Date(v)))}</time>`:'—';
-const invoiceAPI='/me/oxapay/invoices';
-const uuid=value=>typeof value==='string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value);
-const invoicePath=id=>accountPath('deposit')+'?invoice='+encodeURIComponent(id);
-const invoiceLabels={creating:'Preparing checkout',waiting:'Awaiting payment',paying:'Confirming payment',underpaid:'Underpaid',review:'Under review',expired:'Expired',failed:'Failed',credited:'Credited'};
-const invoiceLink=(id,label='View invoice')=>uuid(id)?`<a class="section-link" data-invoice="${esc(id)}" href="${invoicePath(id)}">${label}</a>`:'';
-const isInvoiceRef=ref=>typeof ref==='string' && ref.startsWith('oxapay:');
-const noticeInvoice=n=>n.kind.startsWith('deposit.') && isInvoiceRef(n.reference) ? n.reference.slice(7) : null;
 function transactionRef(b){
-  if(b.provider==='oxapay' || isInvoiceRef(b.ref)){
-    const id=uuid(b.invoice_id)?b.invoice_id:isInvoiceRef(b.ref)?b.ref.slice(7):null;
-    return uuid(id)?`<div><dt>Invoice ID</dt><dd>${invoiceLink(id,esc(id))}</dd></div>`:'';
-  }
   return b.ref?`<div><dt>Reference</dt><dd>${esc(b.ref)}</dd></div>`:'';
 }
 function flowName(kind){
@@ -400,7 +468,7 @@ function statChart(days,dec,symbol){
   const y=v=>96-Number((v-low)*7400n/range)/100;
   const x=i=>12+i*(476/Math.max(points.length-1,1));
   const line=points.map((v,i)=>(i?'L':'M')+x(i).toFixed(2)+' '+y(v).toFixed(2)).join(' ');
-  const color=net?(sum<0n?'#efa2a2':'#69dbb4'):'#e6bf71';
+  const color=net?(sum<0n?'#d6a0a2':'#93c8b0'):'#c8ad7f';
   const money=v=>gameAmount(v,{symbol,decimals:dec});
   const pointTitle=(v,i)=>`<title>${esc(days[i].day+' · '+money(v))}</title>`;
   const title=net?'Cumulative net result':'Daily amount wagered';
@@ -469,7 +537,7 @@ async function showList(seq){
   const d=await api('/me/'+(isBet?'bets':'transactions')+'?'+params);if(seq!==activitySeq)return;
   const rows=d.rows.map(b=>isBet?`<button type="button" class="activity-entry" data-bet="${esc(b.id)}" data-game="${esc(b.game)}">
     ${logo(b.symbol)}<span><strong>${esc(gameNames[b.game])}</strong><small>${receiptTime(b.created_at)}</small></span><b>${esc(gameAmount(b.stake,b))}<small>Stake · ${esc(states[b.status]||b.status)}</small></b></button>`:
-    `<details class="transaction-details"><summary class="activity-entry">${logo(b.symbol)}<span><strong>${esc(flowName(b.kind))}</strong><small>${receiptTime(b.created_at)}${b.provider!=='oxapay' && b.chain_id?' · '+esc(network(b.chain_id)):''}${b.withdrawal_status?' · '+esc(states[b.withdrawal_status]):''}</small></span><b class="${BigInt(b.delta)>0n?'positive':''}">${BigInt(b.delta)>0n?'+':''}${esc(amountText(b.delta,b.decimals,b.symbol))}</b></summary>
+    `<details class="transaction-details"><summary class="activity-entry">${logo(b.symbol)}<span><strong>${esc(flowName(b.kind))}</strong><small>${receiptTime(b.created_at)}${b.chain_id?' · '+esc(network(b.chain_id)):''}${b.withdrawal_status?' · '+esc(states[b.withdrawal_status]):''}</small></span><b class="${BigInt(b.delta)>0n?'positive':''}">${BigInt(b.delta)>0n?'+':''}${esc(amountText(b.delta,b.decimals,b.symbol))}</b></summary>
       <dl class="bet-facts"><div><dt>Ledger entry</dt><dd>${esc(b.id)}</dd></div>${transactionRef(b)}${b.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(b.chain_id,b.txid)}</dd></div>`:''}</dl></details>`).join('');
   $('#activityResults').innerHTML=(rows||`<p class="wallet-empty">No ${isBet?'bets':transactionType==='all'?'transactions':transactionTypes[transactionType].toLowerCase()} to show.</p>`)+pager(d.more);
 }
@@ -518,33 +586,39 @@ function renderReceipts(host,rows,empty){
   });
   while(host.children.length>rows.length)host.lastElementChild.remove();
 }
-function renderWithdrawalHistory(d){
+function renderWithdrawalHistory(d,host=$('#withdrawalRecords')){
   const notes={requested:'Funds are reserved. You can cancel before review begins.',reviewing:'Your request is being reviewed and can no longer be cancelled.',approved:'Approved for transfer. A transaction ID will appear once payment is recorded.',sent:'This transfer has been recorded as sent.',cancelled:'The reserved amount was returned to your available balance.'};
-  renderReceipts($('#withdrawalRecords'),d.rows.map(w=>[String(w.id),`<summary class="activity-entry">${logo(w.symbol)}<span><strong>${esc(amountText(w.amount,w.decimals,w.symbol))}</strong><small>${esc(network(w.chain_id))} · ${receiptTime(w.created_at)}</small></span><b class="wallet-status" data-state="${esc(w.status)}">${esc(states[w.status]||w.status)}</b></summary>
+  renderReceipts(host,d.rows.map(w=>[String(w.id),`<summary class="activity-entry">${logo(w.symbol)}<span><strong>${esc(amountText(w.amount,w.decimals,w.symbol))}</strong><small>${esc(network(w.chain_id))} · ${receiptTime(w.created_at)}</small></span><b class="wallet-status" data-state="${esc(w.status)}">${esc(states[w.status]||w.status)}</b></summary>
     ${notes[w.status]?`<p class="receipt-note">${notes[w.status]}</p>`:''}<dl class="bet-facts"><div><dt>Destination</dt><dd>${esc(w.destination)}</dd></div><div><dt>Request ID</dt><dd>${esc(w.id)}</dd></div>${w.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(w.chain_id,w.txid)}</dd></div>`:''}</dl>
     ${w.status==='requested'?`<button class="wallet-link" data-cancel-withdraw="${esc(w.id)}">Cancel withdrawal</button>`:''}`]),'No withdrawal requests yet.');
 }
 async function refreshWithdrawalHistory(){
-  const seq=activitySeq;
-  try{const d=await api('/me/withdrawals');if(seq===activitySeq && $('#withdrawalRecords'))renderWithdrawalHistory(d);}catch{}
+  const seq=activitySeq,sheet=sheetVersion;
+  try{
+    const d=await api('/me/withdrawals');
+    if(seq===activitySeq && $('#withdrawalRecords'))renderWithdrawalHistory(d);
+    if(sheet===sheetVersion && $('#popupWithdrawalRecords'))renderWithdrawalHistory(d,$('#popupWithdrawalRecords'));
+  }catch{}
 }
-async function showWithdraw(seq){
-  const a=assets.find(a=>a.id===withdrawCurrency)||current(), options=routes.filter(r=>r.enabled && r.symbol===a?.symbol), d=await api('/me/withdrawals');
-  if(seq!==activitySeq)return;
-  const chooseCurrency=`<label>Currency<select id="withdrawCurrency">${currencyOptions(a?.id)}</select></label>`;
-  const form=a&&options.length?`<div class="withdraw-balance">${logo(a.symbol)}<span>Available to withdraw</span><b id="withdrawAvailable">${esc(walletFresh?amountOf(a):'—')} ${esc(a.symbol)}</b></div>
-    <form id="withdrawForm" class="withdraw-form"><div class="withdraw-fields"><div class="wallet-fields">${chooseCurrency}<label>Network<select name="route">${options.map(r=>`<option value="${esc(r.id)}">${esc(network(r.chain_id))}</option>`).join('')}</select></label></div>
+async function showWithdraw(seq,host=$('#walletContent')){
+  const pop=host===moneyPane, live=()=>pop?menu.open&&walletTab==='withdraw'&&seq===sheetVersion:seq===activitySeq&&host.isConnected;
+  const elId=id=>pop?'popup'+id[0].toUpperCase()+id.slice(1):id,get=id=>host.querySelector('#'+elId(id));
+  const a=assets.find(a=>a.id===(pop?popupWithdraw:withdrawCurrency))||current(),options=routes.filter(r=>r.enabled&&r.symbol===a?.symbol),d=await api('/me/withdrawals');
+  if(!live())return;
+  const chooseCurrency=`<label>Currency<select id="${elId('withdrawCurrency')}">${currencyOptions(a?.id)}</select></label>`;
+  const form=a&&options.length?`<div class="withdraw-balance">${logo(a.symbol)}<span>Available to withdraw</span><b id="${elId('withdrawAvailable')}">${esc(walletFresh?amountOf(a):'—')} ${esc(a.symbol)}</b></div>
+    <form id="${elId('withdrawForm')}" class="withdraw-form"><div class="withdraw-fields"><div class="wallet-fields">${chooseCurrency}<label>Network<select name="route">${options.map(r=>`<option value="${esc(r.id)}">${esc(network(r.chain_id))}</option>`).join('')}</select></label></div>
     <label>Destination address<input name="destination" required maxlength="100" autocomplete="off" spellcheck="false"></label>
     <label>Amount in ${esc(a.symbol)}<input name="amount" required maxlength="60" inputmode="decimal" autocomplete="off" placeholder="0.00"></label>
     <p class="wallet-muted">Confirming reserves the amount for manual review. You can cancel until review begins.</p>
-    </div><section id="withdrawReview" hidden aria-labelledby="reviewTitle"><h3 id="reviewTitle" tabindex="-1">Review withdrawal</h3><div id="reviewDetails"></div></section>
-    <div class="withdraw-actions"><button class="secondary-action" type="button" id="withdrawEdit" hidden>Edit details</button><button class="wallet-primary" type="submit">Review withdrawal</button></div><p id="withdrawStatus" role="status"></p></form>`:`<div class="withdraw-form">${chooseCurrency}</div>`+notice('No withdrawal network is available for this currency.');
-  $('#walletContent').innerHTML=form+'<div class="wallet-heading records-heading"><h3>Withdrawal history</h3></div><section id="withdrawalRecords" aria-label="Withdrawal receipts"></section>';
-  renderWithdrawalHistory(d);
-  $('#withdrawCurrency').onchange=e=>{withdrawCurrency=e.target.value;void activity('#withdrawCurrency');};
-  const el=$('#withdrawForm');if(!el)return;
+    </div><section id="${elId('withdrawReview')}" hidden aria-labelledby="${elId('reviewTitle')}"><h3 id="${elId('reviewTitle')}" tabindex="-1">Review withdrawal</h3><div id="${elId('reviewDetails')}"></div></section>
+    <div class="withdraw-actions"><button class="secondary-action" type="button" id="${elId('withdrawEdit')}" hidden>Edit details</button><button class="wallet-primary" type="submit">Review withdrawal</button></div><p id="${elId('withdrawStatus')}" role="status"></p></form>`:`<div class="withdraw-form">${chooseCurrency}</div>`+notice('No withdrawal network is available for this currency.');
+  host.innerHTML=form+`<details class="popup-withdrawal-history"><summary>Withdrawal history</summary><section id="${elId('withdrawalRecords')}" aria-label="Withdrawal receipts"></section></details>`;
+  renderWithdrawalHistory(d,get('withdrawalRecords'));
+  get('withdrawCurrency').onchange=e=>{if(pop){popupWithdraw=e.target.value;void popupWithdrawal();}else{withdrawCurrency=e.target.value;void activity('#withdrawCurrency');}};
+  const el=get('withdrawForm');if(!el)return;
   let reviewed=null,withdrawalKey=null,busy=false;
-  const inputs=el.querySelector('.withdraw-fields'),review=$('#withdrawReview'),edit=$('#withdrawEdit'),submit=el.querySelector('[type=submit]'),status=$('#withdrawStatus');
+  const inputs=el.querySelector('.withdraw-fields'),review=get('withdrawReview'),edit=get('withdrawEdit'),submit=el.querySelector('[type=submit]'),status=get('withdrawStatus');
   edit.onclick=()=>{
     reviewed=null;withdrawalKey=null;inputs.hidden=false;review.hidden=edit.hidden=true;
     submit.textContent='Review withdrawal';status.textContent='';el.elements.destination.focus();
@@ -563,16 +637,19 @@ async function showWithdraw(seq){
         status.textContent='Insufficient available balance.';return;
       }
       reviewed=fields;inputs.hidden=true;review.hidden=edit.hidden=false;
-      $('#reviewDetails').innerHTML=`<div class="review-amount">${logo(a.symbol)}<strong>${esc(fields.amount)} ${esc(a.symbol)}</strong></div>
+      get('reviewDetails').innerHTML=`<div class="review-amount">${logo(a.symbol)}<strong>${esc(fields.amount)} ${esc(a.symbol)}</strong></div>
         <dl class="bet-facts"><div><dt>Network</dt><dd>${esc(network(route.chain_id))}</dd></div><div><dt>Destination</dt><dd class="review-address">${esc(fields.destination)}</dd></div><div><dt>Processing</dt><dd>Manual review</dd></div></dl>`;
-      status.textContent='Confirm to reserve this amount for withdrawal.';submit.textContent='Confirm request';$('#reviewTitle').focus({preventScroll:true});return;
+      status.textContent='Confirm to reserve this amount for withdrawal.';submit.textContent='Confirm request';get('reviewTitle').focus({preventScroll:true});return;
     }
     busy=true;submit.disabled=edit.disabled=true;status.textContent='Submitting request…';
     const version=accountVersion;
     try{
       withdrawalKey ||= makeId();
       await api('/me/withdrawals',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...reviewed,request:withdrawalKey})});
-      if(version===accountVersion){await refresh();if(seq===activitySeq&&!accountPage.hidden)await activity();}
+      if(version===accountVersion){await refresh();if(live()){
+        if(pop){await showWithdraw(seq,host);if(live())get('withdrawStatus').textContent='Withdrawal requested. Your available balance reflects the reserved amount.';}
+        else await activity();
+      }}
     }catch(err){status.textContent=err.message;}finally{busy=false;submit.disabled=edit.disabled=false;}
   };
 }
@@ -680,8 +757,8 @@ async function startNotifications(){
 }
 function notificationList(rows){
   return rows.map(n=>`<article class="notice-entry" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><span class="notice-icon">${accountIcon(n.kind.startsWith('deposit')?'deposit':n.kind.startsWith('withdrawal')?'withdraw':n.kind==='reward.claimed'?'rewards':'transactions')}</span>
-    <div><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><p>${esc(amountText(n.amount,n.decimals,n.symbol))}${noticeInvoice(n)===null && n.chain_id?' · '+esc(network(n.chain_id)):''}</p>
-    ${n.kind==='deposit.pending' && n.required_conf!=null?`<small>Awaiting ${esc(n.required_conf)} confirmations</small>`:''}${invoiceLink(noticeInvoice(n))}${n.txid?`<details><summary>Transaction ID</summary>${explorerLink(n.chain_id,n.txid)}</details>`:''}</div><time>${esc(timeOf(n.created_at))}</time></article>`).join('');
+    <div><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><p>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?' · '+esc(network(n.chain_id)):''}</p>
+    ${n.kind==='deposit.pending' && n.required_conf!=null?`<small>Awaiting ${esc(n.required_conf)} confirmations</small>`:''}${n.txid?`<details><summary>Transaction ID</summary>${explorerLink(n.chain_id,n.txid)}</details>`:''}</div><time>${esc(timeOf(n.created_at))}</time></article>`).join('');
 }
 const popup=$('#noticePopup'),bell=$('#noticeBell'),popupFeed=popup.querySelector('.popup-feed'),popupStatus=popup.querySelector('.popup-status');
 let popupRequest=0,popupThrough='0',popupReading=false;
@@ -727,7 +804,7 @@ bell.onclick=()=>{
 };
 $('#closeNotices').onclick=()=>{closeNoticePopup();bell.focus();};
 $('#openInbox').onclick=e=>{if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();closeNoticePopup();open('notifications');};
-popup.addEventListener('click',e=>{if(e.target.closest('[data-retry=popup]'))void loadNoticePopup();else followInvoice(e);});
+popup.addEventListener('click',e=>{if(e.target.closest('[data-retry=popup]'))void loadNoticePopup();});
 $('#readPopup').onclick=async e=>{
   const button=e.currentTarget,version=accountVersion,through=popupThrough;
   if(popupReading || through==='0')return;
@@ -750,12 +827,12 @@ window.addEventListener('resize',positionPopup);
 function inboxReceipts(rows){
   return rows.map(n=>{
     const kind=n.kind.split('.')[0],section={withdrawal:'withdraw',reward:'rewards',balance:'transactions',deposit:'transactions'}[kind];
-    const id=noticeInvoice(n),reference=id===null?n.reference:uuid(id)?id:null;
-    const link=invoiceLink(id) || (section && (kind!=='deposit' || n.kind==='deposit.credited')?`<a class="section-link" href="${accountPath(section)}" data-view="${section}">${{withdraw:'View withdrawals',rewards:'View rewards',transactions:'View transactions'}[section]}</a>`:'');
+    const reference=n.reference;
+    const link=section && (kind!=='deposit' || n.kind==='deposit.credited')?`<a class="section-link" href="${accountPath(section)}" data-view="${section}">${{withdraw:'View withdrawals',rewards:'View rewards',transactions:'View transactions'}[section]}</a>`:'';
     return `<article class="notice-entry inbox-entry" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><details class="transaction-details"><summary class="activity-entry"><span class="notice-icon">${accountIcon({deposit:'deposit',withdrawal:'withdraw',reward:'rewards'}[kind]||'transactions')}</span>
       <span><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><small>${receiptTime(n.created_at)} <span class="inbox-unread">Unread</span></small></span>
-      <b>${esc(amountText(n.amount,n.decimals,n.symbol))}${id===null && n.chain_id?`<small>${esc(network(n.chain_id))}</small>`:''}</b></summary>
-      <div class="inbox-receipt"><dl class="bet-facts">${n.kind==='deposit.pending'&&n.required_conf!=null?`<div><dt>Confirmations at detection</dt><dd>${esc(n.confirmations??'—')} / ${esc(n.required_conf)}</dd></div>`:''}${reference?`<div><dt>${id?'Invoice ID':kind==='withdrawal'?'Request ID':'Reference'}</dt><dd>${esc(reference)}</dd></div>`:''}${n.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(n.chain_id,n.txid)}</dd></div>`:''}</dl>${link}</div></details></article>`;
+      <b>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?`<small>${esc(network(n.chain_id))}</small>`:''}</b></summary>
+      <div class="inbox-receipt"><dl class="bet-facts">${n.kind==='deposit.pending'&&n.required_conf!=null?`<div><dt>Confirmations at detection</dt><dd>${esc(n.confirmations??'—')} / ${esc(n.required_conf)}</dd></div>`:''}${reference?`<div><dt>${kind==='withdrawal'?'Request ID':'Reference'}</dt><dd>${esc(reference)}</dd></div>`:''}${n.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(n.chain_id,n.txid)}</dd></div>`:''}</dl>${link}</div></details></article>`;
   }).join('');
 }
 function paintInboxCount(){
@@ -816,9 +893,11 @@ function mountSection(heading){
   const fromOutside=accountPage.hidden || !accountPage.contains(document.activeElement);
   const previousY=!fromOutside && phoneWallet.matches?pageScroll.scrollTop:0;
   if(accountPage.hidden){accountOpener=document.activeElement?.closest('button,a,input,select');lobbyScroll=pageScroll.scrollTop;}
-  ++activitySeq;++addressVersion;++historyVersion;clearTimeout(invoiceExpiry);
+  ++activitySeq;++addressVersion;++historyVersion;
   accountPage.hidden=false;document.body.classList.add('account-open');
+  accountPage.dataset.section=user?view:'session';
   title.textContent=heading;
+  $('#walletDescription').textContent=user?sectionDescriptions[view]||'':'Sign in to view your account and wallet.';
   main.querySelector('.wallet-body')?.remove();
   main.insertAdjacentHTML('beforeend','<div class="wallet-body"><div id="walletContent"></div><section id="walletHistory" hidden></section></div>');
   rail.hidden=!user;
@@ -830,16 +909,21 @@ function mountSection(heading){
   pageScroll.scrollTop=Math.max(0,Math.min(previousY,pinAt));
   if(!document.activeElement?.closest('dialog[open],.modal:not([hidden])'))title.focus({preventScroll:true});
 }
-function open(mode='profile',push=true,depositCurrency=null,receiptId=null){
+function open(mode='profile',push=true,depositCurrency=null){
+  window.ebCancelPageTransition?.();
+  if(mode==='deposit'||mode==='withdraw'){
+    if(!user)return showSignedOut();
+    if(/^\/account\/(deposit|withdraw)\/?$/.test(location.pathname)){
+      history.replaceState(null,'','/');hideAccount();
+    }
+    closeNoticePopup();openSheet('wallet',mode,meta(depositCurrency)||current());return;
+  }
   if(!Object.hasOwn(accountSections,mode))return;
-  const requested=mode==='deposit'?(push?receiptId:new URLSearchParams(location.search).get('invoice')):null;
-  const id=uuid(requested)?requested.toLowerCase():requested;
-  const path=uuid(id)?invoicePath(id):accountPath(mode);
-  if(push && location.pathname+location.search!==path)history.pushState(mode==='deposit'?{depositEntry:true}:null,'',path);
-  else if(!push && uuid(id) && location.pathname+location.search+location.hash!==path)history.replaceState(history.state,'',path);
+  const path=accountPath(mode);
+  if(push && location.pathname+location.search!==path)history.pushState(null,'',path);
   if(!user)return showSignedOut();
   closeNoticePopup();closeMenu();
-  if(!accountPage.hidden && $('#walletNav [aria-current]')?.dataset.view===mode && !depositCurrency && invoiceId===id && !expandedBet){
+  if(!accountPage.hidden && $('#walletNav [aria-current]')?.dataset.view===mode && !expandedBet){
     revealActiveTab();
     if(!$('#walletNav').contains(document.activeElement)){
       if(mode==='profile')$('.account-rail').scrollTop=0;
@@ -847,19 +931,14 @@ function open(mode='profile',push=true,depositCurrency=null,receiptId=null){
     }
     return;
   }
-  view=mode;invoiceId=id;pageIndex=0;expandedBet=null;if(mode==='transactions')transactionType='all';
-  document.title=accountSections[mode]+' · EmpireBlox';
+  view=mode;pageIndex=0;expandedBet=null;if(mode==='transactions')transactionType='all';
+  document.title=accountSections[mode]+' · BANDITBLOX';
   mountSection(mode==='profile'?'Account overview':accountSections[mode]);
-  void renderSection(depositCurrency);
+  void renderSection();
 }
-async function renderSection(depositCurrency=null,reloadCatalog=false){
+async function renderSection(reloadCatalog=false){
   const mode=view,host=$('#walletContent');
-  // A return link is a lookup, never a payment result. Old invoices remain readable after a provider switch.
-  if(mode==='deposit' && invoiceId!==null){
-    depositAsset=null;
-    host.innerHTML='<section id="invoiceReceipt" aria-label="Deposit invoice"></section>';
-    void loadInvoice();
-  }else if(['stats','withdraw','deposit'].includes(mode) && (!catalogLoaded || reloadCatalog)){
+  if((mode==='stats' && !catalogLoaded) || reloadCatalog){
     loading(host,'Loading currencies',mode==='stats'?'stats':'form');
     try{await catalog();}
     catch{if(host.isConnected)host.innerHTML=notice('Could not load currencies.', 'catalog');return;}
@@ -868,19 +947,7 @@ async function renderSection(depositCurrency=null,reloadCatalog=false){
   }
   if(mode==='profile'){renderProfile();void profileLevel();}
   else if(mode==='security'){renderSecurity();return;}
-  else if(mode==='deposit'){
-    host.dataset.provider=depositProvider||'unavailable';
-    if(invoiceId===null){
-      if(depositProvider==='direct'){
-        const symbol=(meta(depositCurrency)||current())?.symbol,eligible=routes.filter(r=>r.symbol===symbol);
-        depositAsset=eligible.find(r=>r.chain_id==='ETH'&&r.enabled)||eligible.find(r=>r.enabled)||eligible[0]||routes.find(r=>r.enabled);renderDeposit();
-      }else{
-        ++addressVersion;depositAsset=null;
-        if(depositProvider==='oxapay')renderHostedForm(host,depositCurrency);
-        else host.innerHTML=notice('Could not load deposits.','catalog');
-      }
-    }
-  }else {
+  else {
     if(mode==='stats')statsAsset=current()?.id;
     if(mode==='withdraw')withdrawCurrency=current()?.id;
     void activity();return;
@@ -888,218 +955,80 @@ async function renderSection(depositCurrency=null,reloadCatalog=false){
   $('#walletHistory').hidden=false;
   void loadHistory();
 }
-function renderHostedForm(host,preferred){
-  const saved=history.state?.oxapayAttempt;
-  const attempt=saved?.owner===user.id && uuid(saved.request) && assets.some(a=>a.id===saved.asset) && typeof saved.amount==='string'?saved:null;
-  const initial=preferred || attempt?.asset || current()?.id;
-  host.innerHTML=`<form id="oxapayForm" novalidate>
-    <label class="amount-label" for="depositAmount">Enter your deposit amount</label>
-    <div class="deposit-entry"><input id="depositAmount" name="amount" inputmode="decimal" autocomplete="off" spellcheck="false" maxlength="60" placeholder="0.00" aria-describedby="depositMinimum depositStatus" required>
-      <div class="wallet-select"><span id="depositAssetLogo"></span><select name="asset" id="depositCurrency" aria-label="Deposit currency"></select></div></div>
-    <small id="depositMinimum"></small>
-    <p id="depositInstructions" hidden></p>
-    <p id="depositAvailability" class="wallet-notice" role="status" hidden></p>
-    <div class="deposit-actions"><button type="submit" class="wallet-primary" id="depositCheckout" aria-describedby="checkoutHint">Continue</button><button class="wallet-link" id="cancelDeposit" type="button">Cancel</button></div>
-    <span id="checkoutHint" hidden>Opens the payment checkout.</span>
-    <p id="depositStatus" class="checkout-feedback" role="status"></p></form>`;
-  const form=$('#oxapayForm'),select=form.elements.asset,input=form.elements.amount,status=$('#depositStatus');
-  updateHostedForm(initial);
-  if(attempt && attempt.asset===select.value){
-    input.value=attempt.amount;
-    status.textContent='You already requested this amount. Continue to reopen the same invoice.';
+function renderDeposit(host=$('#walletContent')) {
+  const popup=host===moneyPane,sym=popup?host.dataset.currency:directSymbol,cid=popup?host.dataset.network:directChain;
+  const elem=name=>popup?'popup'+name[0].toUpperCase()+name.slice(1):name,get=name=>host.querySelector('#'+elem(name));
+  if(!get('directDeposit')){
+    host.innerHTML=`<section id="${elem('directDeposit')}" class="direct-form" aria-label="Deposit details">${popup?'':`<header class="direct-heading"><span class="direct-emblem">${accountIcon('deposit')}</span><h2>Deposit</h2></header>`}
+      <div class="wallet-fields"><label><span class="deposit-field-label"><span class="deposit-step" aria-hidden="true">1</span>Currency</span><span class="wallet-select"><span id="${elem('directCurrencyIcon')}"></span><select id="${elem('depositSymbol')}" data-searchable aria-label="Deposit currency"></select></span></label>
+      <label><span class="deposit-field-label"><span class="deposit-step" aria-hidden="true">2</span>Network</span><span class="wallet-select"><select id="${elem('depositNetwork')}" aria-label="Deposit network"></select></span></label></div>
+      <p class="deposit-selection-note">${accountIcon('transactions')}Your playing currency stays unchanged.</p>
+      <div id="${elem('addressResult')}" aria-live="polite"></div></section>`;
   }
-  select.onchange=()=>{input.value='';input.removeAttribute('aria-invalid');status.textContent='';updateHostedForm();};
-  input.oninput=()=>{input.removeAttribute('aria-invalid');status.textContent='';};
-  $('#cancelDeposit').onclick=()=>history.state?.depositEntry?history.back():leaveAccount();
-  form.onsubmit=async event=>{
-    event.preventDefault();
-    if(form.getAttribute('aria-busy')==='true' || !walletFresh || depositProvider!=='oxapay' || !oxapayReady || depositsPaused)return;
-    const asset=assets.find(a=>a.id===select.value),amount=input.value.trim();
-    if(!asset)return;
-    const [whole,fraction='']=amount.split('.');
-    const units=amount.length<=60 && /^\d+(?:\.\d+)?$/.test(amount) && fraction.length<=asset.decimals?BigInt(whole+fraction.padEnd(asset.decimals,'0')):0n;
-    const minimum=BigInt(asset.min_deposit||'0');
-    if(units<=0n || units<minimum){
-      status.textContent=units>0n?`The minimum deposit is ${amountText(minimum,asset.decimals,asset.symbol)}.`:`Enter a positive amount in ${asset.symbol} with up to ${asset.decimals} decimal places.`;
-      input.setAttribute('aria-invalid','true');input.focus();return;
-    }
-    const version=accountVersion,previous=history.state?.oxapayAttempt;
-    const request=previous?.owner===user.id && previous.asset===asset.id && previous.units===String(units) && uuid(previous.request)?previous.request:makeId();
-    // Save only the intent on this session-history entry. A lost response or reload must not issue another invoice.
-    history.replaceState({...history.state,oxapayAttempt:{owner:user.id,asset:asset.id,amount,units:String(units),request}},'');
-    form.setAttribute('aria-busy','true');updateHostedForm();status.textContent='Preparing your checkout…';
-    try{
-      const d=await api(invoiceAPI,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({asset:asset.id,amount,request})});
-      if(version!==accountVersion || !form.isConnected)return;
-      if(!uuid(d?.id) || d.asset_id!==asset.id || d.decimals!==asset.decimals || d.amount!==String(units))throw new Error('Unexpected invoice details');
-      // Back from the hosted page lands on an authenticated receipt, not on the creation form.
-      history.replaceState({...history.state,oxapayAttempt:null},'',invoicePath(d.id));open('deposit',false);
-      const url=checkoutURL(d);
-      if(url)location.assign(url);
-    }catch(err){
-      if(version!==accountVersion || !form.isConnected)return;
-      if(err.status===401)return applyAccount(null);
-      if(err.status===400 && err.message==='Amount is below the deposit minimum' && minimum>0n)status.textContent=`Minimum deposit: ${amountText(minimum,asset.decimals,asset.symbol)}.`;
-      else if(err.status===400 && err.message==='No checkout network accepts this deposit amount')status.textContent='This amount is not available at checkout. Try a different amount.';
-      else if(err.status===400 && err.message==='This currency is unavailable at checkout')status.textContent='Choose a different deposit currency.';
-      else if(err.status===400)status.textContent='Check the deposit amount and currency, then try again.';
-      else if(err.status===409)status.textContent='Check your deposit history before starting another payment.';
-      else if(err.status===429)status.textContent='Too many deposit requests. Try again later.';
-      else status.textContent='Could not open checkout. Try again with the same amount to retrieve the same invoice.';
-    }finally{
-      if(form.isConnected){form.removeAttribute('aria-busy');updateHostedForm();}
-    }
+  const select=(symbol,chain)=>{
+    if(popup){host.dataset.currency=symbol;host.dataset.network=chain;}else{directSymbol=symbol;directChain=chain;}
+    renderDeposit(host);if(!popup)void loadHistory();
   };
-}
-function updateHostedForm(preferred){
-  const form=$('#oxapayForm');if(!form)return;
-  const select=form.elements.asset,input=form.elements.amount,ids=JSON.stringify(assets.map(a=>[a.id,a.symbol]));
-  if(form.dataset.currencies!==ids){
-    const old=select.value,keep=preferred || old || current()?.id;
-    select.innerHTML=currencyOptions(keep);form.dataset.currencies=ids;
-    if(old && old!==select.value){input.value='';$('#depositStatus').textContent='The deposit currency changed. Enter a new amount.';}
+  const saved=history.state?.directSelection;
+  if(!popup && (saved?.owner!==user.id || saved.symbol!==sym || saved.chain!==cid)){
+    history.replaceState({...history.state,directSelection:{owner:user.id,symbol:sym,chain:cid}},'');
   }
-  const a=assets.find(a=>a.id===select.value),symbol=a?.symbol||'',busy=form.getAttribute('aria-busy')==='true';
-  const availability=depositsPaused?'New deposits are temporarily paused.':!oxapayReady?'Checkout is temporarily unavailable.':!walletFresh?'Could not verify your session.':!a?'No deposit currencies are available.':'';
-  const warning=$('#depositAvailability');warning.hidden=!availability;
-  if(warning.dataset.message!==availability){
-    warning.innerHTML=availability?`${esc(availability)} <button class="wallet-link" type="button" data-retry="balance">Try again</button>`:'';
-    warning.dataset.message=availability;
-  }
-  if(form.dataset.symbol!==symbol){$('#depositAssetLogo').innerHTML=logo(symbol);form.dataset.symbol=symbol;}
-  const min=a?.min_deposit;
-  $('#depositMinimum').textContent=min!=null && BigInt(min)>0n?'Minimum deposit: '+amountText(min,a.decimals,symbol):'';
-  const noPayout=a && !routes.some(r=>r.enabled && r.symbol===symbol);
-  const instructions=$('#depositInstructions');instructions.hidden=!noPayout;
-  instructions.textContent=noPayout?`Withdrawals in ${symbol} are currently unavailable.`:'';
-  select.disabled=busy || !assets.length;input.disabled=busy || !a;
-  const button=$('#depositCheckout');button.disabled=busy || Boolean(availability);
+  const scoped=Object.hasOwn(directNetworks,sym),pairs=scoped?Object.entries(directNetworks[sym]):[],id=directId(sym,cid),asset=directRoutes.find(r=>r.id===id)||null;
+  if(!popup)depositAsset=asset;
+  const symbol=get('depositSymbol'),chain=get('depositNetwork');
+  symbol.onchange=()=>{const nets=Object.keys(directNetworks[symbol.value]||{});select(symbol.value,nets.includes(cid)?cid:nets[0]||'');};
+  chain.onchange=()=>select(sym,pairs.find(([,k])=>k===chain.value)?.[0]||'');
+  const symbols=(scoped?'':`<option value="${esc(sym)}" disabled>${esc(sym||'Select currency')} · unavailable</option>`)+Object.keys(directNetworks).map(s=>{
+    const detail=currencyNames[s]+(directRoutes.some(r=>r.symbol===s && intakeReady(r))?'':' · unavailable');
+    return `<option value="${s}" data-detail="${esc(detail)}" data-icon="/assets/wallet/${icons[s]}.svg">${s}</option>`;
+  }).join('');
+  const networks=(id?'':`<option value="" disabled>${scoped?'Choose a network':'Not available'}</option>`)+pairs.map(([n,key])=>`<option value="${key}">${esc(network(n))}${intakeReady(directRoutes.find(r=>r.id===key))?'':' · unavailable'}</option>`).join('');
+  // Polling balances must not replace an open picker or discard the player's choice.
+  if(symbol.dataset.options!==symbols){symbol.innerHTML=symbols;symbol.dataset.options=symbols;}
+  if(chain.dataset.options!==networks){chain.innerHTML=networks;chain.dataset.options=networks;}
+  symbol.value=sym;chain.value=id||'';chain.disabled=!scoped;
+  const icon=get('directCurrencyIcon');if(icon.dataset.symbol!==sym){icon.innerHTML=logo(sym);icon.dataset.symbol=sym;}
+  const state=!walletFresh?'session':depositsPaused?'paused':!scoped?'currency':!cid?'choose':!intakeReady(asset)?'network':'ready';
+  const result=get('addressResult'),key=JSON.stringify([sym,cid,state,asset?.min_deposit,asset?.decimals,chains.find(c=>c.id===cid)?.required_conf]);
+  get('directDeposit').dataset.state=state;
+  if(result.dataset.key===key)return;
+  result.dataset.key=key;result.removeAttribute('aria-busy');
+  if(state==='ready'){void loadAddress(asset,result,elem);return;}
+  const [heading,detail]=({session:['Session unavailable','Verify your session before sending a deposit.'],paused:['Deposits paused','Receiving is temporarily paused. Do not send a transfer.'],currency:[(sym||'This currency')+' deposits are not available','Choose a supported currency above.'],choose:['Select a network','Match the network in your sending wallet.'],network:[`${sym} on ${network(cid)} is unavailable`,'Do not send funds until a permanent address appears here.']})[state];
+  result.innerHTML=`<div class="direct-unavailable" data-state="${state}"><div class="receive-state-heading"><span class="deposit-step" aria-hidden="true">3</span><span>Receive address</span><span class="receive-state">Do not send</span></div><span class="unavailable-emblem" aria-hidden="true">${accountIcon(state==='paused'?'pause':'clock')}</span><div><h3>${esc(heading)}</h3><p>${esc(detail)}</p></div><button type="button" class="wallet-link" data-retry="balance">Check availability</button></div>`;
 }
-function checkoutURL(d){
-  if(d.status!=='waiting' || typeof d.payment_url!=='string' || d.payment_url.length>1024 || /[\s\\]/.test(d.payment_url) || !(Date.parse(d.expires_at)>Date.now()))return null;
-  try{
-    const u=new URL(d.payment_url);
-    if(u.protocol!=='https:' || u.username || u.password || u.port || u.search || u.hash)return null;
-    if((u.hostname==='pay.oxapay.com' && /^\/[\w-]+\/?$/.test(u.pathname)) || (u.hostname==='oxapay.com' && /^\/pay\/[\w-]+\/?$/.test(u.pathname)))return u.href;
-  }catch{}
-  return null;
-}
-function followInvoice(e){
-  const link=e.target.closest('[data-invoice]');
-  if(!link || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !uuid(link.dataset.invoice))return false;
-  e.preventDefault();open('deposit',true,null,link.dataset.invoice);return true;
-}
-async function loadInvoice(quiet=false){
-  const host=$('#invoiceReceipt'),id=invoiceId;
-  if(!host || host.getAttribute('aria-busy')==='true')return;
-  const newDeposit='<a href="/account/deposit" class="section-link" data-new-deposit data-view="deposit">New deposit</a>';
-  const unavailable=()=>{host.innerHTML=notice('Invoice not found for this account.')+newDeposit;};
-  if(!uuid(id))return unavailable();
-  host.setAttribute('aria-busy','true');
-  if(!quiet || !host.firstChild){
-    if(!host.dataset.status)loading(host,'Checking invoice status','form');
-    else if($('#invoiceFeedback'))$('#invoiceFeedback').textContent='Checking invoice status…';
-  }
-  try{
-    const d=await api(invoiceAPI+'/'+encodeURIComponent(id));
-    if(!host.isConnected)return;
-    if(!uuid(d?.id) || d.id.toLowerCase()!==id || typeof d.amount!=='string' || !/^\d{1,78}$/.test(d.amount) || !Number.isInteger(d.decimals) || d.decimals<0 || d.decimals>78 || !d.symbol)throw new Error('Invalid invoice');
-    const url=checkoutURL(d),notes={
-      creating:'Your invoice is being prepared. Check its status before starting another deposit.',
-      waiting:url?`Pay the exact amount in ${d.symbol} at checkout. Your balance updates after confirmation.`:
-        d.expires_at && Date.parse(d.expires_at)<=Date.now()?'The checkout window has ended. Check the status before starting another deposit.':'Could not verify the checkout link. Do not send a payment.',
-      paying:'Payment is awaiting confirmation. Do not pay this invoice again.',
-      underpaid:'The payment was less than the invoice amount. Contact support with this invoice ID before paying more.',
-      review:'This payment needs review. Keep the invoice ID for support and do not pay again.',
-      expired:'This invoice has expired. Do not send a payment. If you already paid, keep the invoice ID for support.',
-      failed:'Checkout could not be completed. If you sent a payment, contact support with this invoice ID.',
-      credited:'This deposit has been credited to your wallet.'
-    };
-    const markup=`<header class="checkout-heading"><span class="wallet-label">Deposit invoice</span><b class="wallet-status" id="invoiceStatus" role="status" data-state="${esc(d.status)}">${esc(invoiceLabels[d.status]||'Status unavailable')}</b></header>
-      <h2 class="invoice-amount">${logo(d.symbol)}${esc(amountText(d.amount,d.decimals,d.symbol))}</h2><p class="checkout-instructions">${esc(notes[d.status]||'Check the invoice status again before making a payment.')}</p>
-      <dl class="bet-facts invoice-facts"><div><dt>Invoice ID</dt><dd>${esc(id)}</dd></div>${d.created_at?`<div><dt>Created</dt><dd>${receiptTime(d.created_at)}</dd></div>`:''}${d.status==='credited' && d.credited_at?`<div><dt>Credited</dt><dd>${receiptTime(d.credited_at)}</dd></div>`:d.expires_at?`<div><dt>Checkout expiry</dt><dd>${receiptTime(d.expires_at)}</dd></div>`:''}</dl>
-      <div class="deposit-actions">${url?`<a class="wallet-primary" id="resumeCheckout" rel="noreferrer" href="${esc(url)}">Open checkout <span aria-hidden="true">&nearr;</span></a>`:''}<button class="secondary-action" type="button" id="refreshInvoice">Check status</button>${newDeposit}</div><p class="checkout-feedback" id="invoiceFeedback" role="status"></p>`;
-    if(receiptMarkup.get(host)!==markup){
-      const focus=host.contains(document.activeElement)?document.activeElement.id:null;
-      host.innerHTML=markup;receiptMarkup.set(host,markup);
-      if(focus)(document.getElementById(focus)||$('#refreshInvoice')).focus({preventScroll:true});
-    }
-    $('#invoiceFeedback').textContent='';
-    clearTimeout(invoiceExpiry);
-    if(url){
-      const expire=()=>{if(host.isConnected){$('#resumeCheckout')?.remove();$('#invoiceFeedback').textContent='The checkout window has ended. Check status before making a payment.';}};
-      invoiceExpiry=setTimeout(expire,Math.min(Math.max(0,Date.parse(d.expires_at)-Date.now()),2147483647));
-      $('#resumeCheckout').onclick=e=>{if(!checkoutURL(d)){e.preventDefault();expire();}};
-    }
-    const newlyCredited=d.status==='credited' && host.dataset.status!=='credited';host.dataset.status=d.status;
-    if(newlyCredited)void refresh();
-  }catch(err){
-    if(!host.isConnected)return;
-    if(err.status===401)return applyAccount(null);
-    clearTimeout(invoiceExpiry);receiptMarkup.delete(host);delete host.dataset.status;
-    if(err.status===404)return unavailable();
-    host.innerHTML=notice('Could not check this invoice. No payment status has been confirmed.','invoice')+newDeposit;
-  }finally{host.removeAttribute('aria-busy');}
-}
-function renderDeposit() {
-  const host = $('#walletContent');
-  depositAsset = routes.find(a => a.id === depositAsset?.id) || routes.find(r=>r.enabled);
-  if (!depositAsset) {
-    host.innerHTML = '<div id="addressResult">' + notice(catalogLoaded ? 'No deposit currencies are available.' : 'Could not load currencies.', 'catalog') + '</div>';
-    return;
-  }
-  const symbols = [...new Set(routes.filter(r=>r.enabled || assets.some(a=>a.symbol===r.symbol)).map(r=>r.symbol))];
-  const choices = routes.filter(a => a.symbol === depositAsset.symbol);
-  host.innerHTML = `<div class="wallet-fields"><label>Currency<div class="wallet-select">${logo(depositAsset.symbol)}<select id="depositSymbol" aria-label="Deposit currency">${symbols.map(s => `<option ${s === depositAsset.symbol ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div></label>
-    <label>Network<div class="wallet-select"><select id="depositNetwork" aria-label="Deposit network">${choices.map(a => `<option value="${esc(a.id)}" ${a.id === depositAsset.id ? 'selected' : ''}>${esc(network(a.chain_id))}${a.enabled?'':' · unavailable'}</option>`).join('')}</select></div></label></div>
-    <dl class="wallet-facts"><div><dt>Minimum deposit</dt><dd><strong>${esc(human(depositAsset.min_deposit, depositAsset.decimals))} ${esc(depositAsset.symbol)}</strong></dd></div>
-    <div><dt>Required confirmations</dt><dd><strong>${esc(chains.find(c => c.id === depositAsset.chain_id)?.required_conf)}</strong></dd></div></dl><div id="addressResult" aria-live="polite"></div>`;
-  $('#depositSymbol').onchange = e => {
-    const options = routes.filter(a => a.symbol === e.target.value);
-    depositAsset = options.find(a => a.chain_id === depositAsset.chain_id) || options[0]; renderDeposit(); void loadHistory();
-    $('#depositSymbol')?.focus({preventScroll:true});
-  };
-  $('#depositNetwork').onchange = e => {
-    depositAsset = meta(e.target.value); renderDeposit(); void loadHistory(); $('#depositNetwork')?.focus({preventScroll:true});
-  };
-  void loadAddress(depositAsset);
-}
-async function loadAddress(a, quiet = false) {
-  const seq = ++addressVersion, result = $('#addressResult');
-  if(!result || depositProvider!=='direct')return;
-  if(depositsPaused){result.innerHTML=notice('New deposits are temporarily paused.');result.removeAttribute('aria-busy');return;}
-  if (!a.enabled) {result.innerHTML=notice(network(a.chain_id)+' deposits are currently unavailable.');return;}
-  if (!quiet) loading(result,'Loading deposit address','address');
+async function loadAddress(a,result=$('#addressResult'),elem=name=>name) {
+  if(!result || depositsPaused || !walletFresh || !intakeReady(a))return;
+  const version=accountVersion,key=result.dataset.key,token=Symbol();result.requestToken=token;
+  const live=()=>result.isConnected&&key===result.dataset.key&&result.requestToken===token&&accountVersion===version;
+  loading(result,'Loading permanent deposit address','address');
   try {
     const d = await api('/me/address/' + encodeURIComponent(a.chain_id));
-    if (seq !== addressVersion || !result.isConnected || depositProvider!=='direct' || depositsPaused) return;
-    const supported = d.assets?.find(item => item.id === a.id);
-    const patterns={evm:/^0x[0-9a-fA-F]{40}$/,btc:/^bc1q[0-9a-z]{38}$/,sol:/^[1-9A-HJ-NP-Za-km-z]{32,44}$/,tron:/^T[1-9A-HJ-NP-Za-km-z]{33}$/};
-    if (d.chain !== a.chain_id || !supported || !patterns[chains.find(c=>c.id===a.chain_id)?.kind]?.test(d.address)) throw new Error('This deposit route is unavailable.');
-    const signature = JSON.stringify([a.id, d.address, d.required_conf, supported.min_deposit]);
-    if (quiet && result.dataset.signature === signature && $('#depositAddress')) return;
-    result.dataset.signature = signature;
-    const facts = $('#walletContent .wallet-facts').querySelectorAll('strong');
-    facts[0].textContent = human(supported.min_deposit, supported.decimals) + ' ' + a.symbol;
-    facts[1].textContent = d.required_conf;
-    result.innerHTML = `<div class="wallet-address"><div id="depositQr"></div><div class="address-fields"><label for="depositAddress">Your deposit address</label>
-      <textarea readonly id="depositAddress" rows="2" spellcheck="false" aria-describedby="depositSafety">${esc(d.address)}</textarea>
-      <div class="address-actions"><button type="button" class="wallet-primary" id="copyAddress">Copy address</button><span id="copyStatus" role="status"></span></div></div></div>
-      <p class="network-warning" id="depositSafety">Send only <strong>${esc(a.symbol)}</strong> on <strong>${esc(d.display_name)}</strong>. Funds sent on another network may be lost.</p>`;
-    if (window.qrcode) {
-      const qr = window.qrcode(0, 'M'); qr.addData(d.address); qr.make();
-      $('#depositQr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 16, scalable: true });
-      $('#depositQr').setAttribute('role','img');$('#depositQr').setAttribute('aria-label','Deposit address QR code');
-    } else $('#depositQr').hidden = true;
-    $('#copyAddress').onclick = () => copyAddress(d.address);
+    if (!live() || depositsPaused || !walletFresh || !intakeReady(directRoutes.find(r=>r.id===a.id))) return;
+    const supported=d.assets?.find(item=>item.id===a.id && item.symbol===a.symbol && item.kind===a.kind && item.decimals===a.decimals);
+    const pattern=a.chain_id==='SOL'?/^[1-9A-HJ-NP-Za-km-z]{32,44}$/:/^0x[0-9a-fA-F]{40}$/;
+    if(d.chain!==a.chain_id || !supported || !/^\d+$/.test(supported.min_deposit) || !Number.isSafeInteger(d.required_conf) || d.required_conf<1 || !pattern.test(d.address))throw new Error('Unavailable route');
+    const name=network(a.chain_id),route=`${a.symbol} on ${name}`;
+    result.innerHTML=`<div class="receive-card"><div class="receive-details"><span class="deposit-step" aria-hidden="true">3</span><div><label for="${elem('depositAddress')}">Permanent deposit address</label><p>Reuse this address for ${esc(route)}.</p></div></div>
+      <div class="deposit-qr" id="${elem('depositQr')}" role="img" aria-label="${esc(route)} deposit address QR code" hidden></div>
+      <textarea readonly id="${elem('depositAddress')}" rows="2" spellcheck="false" aria-describedby="${elem('depositSafety')}">${esc(d.address)}</textarea>
+      <div class="address-actions"><button type="button" id="${elem('copyAddress')}" class="copy-deposit-address">${accountIcon('copy')}Copy address</button><span role="status"></span></div></div>
+      <dl class="wallet-facts"><div><dt>Minimum deposit</dt><dd><strong>${esc(amountText(supported.min_deposit,supported.decimals,a.symbol))}</strong></dd></div>
+      <div><dt>Required confirmations</dt><dd><strong>${esc(d.required_conf)}</strong></dd></div></dl>
+      <p class="network-warning" id="${elem('depositSafety')}">${accountIcon('security')}<span>Send only <strong>${esc(a.symbol)}</strong> on <strong>${esc(name)}</strong>. Other currencies or networks may result in lost funds.</span></p>`;
+    result.querySelector('.copy-deposit-address').onclick = () => copyAddress(d.address,result);
+    if(window.qrcode){
+      const qr=window.qrcode(0,'M');qr.addData(d.address);qr.make();
+      const image=result.querySelector('.deposit-qr');image.innerHTML=qr.createSvgTag({cellSize:4,margin:16,scalable:true});image.hidden=false;
+    }
   } catch (err) {
-    if (seq !== addressVersion || accountPage.hidden || view !== 'deposit') return;
+    if (!live())return;
     if (err.status === 401) return applyAccount(null);
-    result.innerHTML = notice(err.status===503?'Deposit addresses are temporarily unavailable.':'Could not load this deposit address.', 'address');
-  } finally { if(seq===addressVersion)result.removeAttribute('aria-busy'); }
+    result.innerHTML = `<div class="direct-unavailable" data-state="error" role="status"><div class="receive-state-heading"><span class="deposit-step" aria-hidden="true">3</span><span>Receive address</span><span class="receive-state">Do not send</span></div><span class="unavailable-emblem" aria-hidden="true">${accountIcon('clock')}</span><div><h3>${err.status===503?'Deposit addresses are temporarily unavailable.':'Could not load this deposit address.'}</h3><p>Do not send funds until a permanent address appears here.</p></div><button type="button" class="wallet-link" data-retry="address">Try again</button></div>`;
+  } finally { if(live())result.removeAttribute('aria-busy'); }
 }
-async function copyAddress(address) {
-  const field = $('#depositAddress'), status = $('#copyStatus');
+async function copyAddress(address,result) {
+  const field=result.querySelector('textarea'),status=result.querySelector('.address-actions [role=status]');
   try {
     if (!navigator.clipboard?.writeText) throw new Error();
     await navigator.clipboard.writeText(address); status.textContent = 'Copied';
@@ -1112,26 +1041,32 @@ async function copyAddress(address) {
 function renderProfile() {
   const host=$('#walletContent');
   if(!$('#profileLevel')){
-    host.innerHTML=`<div class="profile-summary"><div class="wallet-identity"><span class="wallet-avatar" aria-hidden="true"></span>
-      <div><h2></h2><p></p><div class="profile-member">Member since <strong></strong></div></div></div></div>
-      <div class="profile-funds"><div><span class="balance-label">Available balance</span><div class="balance-value"></div></div>
-      <div class="account-quick"><button type="button" class="wallet-primary" data-view="deposit">${accountIcon('deposit')}Deposit</button><button type="button" class="secondary-action" data-view="withdraw">${accountIcon('withdraw')}Withdraw</button></div></div>
-      <div class="profile-ledger"><section aria-labelledby="balancesHeading"><div class="wallet-heading"><h3 id="balancesHeading">Wallet balances</h3></div><div id="profileBalanceStatus"></div><div class="wallet-balances"></div></section><aside id="profileLevel" aria-label="Reward progress"></aside></div>`;
+    host.innerHTML=`<div class="profile-dashboard"><div class="profile-summary"><div class="wallet-identity"><span class="wallet-avatar" aria-hidden="true"></span>
+      <div><span class="profile-eyebrow">Player account</span><h2></h2><p></p></div></div>
+      <div class="profile-reference"><div class="profile-member"><small>Member since</small><strong></strong></div><div class="profile-account-id"><small>Account ID</small><code></code></div></div></div>
+      <section class="profile-funds" aria-label="Playing balance"><div><span class="balance-label">Available balance</span><div class="balance-value"></div><p class="profile-balance-context"></p></div>
+      <div class="account-quick"><button type="button" class="wallet-primary" data-open-wallet>${accountIcon('deposit')}Open wallet</button></div></section>
+      <section class="profile-ledger" aria-labelledby="balancesHeading"><div class="wallet-heading"><div><h3 id="balancesHeading">Wallet balances</h3><p class="profile-panel-description">Each currency is shown separately.</p></div><span class="profile-currency-count"></span></div>
+      <div id="profileBalanceStatus"></div><div class="profile-balance-columns" aria-hidden="true"><span>Currency</span><span>Available</span></div><div class="wallet-balances" role="list" aria-labelledby="balancesHeading"></div></section>
+      <aside id="profileLevel" aria-label="Reward progress"></aside></div>`;
   }
   host.querySelector('.wallet-avatar').textContent=user.username.slice(0,1).toUpperCase();
   host.querySelector('.wallet-identity h2').textContent=user.username;
   host.querySelector('.wallet-identity p').textContent=user.email;
   host.querySelector('.profile-member strong').textContent=dateOf(user.created_at);
+  host.querySelector('.profile-account-id code').textContent=user.id;
   const all = new Map(assets.map(a => [a.id, a]));
   for (const b of balances.values()) if (!all.has(b.asset_id)) all.set(b.asset_id, { ...b, id: b.asset_id });
   const selected=current(),display=selected && walletFresh?amountOf(selected):'—';
   host.querySelector('.balance-value').innerHTML=`${selected?logo(selected.symbol):''}<strong>${esc(display)}</strong> <span>${esc(selected?.symbol)}</span>`;
+  host.querySelector('.profile-balance-context').textContent=selected?'Playing currency · '+(selected.id==='USDT'?'Tether':network(selected.chain_id)):'Choose a playing currency in the header.';
+  host.querySelector('.profile-currency-count').textContent=all.size+' '+(all.size===1?'currency':'currencies');
   const status=$('#profileBalanceStatus'),list=host.querySelector('.wallet-balances');
   if(walletFresh)status.replaceChildren();
   else if(!status.firstChild)status.innerHTML=notice('Balance update unavailable.', 'balance');
   if(!all.size && !catalogLoaded && catalogRequest){loading(list,'Loading wallet balances');return;}
   list.removeAttribute('aria-busy');
-  list.innerHTML=[...all.values()].map(a => `<div>${logo(a.symbol)}<span><strong>${esc(a.symbol)}</strong><small>${a.id==='USDT'?'Tether':esc(network(a.chain_id))}${a.id===selected?.id?' · Playing currency':''}</small></span><b>${esc(walletFresh ? amountOf(a) : '—')}</b></div>`).join('') ||
+  list.innerHTML=[...all.values()].map(a => `<div role="listitem"${a.id===selected?.id?' data-playing="true"':''}>${logo(a.symbol)}<span><strong>${esc(a.symbol)}</strong><small>${a.id==='USDT'?'Tether':esc(network(a.chain_id))}${a.id===selected?.id?' <span class="profile-playing-badge">Playing currency</span>':''}</small></span><b>${esc(walletFresh ? amountOf(a) : '—')}</b></div>`).join('') ||
     (catalogLoaded?'<p class="wallet-muted">No currencies available.</p>':notice('Could not load currencies.', 'balance'));
 }
 async function profileLevel(){
@@ -1143,7 +1078,7 @@ async function profileLevel(){
     const threshold=currentLevel?.threshold_usd||0,remaining=next?next.threshold_usd-threshold:1;
     const percent=next?Math.min(100,Math.max(0,100*(Number(d.wagered_usd)-threshold)/remaining)):100;
     const claims=d.levels.filter(l=>l.earned&&!l.claimed_at).length;
-    el.innerHTML=`<a href="/account/rewards" data-view="rewards" class="profile-level"><div><span class="profile-level-name">${currentLevel?rewardSymbol(currentLevel):accountIcon('rewards')} ${currentLevel?levelName(currentLevel):'Level rewards'}</span><strong>${claims?claims+' to claim':'View rewards'} <span aria-hidden="true">›</span></strong></div>
+    el.innerHTML=`<a href="/account/rewards" data-view="rewards" class="profile-level"><span class="profile-eyebrow">Reward progress</span><div><span class="profile-level-name">${currentLevel?rewardSymbol(currentLevel):accountIcon('rewards')} ${currentLevel?levelName(currentLevel):'Level rewards'}</span><strong>${claims?claims+' to claim':'View rewards'} <span aria-hidden="true">›</span></strong></div>
       <progress max="100" value="${percent}" aria-label="Level progress"></progress><small>${next?usd(Math.max(0,next.threshold_usd-Number(d.wagered_usd)))+' in wagers to '+esc(levelName(next)):'Highest level reached'}</small></a>`;
   }catch(err){
     if(!el.isConnected)return;
@@ -1152,17 +1087,17 @@ async function profileLevel(){
   }finally{el.removeAttribute('aria-busy');}
 }
 function renderSecurity(){
-  $('#walletContent').innerHTML=`<div id="securitySettings"><section aria-labelledby="identityHeading"><h2 id="identityHeading">Account details</h2><dl class="bet-facts"><div><dt>Email</dt><dd>${esc(user.email)}</dd></div><div><dt>Account ID</dt><dd>${esc(user.id)}</dd></div></dl>
+  $('#walletContent').innerHTML=`<div id="securitySettings"><section aria-labelledby="identityHeading"><header class="security-heading"><span>${accountIcon('profile')}</span><div><h2 id="identityHeading">Account details</h2><p>Your account identity and username.</p></div></header><dl class="bet-facts"><div><dt>Email</dt><dd>${esc(user.email)}</dd></div><div><dt>Account ID</dt><dd>${esc(user.id)}</dd></div></dl>
     <form id="changeName"><label>Username<input name="username" autocomplete="username" aria-describedby="usernameRules" value="${esc(user.username)}" pattern="[a-zA-Z0-9_]{2,20}" minlength="2" maxlength="20" required></label><small id="usernameRules">2 to 20 characters: letters, numbers and underscores.</small><button class="secondary-action">Save username</button><p role="status"></p></form></section>
-    <section aria-labelledby="passwordHeading"><h2 id="passwordHeading">Change password</h2><form id="changePassword"><label>Current password<input name="current" type="password" autocomplete="current-password" required></label><label>New password<input name="password" type="password" aria-describedby="passwordRules" minlength="8" maxlength="200" autocomplete="new-password" required></label><small id="passwordRules">Use at least 8 characters. Changing your password signs out other sessions.</small><button class="wallet-primary">Change password</button><p role="status"></p></form></section></div>`;
+    <section aria-labelledby="passwordHeading"><header class="security-heading"><span>${accountIcon('security')}</span><div><h2 id="passwordHeading">Change password</h2><p>Update the password used to sign in.</p></div></header><form id="changePassword"><label>Current password<input name="current" type="password" autocomplete="current-password" required></label><label>New password<input name="password" type="password" aria-describedby="passwordRules" minlength="8" maxlength="200" autocomplete="new-password" required></label><small id="passwordRules">Use at least 8 characters. Changing your password signs out other sessions.</small><button class="wallet-primary">Change password</button><p role="status"></p></form></section></div>`;
 }
 function dateOf(value) {
   return value ? new Date(value).toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'}) : '—';
 }
 async function loadHistory(retry=false) {
   const seq = ++historyVersion, el = $('#walletHistory');
-  const a = view==='deposit' && depositProvider==='direct' && invoiceId===null ? depositAsset : null;
-  const title = view==='profile'?'<div class="wallet-heading"><h3>Recent deposits</h3><a href="/account/deposit" data-view="deposit">View deposits</a></div>':'<div class="wallet-heading"><h3>Deposit history</h3></div>';
+  const a = view==='deposit' ? depositAsset : null;
+  const title = view==='profile'?'<div class="wallet-heading"><h3>Recent deposits</h3><a href="/account/transactions" data-view="transactions">View transactions</a></div>':'<div class="wallet-heading"><h3>Deposit history</h3></div>';
   const scope = user?.id + '/' + view + '/' + (a?.id || '');
   const changed=el.dataset.scope!==scope;
   if (changed) { el.dataset.scope = scope; el.innerHTML = title+'<div class="deposit-records"></div>'; }
@@ -1173,11 +1108,10 @@ async function loadHistory(retry=false) {
     if (seq !== historyVersion || accountPage.hidden) return;
     const filtered=data.deposits.filter(d=>!a || d.asset_id===a.id);
     const rows=view==='profile'?filtered.slice(0,3):filtered;
-    const labels={pending:'Pending',confirmed:'Confirmed',credited:'Credited',orphaned:'Removed from chain'};
-    renderReceipts(records,rows.map(d=>d.provider==='oxapay'?['oxapay:'+d.id,`<summary class="activity-entry wallet-transaction">${logo(d.symbol)}<span><strong>${esc(amountText(d.amount,d.decimals,d.symbol))}</strong><small>${esc(dateOf(d.first_seen_at))}</small></span><b class="wallet-status" data-state="${esc(d.status)}">${esc(invoiceLabels[d.status]||'Status unavailable')}</b></summary>
-      <dl class="bet-facts"><div><dt>Created</dt><dd>${receiptTime(d.first_seen_at)}</dd></div>${d.status==='credited' && d.credited_at?`<div><dt>Credited</dt><dd>${receiptTime(d.credited_at)}</dd></div>`:''}<div><dt>Invoice ID</dt><dd>${esc(d.id)}</dd></div></dl>${invoiceLink(d.id)}`]:[JSON.stringify([d.chain_id,d.asset_id,d.txid,d.amount,d.first_seen_at]),`<summary class="activity-entry wallet-transaction">${logo(d.symbol)}<span><strong>${esc(amountText(d.amount,d.decimals,d.symbol))}</strong><small>${esc(network(d.chain_id))} · ${esc(dateOf(d.first_seen_at))}</small></span>
+    const labels={pending:'Pending',confirmed:'Confirmed',credited:'Credited',orphaned:'Removed from chain',creating:'Archived',waiting:'Unpaid',paying:'Unresolved',underpaid:'Underpaid',review:'Under review',expired:'Expired',failed:'Failed'};
+    renderReceipts(records,rows.map(d=>[String(d.id),`<summary class="activity-entry wallet-transaction">${logo(d.symbol)}<span><strong>${esc(amountText(d.amount,d.decimals,d.symbol))}</strong><small>${esc(d.chain_id?network(d.chain_id):'Archived payment')} · ${esc(dateOf(d.first_seen_at))}</small></span>
       <b class="wallet-status" data-state="${esc(d.review_hold?'reviewing':d.status)}">${esc(d.review_hold?'Under review':labels[d.status]||d.status)}${d.status==='pending'&&!d.review_hold?`<small>${esc(d.confirmations)} / ${esc(d.required_conf)} conf.</small>`:''}</b></summary>
-      <dl class="bet-facts"><div><dt>First seen</dt><dd>${receiptTime(d.first_seen_at)}</dd></div>${d.credited_at?`<div><dt>Credited</dt><dd>${receiptTime(d.credited_at)}</dd></div>`:''}<div><dt>Confirmations</dt><dd>${esc(d.confirmations)} / ${esc(d.required_conf)}</dd></div>${d.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(d.chain_id,d.txid)}</dd></div>`:''}</dl>`]),
+      <dl class="bet-facts"><div><dt>First seen</dt><dd>${receiptTime(d.first_seen_at)}</dd></div>${d.credited_at?`<div><dt>Credited</dt><dd>${receiptTime(d.credited_at)}</dd></div>`:''}${d.required_conf!=null?`<div><dt>Confirmations</dt><dd>${esc(d.confirmations)} / ${esc(d.required_conf)}</dd></div>`:''}${d.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(d.chain_id,d.txid)}</dd></div>`:''}${d.provider==='archived'?`<div><dt>Archived reference</dt><dd>${esc(d.track_id||d.id)}</dd></div>`:''}</dl>`]),
       'No deposits'+(a?' in '+a.symbol+' on '+network(a.chain_id):'')+' yet.');
   } catch (err) {
     if (seq !== historyVersion || accountPage.hidden) return;
@@ -1200,10 +1134,9 @@ accountPage.addEventListener('submit',async event=>{
   }catch(err){status.dataset.state='error';status.textContent=err.message;}finally{button.disabled=false;}
 });
 accountPage.onclick = async e => {
+  if(e.target.closest('[data-open-wallet]'))return openSheet('wallet');
   if(e.target.closest('[data-signout]')){window.dispatchEvent(new Event('eb-signout'));return;}
   if(e.target.closest('[data-login]')){window.dispatchEvent(new Event('eb-login'));return;}
-  if(followInvoice(e))return;
-  if(e.target.closest('#refreshInvoice'))return loadInvoice();
   const tab=e.target.closest('[data-view]');if(tab){if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();return open(tab.dataset.view);}
   const turn=e.target.closest('[data-page]');if(turn){pageIndex+=Number(turn.dataset.page);return activity();}
   const bet=e.target.closest('[data-bet]');if(bet){expandedBet={id:bet.dataset.bet,game:bet.dataset.game};return activity('[data-back-bets]');}
@@ -1219,9 +1152,8 @@ accountPage.onclick = async e => {
   if (retry === 'address' && depositAsset) void loadAddress(depositAsset);
   if (retry === 'activity')void activity();
   if (retry === 'history') void loadHistory(true);
-  if (retry === 'invoice') void loadInvoice();
   if (retry === 'level') void profileLevel();
-  if (retry === 'catalog') void renderSection(depositAsset?.id,true);
+  if (retry === 'catalog') void renderSection(true);
   if (retry === 'balance') {
     const button=e.target.closest('[data-retry]');button.disabled=true;button.textContent='Retrying…';
     try{await refresh();}finally{button.disabled=false;button.textContent='Try again';}
@@ -1230,7 +1162,7 @@ accountPage.onclick = async e => {
 const lobbyTitle=document.title;
 function hideAccount(restoreFocus=false){
   if(accountPage.hidden)return;
-  ++activitySeq;++addressVersion;++historyVersion;clearTimeout(invoiceExpiry);
+  ++activitySeq;++addressVersion;++historyVersion;
   accountPage.hidden=true;document.body.classList.remove('account-open');document.title=lobbyTitle;
   $('.account-main .wallet-body')?.remove();$('#walletNav').replaceChildren();$('#railActions').replaceChildren();$('#railName').textContent='';
   pageScroll.scrollTop=lobbyScroll;
@@ -1245,21 +1177,19 @@ function leaveAccount(restoreFocus=true){
   history.pushState(null,'','/');hideAccount(restoreFocus);
 }
 function showSignedOut(){
-  document.title='Your account · EmpireBlox';mountSection('Your account');
+  document.title='Your account · BANDITBLOX';mountSection('Your account');
   if(sessionState==='unavailable')$('#walletContent').innerHTML=notice('Could not check your session.','session');
   else if(sessionState==='ready')$('#walletContent').innerHTML='<button type="button" class="wallet-primary" data-login>Sign in to your account</button>';
   else loading($('#walletContent'),'Checking your session');
 }
 $('#walletClose').onclick=e=>{if(!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey){e.preventDefault();leaveAccount();}};
 window.ebLeaveAccount=()=>leaveAccount(false);
-window.addEventListener('popstate',()=>{const section=routeSection();if(section)open(section,false);else hideAccount(true);});
+window.addEventListener('popstate',()=>{window.ebCancelPageTransition?.();const section=routeSection();if(section)open(section,false);else hideAccount(true);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.defaultPrevented&&!e.isComposing&&!accountPage.hidden&&!document.querySelector('dialog[open],.modal:not([hidden]),#gmenu:not([hidden])')&&menu.hidden)leaveAccount();});
-$('#ebwDep').onclick=()=>depositProvider==='direct' && phoneWallet.matches?openSheet('deposit'):open('deposit',true,depositProvider==='oxapay'?current()?.id:null);
+$('#ebwDep').onclick=()=>openSheet('wallet');
 function describePlus(){
-  const plus=$('#ebwDep'),sheet=depositProvider==='direct' && phoneWallet.matches;
-  if(sheet){plus.setAttribute('aria-haspopup','dialog');plus.setAttribute('aria-expanded',String(menu.open && sheetMode==='deposit'));}
-  else{plus.removeAttribute('aria-haspopup');plus.removeAttribute('aria-expanded');}
-  plus.setAttribute('aria-controls',sheet?'ebwMenu':'accountPage');
+  const plus=$('#ebwDep');plus.title='Wallet';plus.setAttribute('aria-label','Wallet');plus.setAttribute('aria-haspopup','dialog');
+  plus.setAttribute('aria-expanded',String(menu.open && sheetMode==='wallet'));plus.setAttribute('aria-controls','ebwMenu');
 }
 describePlus();phoneWallet.addEventListener('change',describePlus);
 window.ebOpenWallet = open;

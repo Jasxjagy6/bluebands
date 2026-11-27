@@ -13,7 +13,7 @@ try {
     '-p','127.0.0.1::5432','postgres:16-alpine');
   const port = docker('port',id,'5432/tcp').trim().split(':').pop();
   const env = {...process.env, NODE_ENV:'test', DATABASE_URL:`postgres://postgres:${password}@127.0.0.1:${port}/postgres`,
-    TREASURY_MASTER_KEY: randomBytes(32).toString('base64'),PUBLIC_SITE_ORIGIN:'https://payments.test.invalid',ALLOW_ORIGIN:'',COOKIE_SECURE:'false'};
+    TREASURY_MASTER_KEY: randomBytes(32).toString('base64'),ALLOW_ORIGIN:'',COOKIE_SECURE:'false'};
   for (let attempt=0; attempt<100; attempt++) {
     try { docker('exec',id,'pg_isready','-h','127.0.0.1','-U','postgres'); break; }
     catch { if (attempt===99) throw new Error('Test database did not start'); await wait(200); }
@@ -21,6 +21,7 @@ try {
   const run = (...args) => execFileSync(process.execPath,args,{cwd:dir,env,stdio:'inherit'});
   run('--import','tsx','src/migrate.ts');
   run('--import','tsx','src/migrate.ts');
-  const tests = readdirSync(dir + '/src/test').filter(f => /\.(test|int|browser)\.(ts|mjs)$/.test(f));
-  run('--import','tsx','--test','--test-concurrency=1',...tests.map(f => 'src/test/'+f));
+  const selected=process.argv.slice(2),files=readdirSync(dir+'/src/test').filter(f=>/\.(test|int|browser)\.(ts|mjs)$/.test(f));
+  if(selected.some(f=>!files.includes(f)))throw new Error('Select existing test filenames only');
+  run('--import','tsx','--test','--test-concurrency=1',...(selected.length?selected:files).map(f=>'src/test/'+f));
 } finally { docker('rm','-f',id); }
