@@ -513,3 +513,35 @@ body:has(#accountAlert:not([hidden])) #toast.show {bottom:calc(240px + var(--mob
 #ebwMenu .coin-equivalent>small {grid-column:1/-1;color:#a5bad3;font-size:9px;line-height:1.6}
 #ebwCcy[data-usd-preview] #ebwSym {color:#d7e6f6}
 #ebwCcy[data-usd-preview] .currency-logo {filter:none}
+
+/* The coin balance unfolds into one connected header control. */
+#ebwPill:has(#ebwCcy[aria-expanded=true]) {background:#1a212b;border-color:#45505f;border-bottom-color:transparent;border-bottom-left-radius:0;border-bottom-right-radius:0}
+#ebwCcy[aria-expanded=true] {background:transparent;border-radius:5px;box-shadow:none}
+#ebwCcy .currency-chevron {transition:transform .15s ease}
+#ebwMenu[data-mode=play] {background:#1a212b;border:1px solid #45505f;border-radius:0 0 9px 9px;overflow:visible;box-shadow:0 18px 30px -16px #000b;transform-origin:top right}
+#ebwMenu[data-mode=play]::before {content:"";position:absolute;z-index:1;top:-2px;left:var(--coin-join-left,1px);width:var(--coin-join-width,0px);height:4px;background:#1a212b;pointer-events:none}
+#ebwMenu[data-mode=play] :is(.sheet-heading,.wallet-search,.sheet-columns) {display:none}
+#ebwMenu[data-mode=play] .sheet-list {flex:0 1 auto;min-height:0;padding:7px;overflow-y:auto}
+#ebwMenu[data-mode=play] .sheet-list button {min-height:48px}
+#ebwMenu[data-mode=play] .coin-equivalent {background:#1a212b;border-top-color:#46536670;border-radius:0 0 8px 8px;padding:11px 13px}
+#ebwMenu[data-mode=play] .coin-equivalent>small {font-size:8px}
+#ebwMenu[data-mode=play][open] {animation:coin-dropdown-unfold .15s ease-out both}
+@keyframes coin-dropdown-unfold {from {opacity:0;transform:scaleY(.94)}to {opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#ebwMenu[data-mode=play][open] {animation:none}#ebwCcy .currency-chevron {transition:none}}
+@media(forced-colors:active){#ebwMenu[data-mode=play]::before {background:Canvas}#ebwMenu[data-mode=play] {border-color:CanvasText}}
+
+/* A readable dropdown centered beneath the Coins control, with persistent coin icons. */
+#ebwIco {display:flex;align-items:center;flex:0 0 auto;visibility:visible;opacity:1}
+#ebwIco .currency-logo {display:block;width:24px;height:24px;min-width:24px;object-fit:contain;visibility:visible;opacity:1;flex:none}
+#ebwMenu[data-mode=play] {transform-origin:top center}
+#ebwMenu[data-mode=play] .sheet-list {padding:8px}
+#ebwMenu[data-mode=play] .sheet-list button {grid-template-columns:24px minmax(0,1fr) minmax(0,auto) 12px;gap:8px;min-height:56px;padding:9px 8px}
+#ebwMenu[data-mode=play] .sheet-list .currency-logo {display:block;width:24px;height:24px;min-width:24px;object-fit:contain;visibility:visible;opacity:1}
+#ebwMenu[data-mode=play] .sheet-list strong {font-size:12px}
+#ebwMenu[data-mode=play] .sheet-list small {display:block;font-size:10px}
+#ebwMenu[data-mode=play] .sheet-list b {font-size:12px}
+#ebwMenu[data-mode=play] .coin-equivalent {grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;padding:12px 14px}
+#ebwMenu[data-mode=play] .coin-equivalent>span {font-size:11px}
+#ebwMenu[data-mode=play] .coin-equivalent>strong {font-size:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#ebwMenu[data-mode=play] .coin-equivalent>small {grid-column:1/-1;font-size:9px}
+@media(max-width:740px){#ebwIco .currency-logo {width:18px;height:18px;min-width:18px}}

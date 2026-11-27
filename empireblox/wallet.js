@@ -102,13 +102,15 @@ function usdEquivalent(a=current()){
 function renderBalanceDisplay(){
   const a=current(),equivalent=balancePreview&&a?.id==='COINS';
   const usd=usdEquivalent(a),amount=a&&walletFresh?(equivalent?usd:amountOf(a)):null;
-  $('#ebwIco').innerHTML=a?logo(equivalent?'USD':a.symbol):'';
+  const icon=$('#ebwIco'),iconSymbol=a?.symbol||'COINS';
+  if(icon.dataset.symbol!==iconSymbol||!icon.querySelector('img')){icon.innerHTML=logo(iconSymbol);icon.dataset.symbol=iconSymbol;}
   $('#ebwSym').textContent=equivalent?'USD':a?.symbol||'';
   $('#ebwBal').textContent=amount??'—';
   trigger.toggleAttribute('data-usd-preview',equivalent);
   trigger.title=amount===null?'Balance unavailable':equivalent?`${amount} USD equivalent · Release to show coins`:`${amount} ${a.symbol} available · Hold to preview USD · Open balance details`;
   trigger.setAttribute('aria-label',(equivalent?'USD equivalent, ':'Coin balance, ')+(amount??'unavailable')+(equivalent?'. Release to show coins':` ${a?.symbol||''}. Open balance details`));
   const detail=$('#coinEquivalentValue');if(detail&&detail.textContent!==usd)detail.textContent=usd;
+  if(menu.open&&sheetMode==='play')positionMenu();
 }
 function startBalancePreview(){
   if(!walletFresh||current()?.id!=='COINS'||balancePreview)return;
@@ -201,13 +203,19 @@ function closeMenu(focus=false){
 }
 function positionMenu(){
   if(!menu.open)return;
-  const r=sheetTrigger().getBoundingClientRect(),vv=window.visualViewport,edge=12,wallet=sheetMode==='wallet';
+  const vv=window.visualViewport,edge=12,wallet=sheetMode==='wallet';
+  const r=(wallet?sheetTrigger():$('#ebwPill')).getBoundingClientRect();
   const x=vv?.offsetLeft||0,y=vv?.offsetTop||0,w=vv?.width||document.documentElement.clientWidth,h=vv?.height||innerHeight;
-  const top=r.bottom+6,floor=y+h-edge,aboveTabs=Math.min(floor,pageScroll.getBoundingClientRect().bottom-4);
+  const top=r.bottom+(wallet?6:-1),floor=y+h-edge,aboveTabs=Math.min(floor,pageScroll.getBoundingClientRect().bottom-4);
   const room=Math.max(0,wallet?h-2*edge:(aboveTabs-top>=150?aboveTabs:floor)-top);
-  const width=Math.min(w-2*edge,wallet?464:292);
+  const width=Math.min(w-2*edge,wallet?464:Math.max(236,r.width));
   menu.style.width=width+'px';menu.style.maxHeight=Math.min(wallet?720:386,room)+'px';
-  menu.style.left=x+(w-width)/2+'px';
+  const left=wallet?x+(w-width)/2:Math.max(x+edge,Math.min(r.left+(r.width-width)/2,x+w-width-edge));
+  menu.style.left=left+'px';
+  if(!wallet){
+    menu.style.setProperty('--coin-join-left',Math.max(0,r.left-left)+'px');
+    menu.style.setProperty('--coin-join-width',Math.max(0,Math.min(r.width-2,left+width-r.left-1))+'px');
+  }
   menu.style.top=(wallet?y+Math.max(edge,(h-menu.getBoundingClientRect().height)/2):top)+'px';
   menu.toggleAttribute('data-compact',room<270);
   menu.toggleAttribute('data-tight',room<140);
@@ -274,7 +282,7 @@ function openSheet(mode,next,asset){
   menu.querySelector('[data-wallet-back]').hidden=true;menu.dataset.view='balances';sheetList.hidden=false;menu.querySelector('.sheet-columns').hidden=false;
   menu.hidden=false;
   if(wallet)startWalletLoading('Loading wallet…');else renderMenu();
-  if(wallet||phoneWallet.matches)menu.showModal();else menu.show();
+  if(wallet)menu.showModal();else menu.show();
   positionMenu();opener.setAttribute('aria-expanded','true');
   const active=wallet?$('#currencySheetTitle'):menu.querySelector('[aria-pressed=true]')||$('#walletSearch');
   active.focus({preventScroll:true});
@@ -329,7 +337,7 @@ window.addEventListener('pointercancel',resetBalancePreview,true);
 window.addEventListener('blur',resetBalancePreview);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)resetBalancePreview();});
 $('#walletSearch').oninput=()=>{sheetList.scrollTop=0;renderMenu();};
-phoneWallet.addEventListener('change',()=>{if(menu.open && sheetMode==='play')closeMenu(true);else positionMenu();});
+phoneWallet.addEventListener('change',positionMenu);
 menu.addEventListener('cancel',e=>{e.preventDefault();closeMenu(true);});
 menu.onclick = async e => {
   if(e.target===menu){

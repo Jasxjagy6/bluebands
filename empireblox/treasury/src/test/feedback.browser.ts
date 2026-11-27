@@ -68,7 +68,7 @@ test('USD preview lasts only while pressed and the original dropdown shows the e
   const {page,setBalance}=await fixture(t);const writes:string[]=[];page.on('request',r=>{if(r.method()!=='GET')writes.push(r.url());});
   setBalance('6000000000000000000000');await page.evaluate(()=>(window as any).ebWalletRefresh());const url=page.url(),trigger=page.locator('#ebwCcy');
   await trigger.hover();await page.mouse.down();assert.equal(await page.locator('#ebwBal').innerText(),'$10.00');assert.equal(await page.locator('#ebwSym').innerText(),'USD');
-  assert.match(await page.locator('#ebwIco img').getAttribute('src')||'',/usd\.svg$/);
+  assert.match(await page.locator('#ebwIco img').getAttribute('src')||'',/coin\.svg$/);
   await page.mouse.up();await page.getByRole('dialog',{name:'Coin balance',exact:true}).waitFor();assert.equal(await page.locator('#ebwSym').innerText(),'COINS');
   assert.equal(await page.locator('#coinEquivalentValue').innerText(),'$10.00');assert.equal(await page.locator('#ebwMenu [data-profile]').count(),0);
   for(const [coins,expected] of [['12000000000000000000000','$20.00'],['1','<$0.01'],['0','$0.00']]){
@@ -90,6 +90,35 @@ test('touch release and touch cancellation immediately restore the coin balance'
   await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});assert.equal(await page.locator('#ebwSym').innerText(),'USD');
   await client.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});assert.equal(await page.locator('#ebwSym').innerText(),'COINS');
   assert.equal(await page.locator('dialog[open]').count(),0);assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'COINS');
+});
+test('coin menu joins its header on every screen while the wallet remains centered',async t=>{
+  const {page}=await fixture(t);await page.emulateMedia({reducedMotion:'reduce'});
+  for(const width of [320,390,768,1440]){
+    await page.setViewportSize({width,height:800});const trigger=page.locator('#ebwCcy');await trigger.click();
+    const menu=page.getByRole('dialog',{name:'Coin balance',exact:true});await menu.waitFor();
+    const group=page.locator('#ebwPill'),anchor=await group.boundingBox(),box=await menu.boundingBox();assert.ok(anchor&&box);
+    assert.ok(Math.abs(box.y-(anchor.y+anchor.height-1))<1,'Dropdown joins directly beneath the balance');
+    assert.ok(Math.abs(box.x+box.width/2-anchor.x-anchor.width/2)<1,'Dropdown is centered beneath the combined Coins and Wallet control');
+    assert.ok(box.width>=236,'Menu retains enough width for its icon, label and amount');
+    await page.waitForFunction(()=>Array.from(document.querySelectorAll<HTMLImageElement>('#ebwIco img,#ebwMenu .sheet-list img')).every(img=>img.complete&&img.naturalWidth>0));
+    for(const image of [page.locator('#ebwIco img'),menu.locator('.sheet-list .currency-logo')]){
+      assert.ok(await image.isVisible());assert.match(await image.getAttribute('src')||'',/coin\.svg$/);
+      const size=await image.boundingBox();assert.ok(size&&size.width>=18&&size.height>=18,'Coin icon stays visible at its intended size');
+    }
+    assert.ok(await menu.evaluate(el=>el.scrollWidth<=el.clientWidth),JSON.stringify(await menu.evaluate(el=>({client:el.clientWidth,scroll:el.scrollWidth,width:el.getBoundingClientRect().width,overflow:Array.from(el.querySelectorAll('*')).filter(x=>x.getBoundingClientRect().right>el.getBoundingClientRect().right).map(x=>({tag:x.tagName,cls:x.className,text:x.textContent?.slice(0,35),width:x.getBoundingClientRect().width}))}))));
+    assert.ok(box.x>=0&&box.x+box.width<=width&&box.y+box.height<=800);
+    assert.equal(await menu.evaluate(el=>el.matches(':modal')),false);
+    assert.equal(await menu.evaluate(el=>getComputedStyle(el).backgroundColor),await group.evaluate(el=>getComputedStyle(el).backgroundColor));
+    assert.equal(await menu.evaluate(el=>getComputedStyle(el).borderTopLeftRadius),'0px');
+    assert.equal(await menu.locator('.sheet-heading').isVisible(),false);assert.equal(await menu.locator('.wallet-search').isVisible(),false);
+    assert.ok(await menu.locator('.coin-equivalent').isVisible());
+    const dir=process.env.WALLET_SCREENSHOT_DIR;if(dir){await mkdir(dir,{recursive:true});await page.screenshot({path:resolve(dir,'joined-coins-'+width+'.png')});}
+    await page.mouse.click(2,700);assert.equal(await menu.isVisible(),false);assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+    await page.locator('#ebwDep').click();await page.locator('#walletSummary:visible').waitFor();
+    const wallet=page.getByRole('dialog',{name:'Wallet',exact:true}),bounds=await wallet.boundingBox();assert.ok(bounds);
+    assert.equal(await wallet.evaluate(el=>el.matches(':modal')),true);assert.ok(Math.abs(bounds.x+bounds.width/2-width/2)<1);
+    assert.equal(await wallet.locator('.sheet-heading').isVisible(),true);await page.keyboard.press('Escape');
+  }
 });
 test('game search and category filters compose, with a keyboard-accessible empty-state reset',async t=>{
   const {page}=await fixture(t);

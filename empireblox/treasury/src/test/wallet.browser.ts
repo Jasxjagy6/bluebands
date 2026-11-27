@@ -82,6 +82,11 @@ test('the original coin dropdown fits phones and desktop with a read-only USD va
     assert.match(await sheet.locator('.coin-equivalent').innerText(),/USD equivalent.*\$/s);
     assert.ok(await sheet.locator('.coin-equivalent').isVisible());
     const box=await sheet.boundingBox();assert.ok(box&&box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=page.viewportSize()!.height,JSON.stringify(box));
+    const anchor=await page.locator('#ebwPill').boundingBox();assert.ok(anchor);
+    assert.ok(Math.abs(box.y-(anchor.y+anchor.height-1))<1,'Dropdown must meet the balance control without a gap');
+    assert.ok(Math.abs(box.x+box.width/2-anchor.x-anchor.width/2)<1,'Dropdown stays centered beneath the top Coins and Wallet control');
+    assert.equal(await sheet.evaluate(el=>el.matches(':modal')),false);
+    assert.equal(await sheet.evaluate(el=>getComputedStyle(el).borderTopLeftRadius),'0px');
     assert.ok(box.width<=292);await sheet.locator('.coin-equivalent').click();assert.equal(page.url(),url);
     assert.equal(await page.evaluate(()=>(window as any).ebCurrency()),'COINS');await screenshot('classic-coin-dropdown-'+width);
     await page.keyboard.press('Escape');assert.equal(await page.locator('#ebwCcy').getAttribute('aria-expanded'),'false');
