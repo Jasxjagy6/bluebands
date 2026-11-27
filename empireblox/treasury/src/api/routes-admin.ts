@@ -14,7 +14,7 @@ import { depositSetup } from './routes-user.js';
 
 async function writeSecret(name:string,value:string|null,actor:string,ip:string){
   return tx(async c=>{
-    if(/^rpc:(ETH|BSC|POL|SOL)$/.test(name) && (await c.query('select 1 from custody_root where sealed_seed is not null')).rowCount)return false;
+    if(name==='alchemy:API_KEY' || /^rpc:(ETH|BSC|POL|SOL)$/.test(name))return false;
     if(value===null)await deleteSecret(name,c);else await setSecret(name,value,actor,c);
     await c.query('insert into audit_log(actor,action,detail,ip) values($1,$2,$3,$4)',[actor,value===null?'secret.delete':'secret.set',{name},ip]);
     return true;
@@ -119,7 +119,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // --- Secrets (write-only values; never returned in plaintext) ---
-    r.get('/api/admin/secrets', async () => ({ secrets: await listSecretMeta() }));
+    r.get('/api/admin/secrets', async () => ({ secrets: (await listSecretMeta()).filter(secret=>
+      !/^alchemy:API_KEY(?::\d+)?$/.test(secret.name) && secret.name!=='drpc:API_KEY' && !/^rpc:(ETH|BSC|POL|SOL)$/.test(secret.name)) }));
 
     r.put('/api/admin/secrets', async (req, reply) => {
       const body = z.object({ name: z.string().min(1).max(64), value: z.string().min(1).max(4096) }).safeParse(req.body);
@@ -129,14 +130,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         catch { return reply.code(400).send({error:'Enter a watch-only extended public key'}); }
       }
       if(!/^(rpc|xpub):(EVM|ETH|BSC|POL|SOL|BTC|TRON)$/.test(body.data.name))return reply.code(400).send({error:'Use a supported network RPC or watch-only key'});
-      if(!await writeSecret(body.data.name,body.data.value,req.admin!.username,req.ip))return reply.code(409).send({error:'Manage enrolled network RPCs through Direct wallets.'});
+      if(!await writeSecret(body.data.name,body.data.value,req.admin!.username,req.ip))return reply.code(409).send({error:'Manage launch network RPC configuration through Direct wallets.'});
       return { ok: true };
     });
 
     r.delete('/api/admin/secrets/:name', async (req, reply) => {
       const p = z.object({ name: z.string().min(1).max(64) }).safeParse(req.params);
       if (!p.success) return reply.code(400).send({ error: 'Bad name' });
-      if(!await writeSecret(p.data.name,null,req.admin!.username,req.ip))return reply.code(409).send({error:'Manage enrolled network RPCs through Direct wallets.'});
+      if(!/^(?:rpc:(?:ETH|BSC|POL|SOL|BTC|TRON)|xpub:(?:EVM|ETH|BSC|POL|SOL|BTC|TRON))$/.test(p.data.name))return reply.code(400).send({error:'Unsupported secret name'});
+      if(!await writeSecret(p.data.name,null,req.admin!.username,req.ip))return reply.code(409).send({error:'Manage launch network RPC configuration through Direct wallets.'});
       return { ok: true };
     });
 
@@ -206,7 +208,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // --- Settings (kill switches) ---
-    r.get('/api/admin/settings', async () => ({settings:(await query('select key,value from settings order by key')).rows,...await depositSetup()}));
+    r.get('/api/admin/settings', async () => {
+      const [settings,pause]=await Promise.all([
+        query("select key,value from settings where key='deposits_paused' order by key"),
+        query(`select (select value from settings where key='deposits_paused') is distinct from 'false'::jsonb as deposits_paused,
+          coalesce((select deposits_paused from alchemy_rpc_state where singleton),false) as provider_paused`),
+      ]);
+      return {settings:settings.rows,...pause.rows[0],issuance_paused:pause.rows[0].deposits_paused||pause.rows[0].provider_paused};
+    });
 
     r.patch('/api/admin/settings', async (req, reply) => {
       const b = z.object({key:z.literal('deposits_paused'),value:z.boolean()}).strict().safeParse(req.body);

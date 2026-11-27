@@ -21,8 +21,14 @@ export async function submitCustodyEnvelope(c: PoolClient, keyId: string, sealed
 /** Called inside the registration/issuance transaction. The API handles public material only. */
 export async function allocateCustodyAddresses(c: PoolClient, userId: string, requested?: string): Promise<Address[]> {
   if (requested!==undefined && !launch.includes(requested)) return [];
-  const gates=await c.query(`select value from settings where key='deposits_paused' for share`);
-  if(gates.rows[0]?.value!==false)return [];
+  const gates=await c.query(`with manual as materialized (
+      select value from settings where key='deposits_paused' for share
+    ), provider as materialized (
+      select deposits_paused from alchemy_rpc_state where singleton for share
+    )
+    select (select value from manual) as manual_pause,
+      coalesce((select deposits_paused from provider),false) as provider_pause`);
+  if(gates.rows[0]?.manual_pause!==false||gates.rows[0]?.provider_pause)return [];
   const key=(await c.query<{key_id:string;evm_xpub:string|null}>(
     'select key_id,evm_xpub from custody_root where singleton for share')).rows[0];
   if (!requested && !key?.evm_xpub) return [];

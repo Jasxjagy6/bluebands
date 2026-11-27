@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { setTimeout as wait } from 'node:timers/promises';
 import { pool } from '../db.js';
-import { getSecret } from '../vault.js';
+import { createAlchemyFetch, getRpcConfig } from '../chains/rpc.js';
 import { provisionCustodyKeys } from './keys.js';
 import { createEvmSweepAdapter } from './evm-sweep.js';
 import { createSolSweepAdapter } from './sol-sweep.js';
@@ -32,9 +32,10 @@ async function run(): Promise<void> {
               join custody_sweep_jobs j on j.id=s.job_id where s.chain_id=n.chain_id and s.finalized_at is null
               and j.status not in ('review','dust','completed')) as reconciling from custody_sweep_networks n where n.chain_id=$1`, [chain])).rows[0];
             if (!net?.sweeps_enabled && !net?.reconciling) { await health(chain, 'paused'); return; }
-            const url = await getSecret('rpc:' + chain);
-            if (!url) { await health(chain, 'awaiting_rpc'); return; }
-            const adapter = chain === 'SOL' ? createSolSweepAdapter(url, key, options) : createEvmSweepAdapter(url, key, options);
+            const endpoint = await getRpcConfig(chain);
+            if (!endpoint) { await health(chain, 'awaiting_rpc'); return; }
+            const adapterOptions={...options,...(endpoint.provider==='legacy'?{}:{fetch:createAlchemyFetch(endpoint)})};
+            const adapter = chain === 'SOL' ? createSolSweepAdapter(endpoint.url, key, adapterOptions) : createEvmSweepAdapter(endpoint.url, key, adapterOptions);
             const check = adapter.verifyDeposit.bind(adapter);
             adapter.verifyDeposit = async intent => {
               if (intent.chainId !== chain || intent.keyId !== key.keyId || (chain === 'SOL'

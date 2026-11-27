@@ -2,10 +2,11 @@ import type { PoolClient } from 'pg';
 import { id } from 'ethers';
 import { base58 } from '@scure/base';
 import { query, tx } from '../db.js';
-import { getSecret } from '../vault.js';
+import { createAlchemyFetch, flushRpcFailure, getRpcConfig, type RpcEndpoint } from './rpc.js';
 import { creditConfirmedDeposit } from '../ledger.js';
 import { associatedTokenAccount, TOKEN_PROGRAM, tronAddress } from './receive.js';
 import { createSolRpc, SOL_MAX_VERSION } from './sol-rpc.js';
+import { scanIntervalMs } from './scan-policy.js';
 
 type Payment={address:string;asset:string;amount:bigint;txid:string;index:number};
 type Block={height:number;hash:string;parent:string;payments:Payment[]};
@@ -109,7 +110,7 @@ export async function tronPayments(block:any,r:Routes,blockReceipts:()=>Promise<
 }
 
 class NodeRpc{
-  constructor(readonly endpoint:string){}
+  constructor(readonly endpoint:string,readonly transport:typeof fetch=fetch){}
   async post(path:string,body:unknown){
     const url=new URL(this.endpoint);
     if(path)url.pathname=url.pathname.replace(/\/$/,'')+path;
@@ -118,7 +119,7 @@ class NodeRpc{
       headers.authorization='Basic '+Buffer.from(decodeURIComponent(url.username)+':'+decodeURIComponent(url.password)).toString('base64');
       url.username=url.password='';
     }
-    const res=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:AbortSignal.timeout(8000)});
+    const res=await this.transport(url,{method:'POST',headers,body:JSON.stringify(body),signal:AbortSignal.timeout(8000)});
     if(!res.ok)throw new Error('Node unavailable');
     // Node 22 JSON.parse supplies the original token. Preserve Bitcoin decimal
     // amounts and full-width Solana lamport amounts before JS can round them.
@@ -174,18 +175,28 @@ class Network{
   }
 }
 export class NonEvmWatcher{
-  constructor(readonly chainId:string){}
+  private endpoint?:RpcEndpoint;
+  needsCatchUp=false;
+  constructor(readonly chainId:string,private readonly scheduled=false){}
   async tick(){
+    this.needsCatchUp=false;
+    try{return await this.scan();}
+    finally{if(this.endpoint)await flushRpcFailure(this.endpoint).catch(()=>{});}
+  }
+  private async scan(){
     if(this.chainId==='SOL'){
       try{return await this.solTick();}
       catch(error){await query("update chains set scan_ready_at=null where id='SOL'").catch(()=>{});throw error;}
     }
     await tx(async c=>{
       const cid=this.chainId;
-      const chain=(await c.query('select * from chains where id=$1 and enabled for update skip locked',[cid])).rows[0];
+      const chain=(await c.query(`select * from chains where id=$1 and enabled
+        and (not $2::boolean or next_scan_at is null or next_scan_at<=clock_timestamp()) for update skip locked`,[cid,this.scheduled])).rows[0];
       if(!chain)return;
-      const url=await getSecret('rpc:'+cid,c);if(!url)throw new Error('Missing endpoint');
-      const network=new Network(cid,new NodeRpc(url)),head=await network.head();
+      const endpoint=await getRpcConfig(cid,c);if(!endpoint)throw new Error('Missing endpoint');
+      this.endpoint=endpoint;
+      const transport=endpoint.provider==='legacy'?fetch:createAlchemyFetch(endpoint);
+      const network=new Network(cid,new NodeRpc(endpoint.url,transport)),head=await network.head();
       if(!Number.isSafeInteger(head)||head<=0)throw new Error('Invalid chain head');
       let cursor=Number(chain.last_scanned);
       if(head<cursor)return;
@@ -200,11 +211,12 @@ export class NonEvmWatcher{
         await c.query("update deposits set status='orphaned', confirmations=0 where chain_id=$1 and block_number>$2 and journal_id is null",[cid,cursor]);
         await c.query('delete from scanned_blocks where chain_id=$1 and height>$2',[cid,cursor]);
       }
-      if(!cursor)cursor=head-1;
-      const end=Math.min(head,cursor+40);
       const assets=(await c.query("select * from assets where chain_id=$1 and enabled and (symbol<>'USDT' or chain_id='SOL')",[cid])).rows;
       const minimum=new Map(assets.map(a=>[String(a.id),BigInt(a.min_deposit)]));
       const assigned=(await c.query<{address:string;user_id:string;custody_kind:string}>('select address,user_id,custody_kind from deposit_addresses where chain_id=$1',[cid])).rows;
+      if(!cursor&&assigned.length)throw new Error('Existing deposit addresses require history reconciliation');
+      if(!cursor)cursor=head-1;
+      const end=Math.min(head,cursor+40);
       const owners=new Map(assigned.map(a=>[a.address,a.user_id])),managed=new Set(assigned.filter(a=>a.custody_kind==='managed').map(a=>a.address));
       const routes:Routes={owners,native:assets.find(a=>a.kind==='native')?.id,tokens:new Map(assets.filter(a=>a.token_address).map(a=>[a.token_address,a.id]))};
       for(const height of await network.heights(cursor+1,end)){
@@ -226,16 +238,22 @@ export class NonEvmWatcher{
         await c.query('insert into scanned_blocks values($1,$2,$3)',[cid,height,block.hash]);
       }
       await this.confirm(c,network,head,end);
-      await c.query("update chains set last_scanned=$2,scan_ready_at=case when $2=$3::bigint then now() end where id=$1",[cid,end,head]);
+      await c.query(`update chains set last_scanned=$2,scan_ready_at=case when $2=$3::bigint and
+        ($4::bigint is null or $4=(select routing_epoch from alchemy_rpc_state where singleton)) then now() end,
+        next_scan_at=clock_timestamp()+($5::integer*interval '1 millisecond') where id=$1`,
+      [cid,end,head,endpoint.epoch,end<head?1000:scanIntervalMs(cid)]);
       await c.query('delete from scanned_blocks where chain_id=$1 and height<$2',[cid,end-Math.max(256,chain.required_conf+40)]);
+      this.needsCatchUp=end<head;
     });
   }
   private async solTick(){
     await tx(async c=>{
-      const chain=(await c.query("select * from chains where id='SOL' and enabled for update skip locked")).rows[0];
+      const chain=(await c.query(`select * from chains where id='SOL' and enabled
+        and (not $1::boolean or next_scan_at is null or next_scan_at<=clock_timestamp()) for update skip locked`,[this.scheduled])).rows[0];
       if(!chain)return;
-      const endpoint=await getSecret('rpc:SOL',c);if(!endpoint)throw new Error('Solana RPC unavailable');
-      const rpc=createSolRpc(endpoint,{throttle:process.env.NODE_ENV!=='test'}),finalized={commitment:'finalized'};
+      const endpoint=await getRpcConfig('SOL',c);if(!endpoint)throw new Error('Solana RPC unavailable');
+      this.endpoint=endpoint;
+      const rpc=createSolRpc(endpoint.url,{fetch:endpoint.provider==='legacy'?undefined:createAlchemyFetch(endpoint),throttle:process.env.NODE_ENV!=='test'}),finalized={commitment:'finalized'};
       const number=(value:unknown)=>{if(!Number.isSafeInteger(value)||Number(value)<0)throw new Error('Invalid Solana evidence');return Number(value);};
       const bytes=(value:unknown,length:number)=>{try{if(typeof value!=='string'||base58.decode(value).length!==length)throw 0;return value;}catch{throw new Error('Invalid Solana evidence');}};
       if(await rpc('getGenesisHash')!==SOL_GENESIS)throw new Error('Solana network mismatch');
@@ -293,11 +311,20 @@ export class NonEvmWatcher{
         // Also validates that the parser has the complete inner-instruction metadata.
         const payments=solanaPayments({transactions:[value]},routes),canonical=await block(at);
         if(canonical.signatures.filter((s:string)=>s===signature).length!==1)throw new Error('Noncanonical Solana transaction');
-        return {payments,hash:canonical.blockhash,meta:value.meta};
+        return {payments,hash:canonical.blockhash,meta:value.meta,payer:value.transaction.message.accountKeys[0]?.pubkey};
       };
       // Bootstrap and an invalidated RPC lease must prove parsing even when owned history is empty.
       if(!assigned.length||!chain.scan_ready_at){
-        const sample=await rpc('getSignaturesForAddress',[SYSTEM,{...finalized,minContextSlot:head,limit:4}]);
+        // Native program addresses are commonly excluded from RPC history
+        // indexes. Use a real fee payer from this canonical block instead.
+        let probe:Awaited<ReturnType<typeof proof>>|undefined;
+        for(const signature of tip.signatures.slice(0,4)){
+          const candidate=await proof(signature,head);
+          if(candidate.meta.err===null){probe=candidate;break;}
+        }
+        if(!probe)throw new Error('Solana history capability unavailable');
+        bytes(probe.payer,32);
+        const sample=await rpc('getSignaturesForAddress',[probe.payer,{...finalized,minContextSlot:head,limit:4}]);
         if(!Array.isArray(sample)||sample.length<1||sample.length>4)throw new Error('Solana indexed history unavailable');
         for(const row of sample){
           bytes(row.signature,64);number(row.slot);
@@ -314,7 +341,8 @@ export class NonEvmWatcher{
           status.value[0]?.confirmationStatus!=='finalized'||number(status.value[0].slot)!==at||!Object.hasOwn(status.value[0],'err')||
           (status.value[0].err===null)!==(verified.meta.err===null))throw new Error('Solana status history unavailable');
         if(!assigned.length){
-          await c.query("update chains set last_scanned=$1,scan_ready_at=clock_timestamp() where id='SOL'",[head]);
+          await c.query(`update chains set last_scanned=$1,scan_ready_at=case when $2::bigint=(select routing_epoch from alchemy_rpc_state where singleton)
+            then clock_timestamp() end,next_scan_at=clock_timestamp()+($3::integer*interval '1 millisecond') where id='SOL'`,[head,endpoint.epoch,scanIntervalMs('SOL')]);
           return;
         }
       }
@@ -326,9 +354,13 @@ export class NonEvmWatcher{
           await c.query('insert into sol_address_scans(query_address,address_id,last_scanned) values($1,$2,$3) on conflict do nothing',[address,owner.id,cursor]);
         }
       }
-      const scan=(await c.query(`select * from sol_address_scans where query_address=any($1::text[]) and last_scanned<$2
-        order by updated_at,query_address limit 1 for update`,[queries,target])).rows[0];
-      if(scan){
+      // Empty wallets share this canonical snapshot. Stop after the first
+      // nonempty page so transaction proofs still commit one bounded page at a
+      // time; a later provider failure cannot discard earlier completed pages.
+      for(let checked=0;checked<4;checked++){
+        const scan=(await c.query(`select * from sol_address_scans where query_address=any($1::text[]) and last_scanned<$2
+          order by updated_at,query_address limit 1 for update`,[queries,target])).rows[0];
+        if(!scan)break;
         const baseline=number(Number(scan.last_scanned));
         if(first>baseline || (scan.target_slot!==null&&Number(scan.target_slot)!==target))throw new Error('Solana scan history unavailable');
         const before=scan.before_signature as string|null,limit=10;
@@ -374,6 +406,7 @@ export class NonEvmWatcher{
         else await c.query(`update sol_address_scans set target_slot=$2,before_signature=$3,before_slot=$4,newest_signature=$5,newest_slot=$6,
           overlap_signature=$7,overlap_slot=$8,updated_at=clock_timestamp() where query_address=$1`,
           [scan.query_address,target,page[page.length-2].signature,page[page.length-2].slot,newest,newestSlot,page[page.length-1].signature,page[page.length-1].slot]);
+        if(page.length)break;
       }
       const pending=(await c.query("select * from deposits where chain_id='SOL' and status in ('pending','confirmed') and not review_hold and journal_id is null and block_number<=$1 order by block_number,id limit 20",[target])).rows;
       for(const deposit of pending){
@@ -386,9 +419,13 @@ export class NonEvmWatcher{
       const remaining=(await c.query('select 1 from sol_address_scans where query_address=any($1::text[]) and last_scanned<$2 limit 1',[queries,target])).rowCount;
       if(!remaining){
         const targetAge=Math.floor(Date.now()/1000)-number(targetBlock.blockTime);
-        await c.query("update chains set last_scanned=$1,scan_ready_at=case when $2 then clock_timestamp() else null end where id='SOL'",[target,targetAge>=-30&&targetAge<=120]);
+        await c.query(`update chains set last_scanned=$1,scan_ready_at=case when $2 and $3::bigint=(select routing_epoch from alchemy_rpc_state where singleton)
+          then clock_timestamp() else null end where id='SOL'`,[target,targetAge>=-30&&targetAge<=120,endpoint.epoch]);
         await c.query("delete from scanned_blocks where chain_id='SOL' and height<$1",[target-Math.max(512,chain.required_conf+40)]);
       }
+      this.needsCatchUp=!!remaining||target<head;
+      await c.query("update chains set next_scan_at=clock_timestamp()+($1::integer*interval '1 millisecond') where id='SOL'",
+        [this.needsCatchUp?1000:scanIntervalMs('SOL')]);
     });
   }
   private async confirm(c:PoolClient,network:Network,head:number,end:number){

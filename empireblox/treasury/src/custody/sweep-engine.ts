@@ -2,15 +2,12 @@ import type { Pool, PoolClient } from 'pg';
 import { base58 } from '@scure/base';
 import { keccak256 } from 'ethers';
 import { validSolOwner } from '../chains/receive.js';
+import { sweepFeeCeiling as feeCeiling, dailySponsorCeilings } from './fee-policy.js';
 import { SweepStop, sweepReasons, type SignedSweep, type SweepAdapter, type SweepChain,
   type SweepIntent, type SweepReason } from './types.js';
 
-const feeCeiling: Record<SweepChain, bigint> = {
-  ETH: 10_000_000_000_000_000n, BSC: 600_000_000_000_000n, POL: 60_000_000_000_000_000n, SOL: 50_000n,
-};
 // Even many valid small token deposits cannot spend an unlimited gas reserve.
 // Reserve a whole per-job ceiling before signing; count actual gross subsidies once finalized.
-const dailySponsorCeilings = 10n;
 const terms = `deposit_id,journal_id,address_id,chain_id,asset_id,source,sponsor,key_id,deriv_index,amount,
   deposit_txid,deposit_index,deposit_block,deposit_block_hash,required_conf`;
 type JobStatus = 'queued' | 'sponsor_signed' | 'sponsor_pending' | 'sponsored' | 'sweep_signed' |
@@ -180,9 +177,11 @@ export class SweepEngine {
         if (obs.state === 'included' || obs.state === 'final') {
           requireThat(typeof obs.blockHash === 'string' && obs.blockHash.length > 0 && obs.blockHash.length <= 128 &&
             Number.isSafeInteger(obs.blockNumber) && obs.blockNumber >= 0, 'invalid_receipt');
+          if(obs.networkFee!==undefined)requireThat(typeof obs.networkFee==='bigint'&&obs.networkFee>=0n&&obs.networkFee<=s.fee,'invalid_receipt');
           await c.query(`update custody_sweep_steps set block_number=$3,block_hash=$4,
-            finalized_at=case when $5 then clock_timestamp() end where job_id=$1 and phase=$2`,
-          [j.id, s.phase, obs.blockNumber, obs.blockHash, obs.state === 'final']);
+            finalized_at=case when $5 then clock_timestamp() end,
+            actual_fee=case when $5 then coalesce(actual_fee,$6::numeric) else actual_fee end where job_id=$1 and phase=$2`,
+          [j.id, s.phase, obs.blockNumber, obs.blockHash, obs.state === 'final',obs.networkFee?.toString()??null]);
           if (obs.state === 'final') return state(s.phase === 'sponsor' ? 'sponsored' : 'completed', null, 0);
           if (current.stale) return state('review', 'not_final');
         } else if (obs.state === 'unseen' && enabled) {

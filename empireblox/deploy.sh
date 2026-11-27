@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Zero-downtime deploy: rebuild, migrate, then recreate the two backend
-# replicas one at a time. Caddy keeps serving from the healthy replica
-# throughout, so there is no gap in service.
+# Roll the two API replicas separately. Pause the signing worker for schema
+# changes, then rebind frontend mounts after both replicas support the new UI.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -9,6 +8,7 @@ echo "==> Building new image"
 docker compose build treasury_blue
 
 echo "==> Applying migrations"
+docker compose stop custody_worker
 docker compose run --rm migrate
 
 wait_healthy() {
@@ -32,9 +32,15 @@ for color in treasury_blue treasury_green; do
 done
 docker compose up -d --no-deps custody_worker
 
+# Migration 033 defaults enrollment off. Both serving API replicas must enforce
+# player factors before anyone can enroll; an older login must never bypass MFA.
+echo "==> Enabling player authenticator enrollment"
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U treasury -d empireblox_treasury \
+  -c "update settings set value='true'::jsonb where key='player_2fa_available';"
+
 # Re-bind the static frontend (single-file mounts need a recreate to pick up
 # edited index.html / app.js / wallet.js).
 echo "==> Refreshing static frontend (caddy)"
-docker compose up -d --force-recreate caddy >/dev/null 2>&1
+docker compose up -d --no-deps --force-recreate caddy >/dev/null 2>&1
 
-echo "==> Deploy complete. The other replica served traffic the whole time."
+echo "==> Deploy complete. API replicas are healthy and frontend mounts are refreshed."

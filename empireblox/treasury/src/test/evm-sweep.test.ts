@@ -136,8 +136,8 @@ for (const chain of ['ETH', 'BSC', 'POL'] as const) {
     await f.broadcast(i, persisted); await f.broadcast(i, persisted);
     assert.deepEqual(f.sent, [s.raw]); assert.equal(f.state.signCalls, 1);
     assert.deepEqual(await f.inspect(i, s), { state: 'pending' });
-    f.mine(s.raw, 112); assert.deepEqual(await f.inspect(i, s), { state: 'included', blockHash: blockHash(112), blockNumber: 112 });
-    f.state.height = 114; assert.deepEqual(await f.inspect(i, s), { state: 'final', blockHash: blockHash(112), blockNumber: 112 });
+    f.mine(s.raw, 112); assert.deepEqual(await f.inspect(i, s), { state: 'included', blockHash: blockHash(112), blockNumber: 112, networkFee: 21_000n * unit });
+    f.state.height = 114; assert.deepEqual(await f.inspect(i, s), { state: 'final', blockHash: blockHash(112), blockNumber: 112, networkFee: 21_000n * unit });
     await f.broadcast(i, s); assert.deepEqual(f.sent, [s.raw]);
   });
   test(`${chain} canonical USDT: exact ABI units, a single finalized subsidy, recovered payer and matching Transfer`, async () => {
@@ -158,7 +158,7 @@ for (const chain of ['ETH', 'BSC', 'POL'] as const) {
     assert.equal(t.data, calldata(treasury.address, i.amount)); assert.equal(t.data.length, 138); assert.equal(signed.fee, subsidy.amount);
     f.persist(signed); await f.broadcast(i, signed);
     f.mine(signed.raw, 115, [event(f.contract, i.source, i.destination, i.amount)], 16); f.state.height = 117;
-    assert.deepEqual(await f.inspect(i, signed), { state: 'final', blockHash: blockHash(115), blockNumber: 115 });
+    assert.deepEqual(await f.inspect(i, signed), { state: 'final', blockHash: blockHash(115), blockNumber: 115, networkFee: 50_000n * unit });
     assert.deepEqual(f.sent, [subsidy.raw, signed.raw]);
     assert.ok(f.calls.some(c => c.method === 'eth_call' && c.params[0].data === '0x313ce567' && c.params[1].blockHash === i.depositBlockHash));
   });
@@ -179,9 +179,22 @@ test('rejects wrong networks/assets, zero or coincident roles, malformed identit
   assert.equal(f.state.signCalls, 0); assert.equal(f.sent.length, 0);
 });
 
-test('applies one-whole-token dust floor, fresh fee estimate, gas price and aggregate sponsorship ceilings', async () => {
+test('signs the exact 0.1 USDT collection amount on every EVM route',async()=>{
+  for(const chain of ['ETH','BSC','POL'] as const){
+    const amount=10n**BigInt(nets[chain][4]-1),f=await fixture(chain,true,amount);
+    const step=await f.prepare(f.intent,null);
+    assert.equal(step.phase,'sponsor');f.persist(step);
+    f.mine(step.raw,110);f.state.height=115;
+    const sweep=await f.prepare(f.intent,step);
+    assert.equal(sweep.amount,amount);
+    assert.equal(Transaction.from(sweep.raw).data,calldata(f.intent.destination,amount));
+    assert.equal(f.sent.length,0);
+  }
+});
+
+test('applies the 0.1 USDT dust floor, fresh fee estimate, gas price and aggregate sponsorship ceilings', async () => {
   for (const chain of ['ETH', 'BSC', 'POL'] as const) {
-    const small = await fixture(chain, true, 10n ** BigInt(nets[chain][4]) - 1n);
+    const small = await fixture(chain, true, 10n ** BigInt(nets[chain][4] - 1) - 1n);
     await assert.rejects(small.prepare(small.intent, null), stop('dust'));
   }
   const f = await fixture('ETH', true), i = f.intent;

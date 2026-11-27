@@ -41,7 +41,7 @@ export class SweepStop extends Error {
 }
 
 export type SweepObservation = { state: 'unseen' | 'pending' } |
-  { state: 'included' | 'final'; blockHash: string; blockNumber: number } |
+  { state: 'included' | 'final'; blockHash: string; blockNumber: number; networkFee?: bigint } |
   { state: 'review'; reason: SweepReason };
 
 /** Never register these capabilities on the HTTP server. No method accepts an arbitrary recipient or unsigned transaction. */

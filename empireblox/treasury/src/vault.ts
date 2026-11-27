@@ -78,7 +78,8 @@ export async function getSecret(name: string, db: Pick<PoolClient,'query'> = poo
 
 /** Safe listing for the admin UI: names + hints only, never plaintext. */
 export async function listSecretMeta(): Promise<{ name: string; hint: string | null; updated_at: string; updated_by: string | null }[]> {
-  const r = await query(`select name, hint, updated_at, updated_by from secrets order by name`);
+  const r = await query(`select name, case when name like 'alchemy:API_KEY%' or name='drpc:API_KEY' then null else hint end as hint,
+    updated_at, updated_by from secrets order by name`);
   return r.rows;
 }
 

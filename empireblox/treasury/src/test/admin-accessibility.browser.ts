@@ -33,7 +33,7 @@ async function fixture(t:TestContext,options:{login?:boolean;challenge?:boolean;
       if(['/admin/option-picker.js','/admin/option-picker.css'].includes(path))return route.fulfill({path:fileURLToPath(new URL(path.slice(7),pickerRoot)),contentType:path.endsWith('.js')?'text/javascript':'text/css'});
       if(path==='/api/admin/me')return route.fulfill({status:options.login?401:200,json:options.login?{error:'Unauthorized'}:{username:'fixture-operator',totp_enabled:options.factor!==false}});
       if(path==='/api/admin/overview')return route.fulfill({json:{pending:0,credited:[],recent:[],deposits_paused:false}});
-      if(path==='/api/admin/custody')return route.fulfill({json:{key,networks:[network],jobs:[],deposits_paused:false}});
+      if(path==='/api/admin/custody')return route.fulfill({json:{key,networks:[network],jobs:[],deposits_paused:false,alchemy_configured:true}});
       if(path==='/api/admin/deposits')return route.fulfill({json:{deposits:[]}});
       if(path==='/api/admin/users')return route.fulfill({json:url.searchParams.get('page')==='1'?{rows:[],more:false}:{rows:[user],more:true}});
       if(path==='/api/admin/users/'+player)return route.fulfill({json:{user,vip:{levels:[],wagered_usdt:'0',wagered_usd:'0'},activity:{bets:0,wins:0},balances:[],addresses:[]}});
@@ -42,7 +42,7 @@ async function fixture(t:TestContext,options:{login?:boolean;challenge?:boolean;
       if(path==='/api/assets')return route.fulfill({json:{currencies:[{id:'ETH'}]}});
       if(path==='/api/admin/chains')return route.fulfill({json:{chains:[{...network,kind:'evm',enabled:true}]}});
       if(path==='/api/admin/assets')return route.fulfill({json:{assets:[{id:'ETH',chain_id:'ETH',kind:'native',decimals:18,min_deposit:'1',enabled:true}]}});
-      if(path==='/api/admin/secrets')return route.fulfill({json:{secrets:[{name:'rpc:ETH',updated_at:stamp,hint:'fixture hint'}]}});
+      if(path==='/api/admin/secrets')return route.fulfill({json:{secrets:[{name:'xpub:EVM',updated_at:stamp,hint:'fixture hint'}]}});
       if(path==='/api/admin/sol-addresses')return route.fulfill({json:{remaining:0}});
       if(path==='/api/admin/settings')return route.fulfill({json:{deposits_paused:false}});
       if(path==='/api/admin/bet-limits')return route.fulfill({json:{min_usdt:'0',max_usdt:null}});
@@ -110,13 +110,13 @@ test('table actions expose network or asset context and real action headers',asy
   assert.equal(await page.getByRole('button',{name:'Disable Ethereum network (ETH)',exact:true}).count(),1);
   await open('Assets','[data-aen]');assert.equal(await page.getByRole('button',{name:'ETH asset enabled on ETH',pressed:true,exact:true}).count(),1);
   await open('Secrets','#s_save');assert.equal(await page.getByRole('columnheader',{name:'Actions',exact:true}).count(),1);
-  assert.equal(await page.getByRole('button',{name:'Delete secret rpc:ETH',exact:true}).count(),1);assert.deepEqual(writes,[]);
+  assert.equal(await page.getByRole('button',{name:'Delete secret xpub:EVM',exact:true}).count(),1);assert.deepEqual(writes,[]);
 });
 
 test('credential and financial form errors are linked, clear on correction, and do not echo secret values',async t=>{
   const {page,open,writes}=await fixture(t);
   await open('Secrets','#s_save');await page.locator('#s_save').click();await associated(page.locator('#s_name'),/Name and value required/);await associated(page.locator('#s_val'),/Name and value required/);
-  await page.locator('#s_name').selectOption('rpc:ETH');assert.equal(await page.locator('#s_name').getAttribute('aria-invalid'),null);
+  await page.locator('#s_name').selectOption('xpub:EVM');assert.equal(await page.locator('#s_name').getAttribute('aria-invalid'),null);
   const secret='fixture-credential-do-not-echo';await page.locator('#s_val').fill(secret);await page.locator('#s_save').click();await associated(page.locator('#s_val'),/secret could not be saved/);
   assert.ok(!(await page.locator('body').innerText()).includes(secret));assert.ok(!(await page.locator('body').innerText()).includes('DO_NOT_ECHO'));
   await page.locator('#s_val').fill('corrected-fixture');assert.equal(await page.locator('#s_val').getAttribute('aria-invalid'),null);assert.equal(await page.locator('#s_val').getAttribute('aria-describedby'),null);
@@ -139,13 +139,17 @@ test('custody enrollment and routing errors retain help links, bind fresh TOTP, 
   assert.equal(await code.inputValue(),'');assert.deepEqual(Object.keys(writes.at(-1)!.body).sort(),['key_id','sealed_base64','totp']);assert.ok(!JSON.stringify(writes).includes(hex));
   assert.ok(!(await page.locator('body').innerText()).match(/123456|DO_NOT_ECHO|a5a5a5a5/));
   await code.fill('654321');assert.equal(await code.getAttribute('aria-invalid'),null);
+  const alchemy=page.locator('#alchemyRpcForm'),apiKey=alchemy.locator('[data-alchemy-key]'),alchemyCode=alchemy.locator('[data-code]');
+  await apiKey.fill('bad key');await alchemy.getByRole('button',{name:'Save Alchemy API key'}).click();await associated(apiKey,/without spaces/);
+  assert.equal(await apiKey.inputValue(),'');await apiKey.fill('fixture-alchemy-api-key-1234567890');await alchemyCode.fill('123456');
+  await alchemy.getByRole('button',{name:'Save Alchemy API key'}).click();await associated(alchemyCode,/not authorized/);
+  assert.equal(await alchemyCode.inputValue(),'');assert.equal(await apiKey.inputValue(),'');assert.ok(!(await page.locator('body').innerText()).match(/fixture-alchemy-api-key|123456|DO_NOT_ECHO/));
   await page.locator('[data-network=ETH]>summary').click();await page.locator('[data-network=ETH] .custody-edit>summary').click();
-  const network=page.locator('[data-network=ETH] [data-network-settings]'),rpc=network.locator('[data-rpc]'),networkCode=network.locator('[data-code]');
-  await rpc.fill('http://fixture.invalid/private-credential');await network.getByRole('button').click();await associated(rpc,/mainnet HTTPS/);
-  assert.ok((await rpc.getAttribute('aria-describedby'))?.split(' ').includes('rpc-help-ETH'));assert.equal(await rpc.inputValue(),'');
-  await rpc.fill('https://fixture.invalid/private-credential');assert.equal(await rpc.getAttribute('aria-describedby'),'rpc-help-ETH');await network.getByRole('button').click();await associated(networkCode,/fresh six-digit/);
-  await rpc.fill('https://fixture.invalid/private-credential');await networkCode.fill('123456');await network.getByRole('button').click();await associated(networkCode,/not authorized/);
-  assert.equal(await networkCode.inputValue(),'');assert.equal(await rpc.inputValue(),'');assert.ok(!(await page.locator('body').innerText()).match(/private-credential|123456|DO_NOT_ECHO/));
+  const network=page.locator('[data-network=ETH] [data-network-settings]'),destinationField=network.locator('[data-destination]'),networkCode=network.locator('[data-code]');
+  await network.getByRole('button').click();await associated(destinationField,/public collection address/);
+  await destinationField.fill(destination);await network.getByRole('button').click();await associated(networkCode,/fresh six-digit/);
+  await destinationField.fill(destination);await networkCode.fill('123456');await network.getByRole('button').click();await associated(networkCode,/not authorized/);
+  assert.equal(await networkCode.inputValue(),'');assert.equal(await destinationField.inputValue(),destination);assert.ok(!(await page.locator('body').innerText()).match(/fixture-alchemy-api-key|123456|DO_NOT_ECHO/));
 });
 
 test('sweep verification and withdrawal validation retain the existing confirmation boundary',async t=>{

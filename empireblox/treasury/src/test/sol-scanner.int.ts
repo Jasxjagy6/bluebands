@@ -22,9 +22,10 @@ const { SweepEngine } = await import('../custody/sweep-engine.js');
 const temporary = await mkdtemp(join(tmpdir(), 'sol-scanner-fixture-'));
 process.env.CUSTODY_KEY_DIR = join(temporary, 'worker');
 const seed = Buffer.alloc(32, 61), uid = randomUUID(), other = randomUUID(), SYSTEM = '11111111111111111111111111111111';
-const probe = base58.encode(Buffer.alloc(64, 201)), payer = base58.encode(Buffer.alloc(32, 27));
+const probe = base58.encode(Buffer.alloc(64, 201)), tipProbe=base58.encode(Buffer.alloc(64,200)), payer = base58.encode(Buffer.alloc(32, 27));
 let head = 100, first = 90, firstReported: number | undefined, stale = false, owner = '', secondOwner = '', failSlot = -1;
 let pageMode: 'normal' | 'null' | 'empty' | 'missing-err' | 'duplicate' = 'normal', missingMetadata = false, probeUnavailable = false;
+let probeIndexUnavailable=false;
 const forks = new Map<number, number>(), calls: { method: string; params: any[] }[] = [];
 const transactions = new Map<string, { value: any; active: boolean }>();
 const hash = (n: number) => base58.encode(createHash('sha256').update(`sol:${n}:${forks.get(n) ?? 0}`).digest());
@@ -58,12 +59,13 @@ const server = createServer(async (req, res) => {
       case 'getBlock': {
         assert.equal(p[1].transactionDetails, 'signatures'); assert.equal(p[1].maxSupportedTransactionVersion, 1);
         result = { blockhash: hash(p[0]), blockTime: Math.floor(Date.now() / 1000) - (stale ? 300 : 0),
-          signatures: [...transactions.values()].filter(entry => entry.active && entry.value.slot === p[0])
-            .map(entry => entry.value.transaction.signatures[0]).concat(p[0] === probeSlot ? [probe] : []) }; break;
+          signatures: (p[0]===head?[tipProbe]:[]).concat([...transactions.values()].filter(entry => entry.active && entry.value.slot === p[0])
+            .map(entry => entry.value.transaction.signatures[0])).concat(p[0] === probeSlot ? [probe] : []) }; break;
       }
       case 'getSignaturesForAddress': {
         assert.equal(p[1].commitment, 'finalized'); assert.equal(p[1].minContextSlot, head);
-        if (p[0] === SYSTEM) { result = [{ signature: probe, slot: probeSlot, err: null, confirmationStatus: 'finalized' }]; break; }
+        if (p[0] === SYSTEM) { result = []; break; } // Real providers exclude native programs from address indexes.
+        if (p[0] === payer) { result = probeIndexUnavailable?[]:[{ signature: probe, slot: probeSlot, err: null, confirmationStatus: 'finalized' }]; break; }
         const rows = history(p[0]), index = p[1].before ? rows.findIndex(row => row.signature === p[1].before) + 1 : 0;
         result = rows.slice(index, index + p[1].limit);
         if (pageMode === 'null') result = null;
@@ -74,7 +76,7 @@ const server = createServer(async (req, res) => {
       }
       case 'getTransaction': {
         assert.equal(p[1].encoding, 'jsonParsed'); assert.equal(p[1].maxSupportedTransactionVersion, 1);
-        if (p[0] === probe) result = probeUnavailable ? null : { slot: probeSlot, version: 1, transaction: { signatures: [probe], message: { accountKeys: [], instructions: [] } },
+        if (p[0] === probe || p[0]===tipProbe) result = probeUnavailable ? null : { slot: p[0]===probe?probeSlot:head, version: 1, transaction: { signatures: [p[0]], message: { accountKeys: [{pubkey:payer}], instructions: [] } },
           meta: { err: null, postTokenBalances: [], innerInstructions: [] } };
         else {
           const value = transactions.get(p[0])?.value;
@@ -114,7 +116,10 @@ test('SOL zero-owner capability probe accepts normal finalized head advancement 
   probeUnavailable = true; await assert.rejects(watcher.tick(), /transaction unavailable/);
   assert.equal((await state()).last_scanned, '0'); assert.equal((await state()).scan_ready_at, null);
   await assert.rejects(getOrCreateAddress(uid, 'SOL'), /unavailable/); probeUnavailable = false;
+  probeIndexUnavailable=true;await assert.rejects(watcher.tick(),/indexed history unavailable/);
+  assert.equal((await state()).last_scanned,'0');probeIndexUnavailable=false;
   await watcher.tick(); assert.equal((await state()).last_scanned, '100'); assert.ok((await state()).scan_ready_at);
+  assert.ok(!calls.some(call=>call.method==='getSignaturesForAddress'&&call.params[0]===SYSTEM));
   owner = (await getOrCreateAddress(uid, 'SOL')).address;
   const row = (await query("select deriv_index from deposit_addresses where user_id=$1 and chain_id='SOL'", [uid])).rows[0];
   assert.equal(owner, restoreCustodyPublic(seed, Number(row.deriv_index)).solAddress);
@@ -123,6 +128,16 @@ test('SOL zero-owner capability probe accepts normal finalized head advancement 
   await assert.rejects(watcher.tick(), /transaction unavailable/); assert.equal((await state()).last_scanned, '100');
   assert.equal((await state()).scan_ready_at, null); probeUnavailable = false;
   await watcher.tick(); assert.equal((await state()).last_scanned, '100'); assert.ok((await state()).scan_ready_at);
+});
+
+test('SOL replicas share the polling schedule while retaining takeover when the next scan is due',async()=>{
+  await query("update chains set next_scan_at=null where id='SOL'");
+  const first=new NonEvmWatcher('SOL',true),second=new NonEvmWatcher('SOL',true);
+  await first.tick();const requests=calls.length;
+  assert.equal((await query("select next_scan_at>clock_timestamp()+interval '25 seconds' as scheduled from chains where id='SOL'")).rows[0].scheduled,true);
+  await second.tick();assert.equal(calls.length,requests);
+  await query("update chains set next_scan_at=clock_timestamp()-interval '1 second' where id='SOL'");
+  await second.tick();assert.ok(calls.length>requests);
 });
 
 test('SOL paginates newer-than-pinned history, commits completed pages, and never advances across a late missing transaction', async () => {
@@ -168,7 +183,7 @@ test('SOL retention and stale heads fail closed; fully processed pruned history 
   stale = true; await assert.rejects(watcher.tick(), /stale/); assert.equal((await state()).scan_ready_at, null);
   stale = false; head = 122; await watcher.tick(); assert.equal((await state()).last_scanned, '122');
   assert.equal(calls.some(call => ['getBlocks', 'sendTransaction'].includes(call.method)), false);
-  assert.ok(calls.filter(call => call.method === 'getSignaturesForAddress').every(call => [owner, SYSTEM].includes(call.params[0])));
+  assert.ok(calls.filter(call => call.method === 'getSignaturesForAddress').every(call => [owner, payer].includes(call.params[0])));
 });
 
 test('SOL uncredited finalized reorg rewinds durable coverage and orphans observations without touching earlier credits', async () => {

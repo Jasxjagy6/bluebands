@@ -27,6 +27,7 @@ const owner=base58.encode(ed25519.getPublicKey(randomBytes(32))),mint='Es9vMFrza
 const addresses:Record<string,string>={}, heights:Record<string,number>={BTC:100,SOL:100,TRON:100};
 const hash=(id:string,n:number)=>id==='SOL'?base58.encode(sha256(Buffer.from(id+n))):id+n;
 const solProbe=base58.encode(Buffer.alloc(64,201)),solPayment=base58.encode(Buffer.alloc(64,202)),solFailed=base58.encode(Buffer.alloc(64,203));
+const solTipProbe=base58.encode(Buffer.alloc(64,200)),solPayer=base58.encode(Buffer.alloc(32,27));
 const tronToken='TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const trxHex=(a:string)=>Buffer.from(base58check(sha256).decode(a)).toString('hex');
 let wrongNetwork=false,missingReceipt=false;
@@ -45,7 +46,7 @@ async function fixture(net:string,route:string,b:any){
     if(b.method==='getSlot')return head;
     if(b.method==='getFirstAvailableBlock'||b.method==='minimumLedgerSlot')return 90;
     if(b.method==='getSignaturesForAddress'){
-      const sigs=b.params[0]==='11111111111111111111111111111111'?[solProbe]:head>=102?[solPayment,solFailed]:[];
+      const sigs=b.params[0]===solPayer?[solProbe]:b.params[0]==='11111111111111111111111111111111'?[]:head>=102?[solPayment,solFailed]:[];
       const after=b.params[1].before?sigs.indexOf(b.params[1].before)+1:0;
       return sigs.slice(after,after+b.params[1].limit).map(signature=>({signature,slot:signature===solProbe?100:102,
         err:signature===solFailed?{InstructionError:[0,'failed']}:null,confirmationStatus:'finalized'}));
@@ -54,7 +55,7 @@ async function fixture(net:string,route:string,b:any){
     if(b.method==='getTransaction'){
       assert.equal(b.params[1].maxSupportedTransactionVersion,1);assert.equal(b.params[1].encoding,'jsonParsed');
       const signature=b.params[0],ata=associatedTokenAccount(owner,mint);
-      if(signature===solProbe)return {slot:100,version:1,transaction:{signatures:[signature],message:{accountKeys:[],instructions:[]}},meta:{err:null,postTokenBalances:[],innerInstructions:[]}};
+      if(signature===solProbe||signature===solTipProbe)return {slot:signature===solProbe?100:head,version:1,transaction:{signatures:[signature],message:{accountKeys:[{pubkey:solPayer}],instructions:[]}},meta:{err:null,postTokenBalances:[],innerInstructions:[]}};
       const parsed={type:'transferChecked',info:{destination:ata,source:'other',mint,tokenAmount:{amount:'2000000'}}};
       const sol={programId:'11111111111111111111111111111111',parsed:{type:'transfer',info:{source:'other',destination:owner,lamports:1234567}}};
       return {slot:102,version:1,transaction:{signatures:[signature],message:{accountKeys:[{pubkey:ata},{pubkey:owner}],instructions:[sol,{programId:'wrapper'}]}},
@@ -62,7 +63,7 @@ async function fixture(net:string,route:string,b:any){
     }
     if(b.method==='getBlock'){
       const n=b.params[0];assert.notEqual(n,101);assert.equal(b.params[1].transactionDetails,'signatures');
-      return {blockhash:hash(net,n),blockTime:Math.floor(Date.now()/1000),signatures:n===100?[solProbe]:n===102?[solPayment,solFailed]:[]};
+      return {blockhash:hash(net,n),blockTime:Math.floor(Date.now()/1000),signatures:(n===head?[solTipProbe]:[]).concat(n===100?[solProbe]:n===102?[solPayment,solFailed]:[])};
     }
   }
   if(net==='TRON'){
@@ -146,4 +147,14 @@ test('TRON rejects incomplete transaction status, then credits solidified TRX an
   missingReceipt=false;await w.tick();heights.TRON=102;await w.tick();
   const rows=(await query("select asset_id,amount,status from deposits where user_id=$1 and chain_id='TRON' order by asset_id",[uid])).rows;
   assert.deepEqual(rows,[{asset_id:'TRX',amount:'1234567',status:'credited'}]);
+});
+test('BTC and TRON refuse to bootstrap existing addresses without a scan cursor',async()=>{
+  for(const net of ['BTC','TRON']){
+    const last=(await query('select last_scanned from chains where id=$1',[net])).rows[0].last_scanned;
+    await query('update chains set last_scanned=0,scan_ready_at=null where id=$1',[net]);
+    try{
+      await assert.rejects(new NonEvmWatcher(net).tick(),/Existing deposit addresses require history reconciliation/);
+      assert.equal((await query('select last_scanned from chains where id=$1',[net])).rows[0].last_scanned,'0');
+    }finally{await query('update chains set last_scanned=$2,scan_ready_at=clock_timestamp() where id=$1',[net,last]);}
+  }
 });

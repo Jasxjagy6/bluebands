@@ -425,6 +425,37 @@
   @media(forced-colors:active){.tscroll :is(th,td):first-child:not([colspan]){background:Canvas}.tscroll tbody tr:focus-within{outline:1px solid Highlight;outline-offset:-1px}#custodySigning:has(>.custody-head>.pill.warn){border-color:CanvasText}button[data-aen][data-on=true]{color:ButtonText;border-color:ButtonText}}
   .empty-state>button,td[colspan]>button{display:block;margin-top:14px}
   .card>[data-save-error]:not(:empty){margin-top:14px;padding:11px 13px;border:1px solid #68454b;border-radius:4px;background:#2b2027;color:var(--red);font-size:13px;line-height:1.6}
+
+/* Treasury workbench */
+:root{--bg:#101720;--panel:#18222e;--panel2:#222f3e;--line:#344253;--line2:#526479;--txt:#e8edf4;--mut:#a1afbf;--acc:#dfbd7e;--focus:#e4c996}
+body{background:radial-gradient(ellipse at 90% 0,#29394a28,transparent 48%),var(--bg)}
+.masthead{background:#141e29;box-shadow:0 1px 0 #ffffff04}.mast-inner{min-height:72px}
+.brand::before{width:24px;height:24px;border:1px solid #dfbd7e65;background:linear-gradient(135deg,#dfbd7e25,#dfbd7e05);border-radius:6px;box-shadow:inset 0 0 0 5px #141e29}
+.workspace{grid-template-columns:196px minmax(0,1fr);column-gap:30px}
+#nav{padding-top:30px;padding-right:20px}#nav button{border-radius:7px;min-height:41px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:12px}
+#nav button svg{width:16px;height:16px;flex:none;opacity:.75}#nav button.on{background:#dfbd7e0c;color:#efd4a7;border-inline-start-color:var(--acc)}#nav button.on svg{opacity:1}
+.nav-group+.nav-group{margin-top:29px}.nav-group .eyebrow{font-size:9px;letter-spacing:.13em;color:#8193a8}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-bottom:23px;margin-bottom:24px}.section-head>div:first-child{min-width:0}
+#sectionDescription{margin-top:8px;font-size:12px;color:var(--mut);max-width:74ch}.section-tools{display:flex;gap:8px;align-items:center;flex:none}.section-tools select{min-width:150px;max-width:190px;font-size:12px}.section-tools .picker{min-width:150px;max-width:190px}
+.card{border-radius:12px;background:linear-gradient(145deg,#1b2633,#17212c);box-shadow:0 6px 24px #00000010}.card .card{box-shadow:none;background:#141e29}
+button,input,select,textarea,.picker-trigger{border-radius:7px}button:not(:disabled){transition:background .15s,border-color .15s,color .15s}button.pri{background:#dfbd7e;color:#1a1e25}
+.stats{gap:14px}.stat{border:1px solid var(--line);border-radius:9px;padding:17px;background:#121c27}.stat:first-child{border:1px solid var(--line);padding:17px}.stat b{font-size:clamp(22px,2.3vw,31px);font-weight:550}.stat span{font-size:11px}
+.tscroll{border-radius:8px}th{background:#202d3c;color:#b3c0d0;padding-block:13px}td{padding-block:14px}tbody tr:hover{background:#b6cde808}.pill{border-radius:5px;padding:3px 8px}.user-row{border-radius:6px}.user-row:not(:disabled):hover{background:#dfbd7e08}
+.login .card{border-radius:14px}.empty-state{border-radius:9px;background:#111b25;padding:25px;border:1px dashed var(--line)}.empty-state p{margin-top:7px;color:var(--mut);font-size:12px}
+.sweep-intro{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}.sweep-intro>div{max-width:77ch}.sweep-intro .eyebrow{color:var(--acc);margin-bottom:8px}.sweep-intro h2{font-size:21px}.sweep-intro p.mut{font-size:12px;line-height:1.8;margin-top:9px}.sweep-intro>button{flex:none}
+.sweep-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}.sweep-stats>div{border:1px solid var(--line);border-radius:10px;background:#182330;padding:18px 20px;min-width:0}.sweep-stats span,.sweep-stats small{display:block;font-size:11px;color:var(--mut)}.sweep-stats strong{display:block;font-size:32px;font-weight:550;letter-spacing:-.04em;margin:7px 0}.sweep-stats strong.ok{color:var(--grn)}.sweep-stats strong.warn{color:var(--acc)}.sweep-stats small{font-size:10px;color:#8294a9}
+.sweep-footnote{font-size:11px;color:#9cacc0;line-height:1.8;margin-top:17px;max-width:100ch}.sweep-wallets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}.sweep-wallet{border:1px solid var(--line);background:#111c28;border-radius:9px;padding:18px;min-width:0}.sweep-wallet header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sweep-wallet header>div{flex:1;min-width:90px}.sweep-wallet header strong{font-size:13px}.sweep-wallet small{display:block;color:var(--mut);font-size:10px;margin-top:3px}.sweep-chain-mark{display:grid;place-items:center;width:37px;height:37px;border:1px solid #dfbd7e30;border-radius:9px;background:#dfbd7e09;font-size:10px;font-weight:700;color:var(--acc)}
+.fee-balance{margin:22px 0 18px}.fee-balance>strong{font-size:23px;font-weight:550;line-height:1.4;overflow-wrap:anywhere;letter-spacing:-.02em}.fee-balance strong span{font-size:12px;color:var(--mut);margin-left:7px}.fee-balance>small{margin-top:6px}.sweep-public-address{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid #ffffff0a;border-radius:6px;background:#182431}.sweep-public-address code{flex:1;min-width:0;overflow-wrap:anywhere;font-size:10px}.sweep-public-address button{flex:none}
+.sweep-wallet-facts{margin:17px 0 0;display:grid;gap:10px;font-size:11px}.sweep-wallet-facts>div{display:flex;justify-content:space-between;gap:15px}.sweep-wallet-facts dt{color:var(--mut)}.sweep-wallet-facts dd{text-align:right;margin:0;overflow-wrap:anywhere}.sweep-warning{margin-top:14px;padding:10px 12px;border:1px solid #dfbd7e25;background:#dfbd7e07;border-radius:6px;color:#e0c69d;font-size:11px;line-height:1.7}
+.sweep-tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);padding:0 0 12px;margin-top:22px;flex-wrap:wrap}.sweep-tabs button{border-radius:6px}.sweep-tabs button[aria-pressed=true]{background:#dfbd7e10;color:#e9cca0;border-color:#dfbd7e35}
+.sweep-filters{display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:13px;align-items:end;margin:19px 0 22px}.sweep-filters .sweep-search{grid-column:1/3}.sweep-filters>button{align-self:end;min-height:40px}.sweep-filters>button:last-child{grid-column:3;grid-row:3;justify-self:end;min-height:32px;margin-top:-6px}.sweep-record{border:1px solid var(--line);border-radius:8px;margin-bottom:9px;overflow:hidden;background:#141e2a}.sweep-record summary{display:grid;grid-template-columns:1fr 1.15fr 1fr 120px 12px;align-items:center;gap:16px;cursor:pointer;list-style:none;padding:18px 16px;font-size:12px}.sweep-record summary::-webkit-details-marker{display:none}.sweep-record summary:hover{background:#26354750}.sweep-record summary>span{min-width:0;overflow-wrap:anywhere}.sweep-record summary small,.sweep-waiting small{display:block;color:var(--mut);font-size:10px;margin-top:5px}.sweep-row-amount>b{font-weight:600}.sweep-row-time{font-size:10px;color:var(--mut)}.sweep-expand{color:var(--acc);font-size:18px}.sweep-record[open] .sweep-expand{transform:rotate(45deg)}
+.sweep-record-detail{border-top:1px solid var(--line);padding:22px;background:#111a25}.sweep-detail-head p{color:var(--mut);font-size:11px;margin-top:6px;line-height:1.7}.sweep-job-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:23px 0}.sweep-job-facts>div{min-width:0}.sweep-job-facts dt,.sweep-addresses small{display:block;color:var(--mut);font-size:10px;margin-bottom:6px}.sweep-job-facts dd{margin:0;font-size:12px;overflow-wrap:anywhere}.sweep-addresses{display:grid;gap:14px;padding:17px;border:1px solid var(--line);border-radius:7px}.sweep-addresses a,.sweep-step>a{overflow-wrap:anywhere;font-size:11px}.sweep-trail-title{margin:26px 0 15px}.sweep-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sweep-step{border:1px solid var(--line);border-radius:8px;padding:17px;background:#172330;min-width:0}.sweep-step header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px}.sweep-step header>span:first-child{font-size:9px;letter-spacing:.08em;color:#d4be99}.sweep-step dl{display:grid;gap:11px;margin:18px 0 0;font-size:11px}.sweep-step dl>div{display:flex;justify-content:space-between;gap:15px}.sweep-step dt{color:var(--mut)}.sweep-step dd{margin:0;text-align:right;overflow-wrap:anywhere;max-width:60%}.sweep-waiting{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border-bottom:1px solid var(--line);font-size:12px}.sweep-waiting>div{min-width:0}.sweep-waiting code{display:block;overflow-wrap:anywhere;font-size:10px;margin-top:7px}.sweep-waiting>div:last-child{text-align:right}.sweep-export{margin-left:auto}
+@media(min-width:1500px){.mast-inner,.workspace{max-width:1600px}.sweep-wallets{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1050px){.sweep-record summary{grid-template-columns:1fr 1fr auto 12px;gap:12px}.sweep-row-time{display:none}.section-tools select{min-width:130px;max-width:155px}}
+@media(max-width:800px){.workspace{grid-template-columns:minmax(0,1fr);column-gap:0}#nav{padding:10px var(--right) 10px var(--left);border-bottom:1px solid var(--line)}#nav button{flex:none;min-height:38px}#nav button svg{width:14px;height:14px}.nav-group+.nav-group{margin:0}.section-head{align-items:flex-start;flex-wrap:wrap}.section-tools{width:100%}.section-tools select{flex:1;max-width:220px}.section-tools .picker{flex:1}.stats,.sweep-stats{gap:10px}.sweep-stats>div{padding:14px}.sweep-stats strong{font-size:27px}.sweep-intro{align-items:flex-start;flex-wrap:wrap}.sweep-intro h2{font-size:19px}.sweep-wallets{gap:12px}.sweep-wallet{padding:15px}.sweep-job-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:550px){.mast-inner{min-height:66px}.brand::before{width:19px;height:19px}.stats,.sweep-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.sweep-wallets,.sweep-steps{grid-template-columns:minmax(0,1fr)}.sweep-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.sweep-filters .sweep-search{grid-column:1/-1}.sweep-filters>button:last-child{grid-column:auto;grid-row:auto;justify-self:stretch;margin:0;min-height:40px}.sweep-record summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 12px;gap:13px;padding:15px 12px}.sweep-record summary>span:nth-child(3){grid-column:1/3;grid-row:2;display:flex;align-items:center;gap:10px}.sweep-record summary>span:nth-child(3) small{margin:0}.sweep-expand{grid-column:3;grid-row:1/3}.sweep-row-amount{text-align:right}.sweep-record-detail{padding:16px 12px}.sweep-waiting{align-items:flex-start;flex-direction:column;gap:12px;padding:16px 0}.sweep-waiting>div:last-child{text-align:left}.sweep-tabs{gap:3px}.sweep-tabs button{font-size:11px;padding:8px}.sweep-tabs .sweep-export{margin-left:0}.sweep-intro>button{width:100%}.sweep-job-facts{gap:15px 12px}.sweep-addresses{padding:13px}.sweep-footnote{font-size:10px}.sweep-wallet header .pill{font-size:10px}}
+@media(prefers-reduced-motion:reduce){button:not(:disabled){transition:none}.sweep-expand{transition:none}}
+
 </style>
 <link rel="stylesheet" href="/admin/option-picker.css">
 <script defer src="/admin/option-picker.js"></script>
@@ -463,12 +494,12 @@
   </header>
   <div class="workspace">
     <nav id="nav" aria-label="Treasury sections">
-      <div class="nav-group"><span class="eyebrow">Operations</span><button>Overview</button><button>Users</button><button>Withdrawals</button><button>Deposits</button></div>
+      <div class="nav-group"><span class="eyebrow">Operations</span><button>Overview</button><button>Users</button><button>Withdrawals</button><button>Deposits</button><button>Sweeps</button></div>
       <div class="nav-group"><span class="eyebrow">Configuration</span><button>Direct wallets</button><button>Secrets</button><button>Chains</button><button>Assets</button><button>Settings</button></div>
       <div class="nav-group"><span class="eyebrow">Oversight</span><button>Security</button><button>Audit</button></div>
     </nav>
     <main id="workspaceScroll" aria-labelledby="sectionTitle" tabindex="0">
-      <header class="section-head"><p class="eyebrow" id="sectionGroup"></p><h1 id="sectionTitle" tabindex="-1">Overview</h1></header>
+      <header class="section-head"><div><p class="eyebrow" id="sectionGroup"></p><h1 id="sectionTitle" tabindex="-1">Overview</h1><p id="sectionDescription"></p></div><div class="section-tools"><select id="sectionJump" aria-label="Jump to admin section"></select><button type="button" id="refreshSection" class="sm" aria-label="Refresh current section">Refresh</button></div></header>
       <p id="sectionStatus" class="sr-only" role="status"></p>
       <div id="view"></div>
     </main>
@@ -493,12 +524,13 @@ async function api(path, method='GET', body){
   if(!r.ok){
     if(r.status===401 && started===session && !$('#app').classList.contains('hide')) showLogin('Your session expired. Sign in again.');
     if(custody){
-      const message=r.status===403?'Change not authorized. Verify operator 2FA and enter a fresh authenticator code.':r.status===429?'Too many attempts. Wait for a new authenticator code.':r.status===409?'Configuration changed or there is an unresolved sweep. Refresh status before trying again.':r.status===400?'The service rejected these settings. Check the network, public address and worker configuration.':'Custody service unavailable. Refresh status before trying again.';
+      const alchemy=path==='/api/admin/custody/alchemy';
+      const message=r.status===403?'Change not authorized. Verify operator 2FA and enter a fresh authenticator code.':r.status===429?'Too many attempts. Wait for a new authenticator code.':r.status===409?(alchemy?'Pause all network sweeps before changing the Alchemy API key.':'Configuration changed or there is an unresolved sweep. Refresh status before trying again.'):r.status===400?(alchemy?'The Alchemy API key format was rejected.':'The service rejected these settings. Check the public address and worker configuration.'):'Custody service unavailable. Refresh status before trying again.';
       throw Object.assign(new Error(message),{status:r.status});
     }
     // A proxy error for a credential write can contain the submitted value.
     if(path==='/api/admin/secrets' && method==='PUT'){
-      const message=r.status===409?'Manage enrolled network RPCs through Direct wallets.':r.status===400?'The secret was not saved. Check the network name and value; receiving keys must be watch-only.':'The secret could not be saved. Try again.';
+      const message=r.status===409?'Manage launch RPC configuration through Direct wallets.':r.status===400?'The secret was not saved. Check the network name and value; receiving keys must be watch-only.':'The secret could not be saved. Try again.';
       throw Object.assign(new Error(message),{status:r.status});
     }
     if(path==='/api/admin/2fa/enable' && method==='POST'){
@@ -551,9 +583,16 @@ $('#logout').onclick = async () => {
 };
 
 // ---- Nav ----
-const sections={Overview:renderOverview,Users:renderUsers,Withdrawals:renderWithdrawals,Deposits:renderDeposits,
+const sections={Overview:renderOverview,Users:renderUsers,Withdrawals:renderWithdrawals,Deposits:renderDeposits,Sweeps:renderSweeps,
   'Direct wallets':renderDirectWallets,Secrets:renderSecrets,Chains:renderChains,Assets:renderAssets,Settings:renderSettings,Security:renderSecurity,Audit:renderAudit};
 let current = 'Overview', adminName = '';
+const sectionDescriptions={Overview:'Deposits, balances and activity across your treasury.',Users:'Find a player and review their balances, account access and activity.',Withdrawals:'Review requests and follow payouts through settlement.',Deposits:'Trace detected transfers, confirmation progress and credited balances.',Sweeps:'Monitor collections, transaction receipts and native fee reserves.','Direct wallets':'Manage receiving networks, collection destinations and worker readiness.',Secrets:'Manage encrypted service credentials and public wallet configuration.',Chains:'Review monitoring status and confirmation requirements by network.',Assets:'Control supported assets and their minimum deposits.',Settings:'Manage treasury preferences and game limits.',Security:'Manage operator authentication and account access.',Audit:'Review the record of administrative actions.'};
+$('#sectionJump').innerHTML=Object.keys(sections).map(name=>`<option>${name}</option>`).join('');
+$('#sectionJump').onchange=e=>openSection(e.target.value);
+$('#refreshSection').onclick=()=>void render();
+try{const initialSection=decodeURIComponent(location.hash.slice(1));if(Object.hasOwn(sections,initialSection))current=initialSection;}catch{}
+const navPaths={Overview:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',Users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m8-7a4 4 0 0 1 0 8m3 9v-2a4 4 0 0 0-3-4',Withdrawals:'M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5',Deposits:'M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4',Sweeps:'M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4','Direct wallets':'M20 7H5a2 2 0 0 1 0-4h13v4M3 6v14h18V7m0 5h-6v4h6',Secrets:'M14 10a5 5 0 1 0-5 5l3 3h3v3h4v-4l-6-6',Chains:'m10 13 4-4M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 1 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0',Assets:'M20 7c0 3-16 3-16 0s16-3 16 0ZM4 7v10c0 3 16 3 16 0V7M4 12c0 3 16 3 16 0',Settings:'M4 7h16M4 17h16M8 4v6m8 4v6',Security:'m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6l9-4Zm-4 10 3 3 5-6',Audit:'M7 3h13v18H4V6h3V3Zm1 6h8m-8 4h8m-8 4h5'};
+for(const button of $('#nav').querySelectorAll('button'))button.insertAdjacentHTML('afterbegin',`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${navPaths[button.textContent]||''}"/></svg>`);
 function markCurrent(nav,name){
   for(const b of nav.querySelectorAll('button')){
     const selected=b.textContent===name;
@@ -563,7 +602,8 @@ function markCurrent(nav,name){
   }
 }
 function openSection(name){
-  current=name;
+  if(!Object.hasOwn(sections,name))return;current=name;
+  $('#sectionJump').value=name;$('#sectionDescription').textContent=sectionDescriptions[name];history.replaceState(null,'','#'+encodeURIComponent(name));
   markCurrent($('#nav'),current);$('#sectionGroup').textContent=$('#nav .on').parentElement.firstElementChild.textContent;
   $('#sectionTitle').textContent=current;document.title=current+' · BANDITBLOX Treasury';
   render();$('#workspaceScroll').scrollTop=0;$('#nav .on').scrollIntoView({block:'nearest',inline:'nearest'});
@@ -720,12 +760,13 @@ function custodyNetwork(n,canEdit,key){
     <span><small>Address issuance</small>${custodyPill(n.ready,'Ready','Not ready')}</span>
     <span><small>Automatic sweeps</small>${custodyPill(n.sweeps_enabled,'Enabled','Off')}</span></summary>
     <div class="custody-detail"><dl class="custody-facts">
-      ${custodyFact('Mainnet RPC',n.rpc_configured===true?'Configured':n.rpc_configured===false?'Not set':'Not reported')}
+      ${custodyFact('Deposit RPC',n.rpc_configured===true?'Configured':n.rpc_configured===false?'Not set':'Not reported')}
+      ${custodyFact('RPC provider',n.rpc_provider==='drpc'?'dRPC':n.rpc_provider==='alchemy'?'Alchemy':n.rpc_provider==='legacy'?'Per-network endpoint':n.rpc_provider==='unavailable'?'Unavailable':'Not reported')}
       ${custodyFact('Scanner',n.scan_ready===true?'Current':n.scan_ready===false?'Not current':'Not reported')}
        ${custodyFact('Last checkpoint',checkpoint)}${custodyFact('Required confirmations',n.required_conf??'Not reported')}
        ${custodyFact('Sweep worker',Object.hasOwn(workerStates,n.worker_status)?workerStates[n.worker_status]:'Not reported')}
        ${custodyFact('Worker last checked',n.worker_checked_at?when(n.worker_checked_at):'Not reported')}
-    </dl><div class="custody-block"><h3>Deposit rules</h3><p class="mut">Use an HTTPS RPC for ${r.mainnet}. ${sol?'It must serve finalized full blocks, parsed transactions and transaction history. SOL fees come from the deposit address; the remaining amount must meet account rent requirements.':'It must serve full blocks, receipts and block-hash-filtered token logs. The worker also needs fee estimates and signed transaction submission. Native sweeps pay their fees in '+r.native+'; USDT needs a funded '+r.native+' sponsor on this chain.'}</p>
+    </dl><div class="custody-block"><h3>Deposit rules</h3><p class="mut">${sol?'Alchemy':'dRPC with Alchemy fallback'} mainnet JSON-RPC for ${r.mainnet}. ${sol?'It must serve finalized blocks, parsed transactions and address history. SOL fees come from the deposit address; the remaining amount must meet account rent requirements.':'It must serve full blocks, receipts and canonical token logs. The worker also needs fee estimates and signed transaction submission. Native sweeps pay their fees in '+r.native+'; USDT needs a funded '+r.native+' sponsor on this chain.'}</p>
     ${assets.length?`<div class="tscroll" tabindex="0" role="region" aria-label="${esc(name)} deposit rules"><table class="custody-assets"><thead><tr><th>Asset</th><th>Minimum deposit</th><th>Contract</th></tr></thead><tbody>${assets.map(a=>{
       const min=/^\d+$/.test(String(a.min_deposit))&&Number.isInteger(a.decimals)&&a.decimals>=0&&a.decimals<=36?fmt(a.min_deposit,a.decimals)+' '+(a.id===r.token?'USDT':r.native):'Not reported';
       return `<tr><td><b>${esc(a.id===r.token?'USDT':r.native)}</b>${a.enabled===false?'<small>Disabled</small>':''}</td><td>${esc(min)}</td><td>${a.id===r.token?`<small>Pinned USDT contract</small><span class="mono">${esc(hexAddress(a.token_address)?a.token_address:'Not reported')}</span>`:'Native coin'}</td></tr>`;
@@ -733,11 +774,10 @@ function custodyNetwork(n,canEdit,key){
     </div><div class="custody-block"><h3>Collection wallet</h3><p class="mut">${sol?'Use a separate public Solana address that you control, not an EVM address.':'You can use one public EVM collection address on Ethereum, BNB Smart Chain and Polygon. Save and verify it separately on each network.'} Never use a player deposit address or the fee sponsor.</p>
     <small>Saved destination on ${esc(name)}</small><code class="custody-address mono">${esc(dest||'Not configured')}</code></div>
     ${canEdit && !active && typeof n.sweeps_enabled==='boolean'?`<details class="custody-block custody-edit"><summary>Edit network settings</summary><form class="custody-form" data-network-settings autocomplete="off" novalidate>
-      <div class="grid2"><label>${n.rpc_configured?'Replacement':'Mainnet'} RPC URL<input data-rpc type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="https://" aria-describedby="rpc-help-${id}"></label>
-      <label>New public collection address<input data-destination type="text" autocomplete="off" autocapitalize="off" spellcheck="false" ${n.destination_locked?'disabled':''} placeholder="${sol?'Public Solana address':'0x...'}"></label></div>
-      <p id="rpc-help-${id}" class="mut">RPC credentials are write-only. Leave fields blank to keep their saved values. Saving does not enable sweeps.${n.destination_locked?' The saved collection address is pinned and cannot be replaced here.':''}</p>
+      <label>New public collection address<input data-destination type="text" autocomplete="off" autocapitalize="off" spellcheck="false" ${n.destination_locked?'disabled':''} placeholder="${sol?'Public Solana address':'0x...'}"></label>
+      <p class="mut">Saving does not enable sweeps. Once saved, the collection address is pinned and cannot be replaced.${n.destination_locked?' Confirm the full address in your receiving wallet before enabling collection.':''}</p>
       <div class="custody-actions">${authField}<button type="submit">Save network settings</button></div><p role="status"></p></form></details>`:''}
-    <div class="custody-block"><h3>Sweep control</h3><p class="mut">${active?'Pausing stops new signatures and broadcasts. Already submitted transactions cannot be cancelled and will still be checked. Pause before changing the RPC.':reasons.length?'Before enabling sweeps, this network needs '+esc(reasons.join(', '))+'.':'Enabling starts automatic collection to the saved destination. It does not enable player address issuance.'}</p>
+    <div class="custody-block"><h3>Sweep control</h3><p class="mut">${active?'Pausing stops new signatures and broadcasts. Already submitted transactions cannot be cancelled and will still be checked. Pause before changing network configuration.':reasons.length?'Before enabling sweeps, this network needs '+esc(reasons.join(', '))+'.':'Enabling starts automatic collection to the saved destination. It does not enable player address issuance.'}</p>
     ${canEdit && typeof n.sweeps_enabled==='boolean' && (active||!reasons.length)?`<form class="custody-form" data-sweep-toggle autocomplete="off" novalidate>
       ${active?'':`<label class="custody-check"><input type="checkbox" data-verified>I verified the full saved address on my receiving wallet for ${esc(name)}.</label>`}
       <div class="custody-actions">${authField}<button type="submit" class="${active?'danger':'pri'}">${active?'Pause':'Enable'} sweeps</button></div><p role="status"></p></form>`:''}</div></div></details>`;
@@ -771,7 +811,7 @@ async function renderDirectWallets(v){
     <p class="mut">Players keep their assigned addresses. The scanner verifies deposits for credit; the signing worker separately sweeps eligible funds to your collection wallet.</p>
     <dl class="custody-facts">${custodyFact('Deposit method','Direct wallets')}${custodyFact('New deposits',d.deposits_paused===true?'Paused':d.deposits_paused===false?'Not paused':'Not reported')}${custodyFact('Signing key',readyLabel)}</dl>
     <p class="mut">Players choose a coin and network, then send to their permanent address. Confirmed transfers credit the actual amount received. Pause new requests in <button type="button" class="sm" data-custody-section="Settings">Settings</button>.</p></section>
-    ${!canEdit?`<section class="card custody-intro"><h2>Read-only access</h2><p>${!secure?'Open the operator panel over HTTPS in a secure browser with WebCrypto. Do not enter a seed, RPC credential or authenticator code here.':'Enable operator two-factor authentication before enrolling a seed or changing any network settings.'}</p>${!me.totp_enabled?'<button type="button" data-custody-section="Security">Open Security</button>':''}</section>`:''}
+    ${!canEdit?`<section class="card custody-intro"><h2>Read-only access</h2><p>${!secure?'Open the operator panel over HTTPS in a secure browser with WebCrypto. Do not enter a seed, Alchemy API key or authenticator code here.':'Enable operator two-factor authentication before enrolling a seed or changing any network settings.'}</p>${!me.totp_enabled?'<button type="button" data-custody-section="Security">Open Security</button>':''}</section>`:''}
     <section class="card" id="custodySigning"><div class="custody-head"><h2>Signing worker</h2>${custodyPill(key.ready,'Key ready','Not ready')}</div>
     ${/^[\da-f]{64}$/.test(key.id)?`<div class="custody-block"><small class="mut">Worker key ID (SHA-256 fingerprint)</small><code class="custody-address mono">${esc(key.id)}</code></div>`:''}
     ${key.configured===true?`<p class="custody-note">Seed enrolled. ${key.ready===true?'The worker has published its public receiving material.':'Wait for the isolated worker to unlock the seed and publish its public receiving material.'} The seed cannot be viewed or replaced here.</p>`:
@@ -783,8 +823,24 @@ async function renderDirectWallets(v){
     <section class="card"><h2>Gas sponsorship</h2><p class="mut">The signing worker publishes this public EVM fee address for USDT sweeps. It is not a collection wallet or player deposit address. The worker obtains fees from each network's RPC before signing; no fee is quoted by this panel.</p>
       <code class="custody-address mono" id="custodyFeeAddress">${esc(fee||'No fee address published by the worker')}</code><p class="custody-note">Fund this address separately with ETH on Ethereum, BNB on BNB Smart Chain and POL on Polygon. Balances do not cross networks, and USDT cannot pay gas. Native SOL pays its own fee; do not send SOL to the EVM address.</p></section>
     <section class="card" id="custodyNetworks"><h2>Network routing</h2><p class="mut">Readiness is for new addresses, independent of the global pause. Issuance requires an enabled chain and asset, a current scanner checkpoint and worker-managed receiving material. Turning sweeps off does not turn the scanner off.</p>
+    <div class="custody-block"><h3>RPC providers</h3><p class="mut">Ethereum, BNB Smart Chain and Polygon PoS use dRPC first, with Alchemy fallback. Solana uses Alchemy directly. The Alchemy pool accepts up to ten encrypted API keys. Current route: ${esc(d.rpc_provider||'legacy')}. Each EVM network fails over independently and retries dRPC after its cooldown. Provider changes and failover pause new address issuance until every scanner has established a fresh checkpoint; already issued addresses continue to be monitored.</p>
+      ${canEdit?`<form class="custody-form" id="drpcRpcForm" autocomplete="off" novalidate><label>dRPC API key<input data-drpc-key type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="${d.drpc_configured===true?'Enter a replacement dRPC API key':'Enter a dRPC API key'}"></label>
+        <p class="mut">The key is stored encrypted and never displayed. Leave the field empty only when removing the configured dRPC key.</p>
+        <div class="custody-actions">${authField}<button type="submit">Save dRPC API key</button>${d.drpc_configured===true?'<button type="button" data-remove-drpc>Remove dRPC API key</button>':''}</div><p role="status"></p></form>`:
+      `<p class="custody-note">dRPC API key: ${d.drpc_configured===true?'Configured':'Not configured'}.</p>`}
+      ${canEdit?`<form class="custody-form" id="alchemyKeyAddForm" autocomplete="off" novalidate><label>Add Alchemy API key<input data-alchemy-add-key type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="Add key ${Math.min((d.alchemy_key_count||0)+1,10)} of 10"></label>
+        <p class="mut">${d.alchemy_key_count||0}/10 keys configured. Keys are tried in rotation after throttling, authentication, or transport errors.</p>
+        <div class="custody-actions">${authField}<button type="submit" ${((d.alchemy_key_count||0)>=10)?'disabled':''}>Add Alchemy key</button></div><p role="status"></p></form>`:
+      `<p class="custody-note">Alchemy API keys: ${d.alchemy_key_count||0}/10 configured.</p>`}
+      ${(d.alchemy_key_slots||[]).length?`<div class="tscroll" role="region" aria-label="Alchemy API keys"><table><thead><tr><th>Key slot</th><th>State</th><th>Action</th></tr></thead><tbody>${(d.alchemy_key_slots||[]).map(k=>`<tr><td>Alchemy key ${k.slot}</td><td>${k.active?'Active':k.cooling_down?'Cooling down':'Standby'}</td><td>${canEdit?`<button type="button" data-remove-alchemy-slot="${k.slot}">Remove</button>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
+    <div class="custody-block"><h3>Replace Alchemy key 1</h3><p class="mut">This form replaces or removes Alchemy key slot 1 only. Other Alchemy keys stay configured; use the key list above to remove any slot.</p>
+      ${canEdit?`<form class="custody-form" id="alchemyRpcForm" autocomplete="off" novalidate><label>Alchemy API key<input data-alchemy-key type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" aria-describedby="alchemy-help" placeholder="${d.alchemy_configured===true?'Enter a replacement Alchemy API key':'Enter a new Alchemy API key'}"></label>
+        <p id="alchemy-help" class="mut">${d.alchemy_configured===true?'One or more Alchemy keys are saved; their values are never displayed. This form changes slot 1 only.':'No Alchemy API key is saved.'} Pause all four network sweeps before saving or removing a key.</p>
+        <div class="custody-actions">${authField}<button type="submit">Save Alchemy API key</button>${(d.alchemy_key_slots||[]).some(k=>k.slot===1)?'<button type="button" data-remove-alchemy>Remove Alchemy API key</button>':''}</div><p role="status"></p></form>`:
+      `<p class="custody-note">Alchemy API keys: ${d.alchemy_key_count||0}/10. Enable operator two-factor authentication to manage these settings.</p>`}
+    </div>
     ${networks.map(n=>custodyNetwork(n,canEdit,key)).join('')}</section>
-    <section class="card"><h2>Recent sweep jobs</h2><p class="mut">Only credited deposits at worker-managed addresses are eligible. Funds at older watch-only addresses or imported Solana addresses must be collected manually with their original signer. A job under review is not a request to resend.</p>${custodyJobs(d.jobs)}</section>`;
+    <section class="card"><div class="custody-head"><h2>Recent sweep jobs</h2><button type="button" data-open-section="Sweeps">Open sweep history</button></div><p class="mut">Only credited deposits at worker-managed addresses are eligible. Funds at older watch-only addresses or imported Solana addresses must be collected manually with their original signer. A job under review is not a request to resend.</p>${custodyJobs(d.jobs)}</section>`;
 
   v.querySelectorAll('[data-custody-section]').forEach(b=>b.onclick=()=>openSection(b.dataset.custodySection));
   async function refresh(id){
@@ -793,6 +849,15 @@ async function renderDirectWallets(v){
     else $('#refreshCustody')?.focus({preventScroll:true});
   }
   $('#refreshCustody').onclick=()=>refresh(v.querySelector('.custody-network[open]')?.dataset.network);
+  const alchemyForm=$('#alchemyRpcForm');
+  alchemyForm?.querySelector('[data-remove-alchemy]')?.addEventListener('click',()=>{alchemyForm.dataset.remove='true';alchemyForm.requestSubmit();});
+  const drpcForm=$('#drpcRpcForm');
+  drpcForm?.querySelector('[data-remove-drpc]')?.addEventListener('click',()=>{drpcForm.dataset.remove='true';drpcForm.requestSubmit();});
+  for(const button of v.querySelectorAll('[data-remove-alchemy-slot]'))button.addEventListener('click',async()=>{
+    const slot=button.dataset.removeAlchemySlot,form=button.closest('.custody-block'),code=form?.querySelector('[data-code]');
+    if(!slot||!code||!/^\d{6}$/.test(code.value)){toast('Enter a fresh six-digit authenticator code.','lose');code?.focus();return;}
+    button.disabled=true;try{await api('/api/admin/custody/alchemy/keys/'+slot,'DELETE',{totp:code.value});toast('Alchemy key removed.');await refresh();}catch(err){toast(err.status?err.message:'Could not remove the Alchemy key.','lose');}finally{code.value='';button.disabled=false;}
+  });
   for(const form of v.querySelectorAll('.custody-form'))form.onsubmit=async e=>{
     e.preventDefault();const button=form.querySelector('button'),code=form.querySelector('[data-code]'),status=form.querySelector('[role=status]');
     if(button.disabled || !canEdit || !custodySecure())return;
@@ -813,14 +878,33 @@ async function renderDirectWallets(v){
         if(!form.isConnected)return;
         await api('/api/admin/custody/root','POST',{key_id:key.id,sealed_base64:btoa(String.fromCharCode(...new Uint8Array(sealed))),totp});
         success='Encrypted seed submitted. Check the worker status.';
+      }else if(form.id==='drpcRpcForm'){
+        let apiKey=form.querySelector('[data-drpc-key]').value.trim();form.querySelector('[data-drpc-key]').value='';
+        const removing=form.dataset.remove==='true';delete form.dataset.remove;
+        if(!removing&&!/^[\x21-\x7E]{8,128}$/.test(apiKey)){fieldError(status,'Enter a dRPC API key using 8–128 visible ASCII characters without spaces.',[form.querySelector('[data-drpc-key]')]);return;}
+        if(!/^\d{6}$/.test(totp)){fieldError(status,'Enter a fresh six-digit authenticator code.',[code]);return;}
+        const payload={api_key:removing?null:apiKey,totp};try{await api('/api/admin/custody/drpc','PUT',payload);success=removing?'dRPC API key removed.':'dRPC API key saved.';}finally{payload.api_key=null;apiKey='';}
+      }else if(form.id==='alchemyKeyAddForm'){
+        let apiKey=form.querySelector('[data-alchemy-add-key]').value.trim();form.querySelector('[data-alchemy-add-key]').value='';
+        if(!/^[\x21-\x7E]{8,128}$/.test(apiKey)){fieldError(status,'Enter an Alchemy API key using 8–128 visible ASCII characters without spaces.',[form.querySelector('[data-alchemy-add-key]')]);return;}
+        if(!/^\d{6}$/.test(totp)){fieldError(status,'Enter a fresh six-digit authenticator code.',[code]);return;}
+        const payload={api_key:apiKey,totp};try{await api('/api/admin/custody/alchemy/keys','POST',payload);success='Alchemy fallback key added.';}finally{payload.api_key=null;apiKey='';}
+      }else if(form.id==='alchemyRpcForm'){
+        let apiKey=form.querySelector('[data-alchemy-key]').value.trim();
+        form.querySelector('[data-alchemy-key]').value='';
+        const removing=form.dataset.remove==='true';delete form.dataset.remove;
+        if(!removing && !/^[\x21-\x7E]{8,128}$/.test(apiKey)){apiKey='';fieldError(status,'Enter an Alchemy API key using 8–128 visible ASCII characters without spaces.',[form.querySelector('[data-alchemy-key]')]);return;}
+        if(!/^\d{6}$/.test(totp)){apiKey='';fieldError(status,'Enter a fresh six-digit authenticator code.',[code]);return;}
+        const payload={api_key:removing?null:apiKey,totp};
+        try{await api('/api/admin/custody/alchemy','PUT',payload);success=removing?'Alchemy API key removed. Scanner readiness must be re-established.':'Alchemy API key saved. Scanner readiness must be re-established.';}
+        finally{payload.api_key=null;apiKey='';}
       }else{
         const body={totp};
         if(form.hasAttribute('data-network-settings')){
-          const rpc=form.querySelector('[data-rpc]'),url=rpc.value.trim();rpc.value='';const dest=form.querySelector('[data-destination]').value.trim();
-          if(!url && !dest){fieldError(status,'Enter a new RPC URL or collection address.',[rpc,form.querySelector('[data-destination]')]);return;}
-          if(url){try{const u=new URL(url);if(!/^https:\/\//i.test(url) || /[\s\\]/.test(url) || !u.hostname || u.hash || u.username || u.password)throw 0;}catch{fieldError(status,'Use a mainnet HTTPS RPC URL without a fragment or embedded user credentials.',[rpc]);return;}body.rpc_url=url;}
+          const dest=form.querySelector('[data-destination]').value.trim();
+          if(!dest){fieldError(status,'Enter the public collection address for this network.',[form.querySelector('[data-destination]')]);return;}
           if(dest){if(n.destination_locked || !publicDestination(id,dest) || (fee && dest.toLowerCase()===fee.toLowerCase())){fieldError(status,'Enter a valid, unlocked public collection address for this network, not the fee sponsor.',[form.querySelector('[data-destination]')]);return;}body.destination=dest;}
-          success='Network settings saved. Sweep activation is separate.';
+          success='Collection address saved. Sweep activation is separate.';
         }else{
           body.enabled=!n.sweeps_enabled;
           if(body.enabled){if(!form.querySelector('[data-verified]').checked){fieldError(status,'Verify the full saved collection address before enabling sweeps.',[form.querySelector('[data-verified]')]);return;}body.destination=n.destination;}
@@ -830,9 +914,107 @@ async function renderDirectWallets(v){
         await api('/api/admin/custody/networks/'+id,'PUT',body);
       }
       if(form.isConnected){toast(success);await refresh(id);}
-    }catch(err){if(form.isConnected)fieldError(status,err.status?err.message:'Could not confirm the change. Refresh status before trying again.',[403,429].includes(err.status)?[code]:err.status===400 && form.hasAttribute('data-network-settings')?[form.querySelector('[data-rpc]'),form.querySelector('[data-destination]')]:[]);}
+    }catch(err){if(form.isConnected)fieldError(status,err.status?err.message:'Could not confirm the change. Refresh status before trying again.',[403,429].includes(err.status)?[code]:err.status===400 && form.id==='alchemyRpcForm'?[form.querySelector('[data-alchemy-key]')]:err.status===400 && form.hasAttribute('data-network-settings')?[form.querySelector('[data-destination]')]:[]);}
     finally{button.disabled=false;}
   };
+}
+
+const sweepStates={queued:'Queued',sponsor_signed:'Funding signed',sponsor_pending:'Funding pending',sponsored:'Funding confirmed',sweep_signed:'Sweep signed',sweep_pending:'Sweep pending',completed:'Completed',review:'Needs review',dust:'Below threshold'};
+const sweepReasons={wrong_chain:'RPC network mismatch',orphaned:'Chain reorganization',unowned:'Ownership verification failed',dust:'Below collection threshold',fee_limit:'Fee or sponsorship limit',insufficient_funds:'Insufficient source or fee balance',expired:'Transaction expired',nonce_conflict:'Nonce conflict',invalid_receipt:'Receipt verification failed',ambiguous:'Ambiguous chain evidence',not_final:'Awaiting confirmations',unavailable:'RPC or worker unavailable',invalid_intent:'Job validation failed'};
+const collectionReasons={ready:'Ready for worker',sweeps_paused:'Sweeps paused',destination_missing:'Collection address required',worker_unavailable:'Waiting for signing worker',route_disabled:'Monitoring route disabled',below_minimum:'Below collection minimum'};
+const sweepTone=status=>status==='completed'||status==='current'||status==='ready'?'ok':status==='review'||status==='unavailable'||status==='stale'?'warn':'off';
+const sweepMoney=(value,decimals,symbol)=>value==null?'Not recorded':fmt(value,decimals)+' '+symbol;
+const sweepNative=chain=>custodyRoutes[chain]?.native||chain;
+const sweepFee=(job,value)=>sweepMoney(value,job.chain_id==='SOL'?9:18,sweepNative(job.chain_id));
+function sweepLink(chain,value,type='tx'){
+  const base={ETH:'https://etherscan.io/',BSC:'https://bscscan.com/',POL:'https://polygonscan.com/',SOL:'https://explorer.solana.com/'}[chain];
+  return value&&base?`<a href="${base}${type==='tx'?'tx/':'address/'}${encodeURIComponent(value)}" target="_blank" rel="noopener noreferrer" class="mono">${esc(value)}</a>`:'Not available';
+}
+let sweepFilters={chain:'',status:'',asset:'',q:''},sweepTab='history';
+async function renderSweeps(v){
+  let cursors=[null],next=null,sequence=0,search,exportRows=[];
+  v.innerHTML=`<div class="sweep-intro"><div><p class="eyebrow">Collection operations</p><h2>From credited deposit to collection wallet</h2><p class="mut">Follow every job, funding transaction and receipt. Collection does not debit the player’s credited balance.</p></div><button type="button" id="refreshSweeps">Refresh dashboard</button></div>
+    <div id="sweepOverview">${loading('collection totals')}</div>
+    <section class="card sweep-wallet-section"><div class="custody-head"><div><h2>Fee wallets</h2><p class="mut">Native funds available for token collection on each network.</p></div><button class="sm" type="button" data-open-section="Direct wallets">Manage collection</button></div><div id="sweepFeeWallets">${loading('fee wallet balances')}</div><p class="sweep-footnote">Balances are shared snapshots, refreshed at most once a minute. An unavailable balance is never treated as zero.</p></section>
+    <section class="card sweep-history"><div class="custody-head"><div><h2>Collection records</h2><p class="mut">Full history with exact network amounts. Open a job for its complete transaction trail.</p></div><span id="sweepLoadedAt" class="mut"></span></div>
+    <nav class="sweep-tabs" aria-label="Collection records"><button type="button" data-sweep-tab="history">Sweep history</button><button type="button" data-sweep-tab="awaiting">Awaiting collection</button><button type="button" class="sm sweep-export" id="exportSweeps" disabled>Export this page</button></nav>
+    <form id="sweepFilters" class="sweep-filters"><label>Network<select name="chain"><option value="">All networks</option>${Object.entries(custodyRoutes).map(([id,n])=>`<option value="${id}">${esc(n.name)}</option>`).join('')}</select></label>
+      <label data-status-filter>Status<select name="status"><option value="">All statuses</option>${Object.entries(sweepStates).map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</select></label>
+      <label>Asset<select name="asset"><option value="">All assets</option>${['ETH','BNB','POL','SOL','USDT.ERC20','USDT.BEP20','USDT.POL'].map(id=>`<option>${id}</option>`).join('')}</select></label>
+      <label class="sweep-search">Search<input name="q" type="search" placeholder="Job, player, address or transaction" maxlength="128" autocomplete="off"></label><button type="submit" class="sm">Search</button><button type="button" id="resetSweepFilters" class="sm">Reset</button></form>
+    <p id="sweepHistoryStatus" class="sr-only" role="status"></p><div id="sweepRecords"></div><div class="record-pager"><button type="button" id="sweepPrevious">Previous</button><span id="sweepPage"></span><button type="button" id="sweepNext">Next</button></div></section>`;
+  const form=$('#sweepFilters',v),records=$('#sweepRecords',v);
+  for(const [key,value] of Object.entries(sweepFilters))form.elements[key].value=value;
+  const live=()=>v.isConnected&&current==='Sweeps';
+  async function overview(){
+    const host=$('#sweepOverview',v);
+    try{
+      const d=await api('/api/admin/sweeps');if(!live())return;
+      const count=status=>BigInt(d.counts.find(r=>r.status===status)?.count||0),waiting=d.awaiting.reduce((sum,r)=>sum+BigInt(r.count),0n);
+      const active=Object.keys(sweepStates).filter(s=>!['completed','review','dust'].includes(s)).reduce((n,s)=>n+count(s),0n);
+      const amounts=new Map(d.amounts.map(a=>[a.chain_id+':'+a.asset_id,{...a,awaiting:'0'}]));
+      for(const a of d.awaiting){const key=a.chain_id+':'+a.asset_id,row=amounts.get(key)||{...a,outstanding:'0',collected:'0',awaiting:'0'};row.awaiting=(BigInt(row.awaiting)+BigInt(a.amount)).toString();amounts.set(key,row);}
+      host.innerHTML=`<div class="sweep-stats">${[['In progress',active,''],['Awaiting collection',waiting,''],['Completed',count('completed'),'ok'],['Needs review',count('review'),'warn']].map(([label,value,tone])=>`<div><span>${label}</span><strong class="${tone}">${value}</strong><small>All networks</small></div>`).join('')}</div>
+      <section class="card"><div class="custody-head"><h2>Collection by asset</h2><small class="mut">Snapshot ${esc(when(d.as_of))}</small></div><div class="tscroll" role="region" tabindex="0" aria-label="Collection totals"><table><thead><tr><th>Network / asset</th><th>Credited, not queued</th><th>Outstanding jobs</th><th>Collected</th></tr></thead><tbody>${[...amounts.values()].map(a=>`<tr><td><b>${esc(a.symbol)}</b><small>${esc(custodyRoutes[a.chain_id]?.name||a.chain_id)}</small></td><td class="mono">${esc(sweepMoney(a.awaiting,a.decimals,a.symbol))}</td><td class="mono">${esc(sweepMoney(a.outstanding,a.decimals,a.symbol))}</td><td class="mono">${esc(sweepMoney(a.collected,a.decimals,a.symbol))}</td></tr>`).join('')||'<tr><td colspan="4">No credited managed deposits or collection jobs yet.</td></tr>'}</tbody></table></div><p class="sweep-footnote">Collected is the verified transfer amount. Native collection may be lower than the credited deposit because it pays network fees. Outstanding includes jobs needing review; it excludes dust.</p></section>`;
+    }catch(e){loadError(host,'collection totals',e,overview);}
+  }
+  async function fees(){
+    const host=$('#sweepFeeWallets',v);
+    try{
+      const d=await api('/api/admin/sweeps/fee-wallets');if(!live())return;
+      host.innerHTML=`<div class="sweep-wallets">${d.wallets.map(w=>`<article class="sweep-wallet"><header><span class="sweep-chain-mark">${esc(w.symbol)}</span><div><strong>${esc(w.display_name)}</strong><small>${w.sweeps_enabled?'Sweeps enabled':'Sweeps paused'}</small></div><span class="pill ${sweepTone(w.status)}">${{current:'Current',stale:'Last known',unavailable:'Unavailable',not_configured:'Not configured',self_funded:'Self funded'}[w.status]||'Unavailable'}</span></header>
+        <div class="fee-balance">${w.status==='self_funded'?'<strong>Paid from deposit</strong><small>No shared SOL fee wallet</small>':`<strong>${w.balance==null?'—':esc(fmt(w.balance,w.decimals))}<span>${esc(w.symbol)}</span></strong><small>${w.checked_at?'Checked '+esc(when(w.checked_at)):'Balance has not been verified'}</small>`}</div>
+        ${w.address?`<div class="sweep-public-address"><code class="mono">${esc(w.address)}</code><button class="sm" type="button" data-copy-sweep="${esc(w.address)}" aria-label="Copy ${esc(w.symbol)} fee wallet address">Copy</button></div>`:''}
+        <dl class="sweep-wallet-facts"><div><dt>Worker</dt><dd>${esc(w.worker_status||'offline')}${w.worker_error?' · '+esc(sweepReasons[w.worker_error]||'Check worker'):''}</dd></div><div><dt>Per-transaction fee ceiling</dt><dd>${esc(sweepMoney(w.fee_ceiling,w.decimals,w.symbol))}</dd></div>${w.daily_sponsor_cap?`<div><dt>Sponsorship cap / 24h</dt><dd>${esc(sweepMoney(w.daily_sponsor_cap,w.decimals,w.symbol))}</dd></div><div><dt>Budget used / 24h</dt><dd>${esc(sweepMoney(w.sponsor_budget_used,w.decimals,w.symbol))}</dd></div><div><dt>Signed funding budget</dt><dd>${esc(sweepMoney(w.sponsor_budget_committed,w.decimals,w.symbol))}</dd></div>`:''}</dl>
+        ${w.status==='stale'||w.status==='unavailable'?'<p class="sweep-warning">RPC verification is unavailable. Check the timestamp before funding or relying on this balance.</p>':''}</article>`).join('')}</div>`;
+    }catch(e){loadError(host,'fee wallet balances',e,fees);}
+  }
+  async function detail(el){
+    const body=el.querySelector('.sweep-record-detail');if(!el.open||body.dataset.loaded)return;
+    body.innerHTML=loading('job details');
+    try{const d=await api('/api/admin/sweeps/jobs/'+el.dataset.job);if(!live()||!body.isConnected)return;body.dataset.loaded='true';body.innerHTML=sweepJobDetail(d);}
+    catch(e){loadError(body,'job details',e,()=>detail(el));}
+  }
+  async function rows(){
+    if(!live())return;const version=++sequence;
+    $('#exportSweeps',v).disabled=true;$('#sweepPrevious',v).disabled=true;$('#sweepNext',v).disabled=true;records.setAttribute('aria-busy','true');$('#sweepHistoryStatus',v).textContent='Loading collection records…';
+    if(!records.children.length)records.innerHTML=loading('collection records');
+    const query=new URLSearchParams({limit:'25'});for(const [key,value] of Object.entries(sweepFilters))if(value&&(key!=='status'||sweepTab==='history'))query.set(key,value);
+    if(cursors.at(-1))query.set('before',cursors.at(-1));
+    try{
+      const d=await api('/api/admin/sweeps/'+(sweepTab==='history'?'jobs':'awaiting')+'?'+query);if(!live()||version!==sequence)return;
+      const open=new Set([...records.querySelectorAll('details[open]')].map(el=>el.dataset.job));
+      next=d.next_before;exportRows=d.rows;$('#exportSweeps',v).disabled=!d.rows.length;
+      records.innerHTML=d.rows.length?(sweepTab==='history'?d.rows.map(j=>`<details class="sweep-record" data-job="${esc(j.id)}"><summary><span class="sweep-row-id"><b>Job #${esc(j.id)}</b><small>${esc(custodyRoutes[j.chain_id]?.name||j.chain_id)} · ${esc(j.username)}</small></span><span class="sweep-row-amount"><b>${esc(sweepMoney(j.amount,j.decimals,j.symbol))}</b><small>${j.collection_amount!=null?'Collection: '+esc(sweepMoney(j.collection_amount,j.decimals,j.symbol)):'Collection not signed'}</small></span><span><span class="pill ${sweepTone(j.status)}">${esc(sweepStates[j.status]||j.status)}</span><small>${esc(sweepReasons[j.last_error]||'')}</small></span><span class="sweep-row-time">${esc(when(j.updated_at))}</span><span class="sweep-expand" aria-hidden="true">+</span></summary><div class="sweep-record-detail"></div></details>`).join(''):d.rows.map(r=>`<article class="sweep-waiting"><div><b>${esc(sweepMoney(r.amount,r.decimals,r.symbol))}</b><small>${esc(custodyRoutes[r.chain_id]?.name||r.chain_id)} · ${esc(r.username)} · Deposit #${esc(r.id)}</small><code class="mono">${esc(r.source)}</code></div><div><span class="pill ${sweepTone(r.reason)}">${esc(collectionReasons[r.reason]||r.reason)}</span><small>Credited ${esc(when(r.credited_at))}</small></div></article>`).join('')):`<div class="empty-state"><strong>${sweepTab==='history'?'No sweep jobs match these filters.':'No credited managed deposits are waiting for collection.'}</strong><p>Try another network, asset or search. Previously issued legacy wallets are collected with their original signer.</p></div>`;
+      records.querySelectorAll('[data-job]').forEach(el=>{el.addEventListener('toggle',()=>detail(el));if(open.has(el.dataset.job))el.open=true;});
+      $('#sweepPrevious',v).disabled=cursors.length===1;$('#sweepNext',v).disabled=!d.more;
+      $('#sweepPage',v).textContent='Page '+cursors.length+' · '+d.rows.length+' records';$('#sweepLoadedAt',v).textContent='Updated '+new Date().toLocaleTimeString();
+      $('#sweepHistoryStatus',v).textContent=d.rows.length+' records loaded.';
+    }catch(e){if(live()&&version===sequence)loadError(records,'collection records',e,rows);}
+    finally{if(version===sequence)records.removeAttribute('aria-busy');}
+  }
+  function filters(){clearTimeout(search);for(const key of Object.keys(sweepFilters))sweepFilters[key]=form.elements[key].value.trim();cursors=[null];void rows();}
+  form.onsubmit=e=>{e.preventDefault();filters();};form.onchange=filters;
+  form.elements.q.oninput=()=>{clearTimeout(search);search=setTimeout(filters,350);};
+  $('#resetSweepFilters',v).onclick=()=>{form.reset();filters();form.elements.q.focus();};
+  v.querySelectorAll('[data-sweep-tab]').forEach(b=>b.onclick=()=>{sweepTab=b.dataset.sweepTab;cursors=[null];tabs();void rows();});
+  function tabs(){v.querySelectorAll('[data-sweep-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sweepTab===sweepTab)));$('[data-status-filter]',v).hidden=sweepTab!=='history';}
+  $('#exportSweeps',v).onclick=()=>{
+    const fields=sweepTab==='history'?['id','chain_id','asset_id','username','amount','decimals','status','collection_amount','fee_reserved','fee_recorded','source','destination','deposit_txid','created_at','updated_at']:['id','chain_id','asset_id','username','amount','decimals','reason','source','txid','credited_at'];
+    const cell=value=>'"'+String(value??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
+    const csv=[fields,...exportRows.map(row=>fields.map(key=>row[key]))].map(row=>row.map(cell).join(',')).join('\r\n');
+    const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='banditblox-'+sweepTab+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Exported '+exportRows.length+' records. Amounts are in exact minor units; decimals are included.');
+  };
+  tabs();$('#sweepPrevious',v).onclick=()=>{if(cursors.length>1){cursors.pop();void rows();}};$('#sweepNext',v).onclick=()=>{if(next){cursors.push(next);void rows();}};
+  $('#refreshSweeps',v).onclick=async e=>{const b=e.currentTarget;b.disabled=true;try{await Promise.all([overview(),fees(),rows()]);}finally{b.disabled=false;}};
+  v.addEventListener('click',async e=>{const b=e.target.closest('[data-copy-sweep]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copySweep);toast('Public address copied.');}catch{toast('Select the public address and copy it.');}});
+  void overview();void fees();await rows();
+}
+function sweepJobDetail({job:j,steps}){
+  const facts=[['Credited deposit',sweepMoney(j.amount,j.decimals,j.symbol)],['Collection amount',j.collection_amount==null?'Not signed yet':sweepMoney(j.collection_amount,j.decimals,j.symbol)],['Reserved network fees',sweepFee(j,j.fee_reserved)],['Recorded network fees',j.fee_recorded==null?'Not recorded':sweepFee(j,j.fee_recorded)+(j.missing_fee_receipts?' · incomplete history':'')],['Confirmation depth',String(j.finality_conf)],['Created',when(j.created_at)],['Updated',when(j.updated_at)],['Completed',when(j.completed_at)],['Next check',j.status==='completed'||j.status==='review'||j.status==='dust'?'No automatic retry':when(j.next_check_at)]];
+  return `<div class="sweep-detail-head"><h3>Job #${esc(j.id)} · ${esc(sweepStates[j.status]||j.status)}</h3><p>${esc(sweepReasons[j.last_error]||'The worker advances this job after verifying the credited deposit and chain evidence.')}</p></div><dl class="sweep-job-facts">${facts.map(([k,val])=>`<div><dt>${k}</dt><dd>${esc(val)}</dd></div>`).join('')}</dl>
+    <div class="sweep-addresses"><div><small>Source · player receive address</small>${sweepLink(j.chain_id,j.source,'address')}</div><div><small>Collection destination</small>${sweepLink(j.chain_id,j.destination,'address')}</div>${j.sponsor?`<div><small>Fee sponsor</small>${sweepLink(j.chain_id,j.sponsor,'address')}</div>`:''}<div><small>Original deposit · #${esc(j.deposit_id)}</small>${sweepLink(j.chain_id,j.deposit_txid)}</div></div>
+    <h3 class="sweep-trail-title">Transaction trail</h3><div class="sweep-steps">${steps.map(s=>`<article class="sweep-step"><header><span>${s.phase==='sponsor'?'01 / GAS FUNDING':'02 / COLLECTION'}</span><span class="pill ${s.finalized_at?'ok':''}">${s.finalized_at?'Finalized':s.block_hash?'Included':s.attempts?'Submitted':'Signed'}</span></header>${sweepLink(j.chain_id,s.txid)}<dl><div><dt>Transferred amount</dt><dd>${esc(s.phase==='sponsor'?sweepFee(j,s.amount):sweepMoney(s.amount,j.decimals,j.symbol))}</dd></div><div><dt>Reserved fee ceiling</dt><dd>${esc(sweepFee(j,s.fee))}</dd></div><div><dt>Confirmed network fee</dt><dd>${esc(sweepFee(j,s.actual_fee))}</dd></div><div><dt>Broadcast attempts</dt><dd>${esc(s.attempts)}</dd></div><div><dt>Nonce / last valid height</dt><dd>${esc(s.nonce??s.last_valid_block_height??'—')}</dd></div><div><dt>Canonical block</dt><dd>${esc(s.block_number??'Not included')}</dd></div><div><dt>Signed</dt><dd>${esc(when(s.created_at))}</dd></div><div><dt>Finalized</dt><dd>${esc(when(s.finalized_at))}</dd></div></dl></article>`).join('')||'<p class="empty-state">No transaction has been signed for this job.</p>'}</div><p class="sweep-footnote">Reserved fees are ceilings. Confirmed network fees come from verified final receipts. Older receipts can have no recorded fee. A review state fences this source; do not resend it manually.</p>`;
 }
 
 async function renderSecrets(v){
@@ -845,7 +1027,7 @@ async function renderSecrets(v){
       <div class="grid2">
         <div><label for="s_name">Secret name</label><select id="s_name"><option value="" disabled selected>Choose a key or endpoint</option>
           <optgroup label="Receiving keys">${['EVM','ETH','BSC','POL','BTC','TRON'].map(id=>`<option>xpub:${id}</option>`).join('')}</optgroup>
-          <optgroup label="Network endpoints">${['ETH','BSC','POL','BTC','SOL','TRON'].map(id=>`<option>rpc:${id}</option>`).join('')}</optgroup>
+          <optgroup label="Legacy network endpoints">${['BTC','TRON'].map(id=>`<option>rpc:${id}</option>`).join('')}</optgroup>
           </select></div>
         <div><label for="s_val">Value</label><input id="s_val" type="password" autocomplete="off" placeholder="xpub… or https://rpc-url…"></div>
       </div>
@@ -1102,9 +1284,9 @@ function wireControl(form,root,name){
 async function renderSettings(v){
   const [d,limits] = await Promise.all([api('/api/admin/settings'),api('/api/admin/bet-limits')]);
   if(!v.isConnected)return;
-  const paused=d.deposits_paused;
+  const paused=d.deposits_paused,issuancePaused=d.issuance_paused??paused,providerPaused=d.provider_paused===true;
   v.innerHTML=`<section class="card"><h2>Direct deposits</h2><p class="mut">Players choose a coin and network to receive a permanent wallet address. There is no amount-entry or external checkout step. Configure the signer, RPCs and collection wallets in <button type="button" class="sm" id="openDirectWallets">Direct wallets</button>.</p>
-    <div class="row"><div><span class="pill ${paused?'warn':'ok'}">${paused?'Paused':'New deposit requests enabled'}</span><p class="mut">Pausing stops new address requests. Previously issued addresses remain monitored and eligible transfers can still confirm and credit.</p></div>
+    <div class="row"><div><span class="pill ${issuancePaused?'warn':'ok'}">${issuancePaused?'Paused':'New deposit requests enabled'}</span><p class="mut">${providerPaused?'RPC failover is rebuilding fresh scanner checkpoints. New addresses will resume automatically when the scanners are current.':paused?'Your manual pause stops new address requests. Previously issued addresses remain monitored and eligible transfers can still confirm and credit.':'Previously issued addresses remain monitored and eligible transfers can still confirm and credit.'}</p></div>
     <div style="flex:0 0 auto"><button class="${paused?'pri':'danger'}" id="pauseBtn">${paused?'Resume deposits':'Pause deposits'}</button></div></div></section>
     <section class="card"><h2>Wager limits</h2><p class="mut">Limits apply across paid games in USDT at the market rate when a stake is accepted. Additional stakes count toward the maximum for the hand.</p>
       <form id="limitsForm"><div class="grid2"><label>Minimum bet (USDT)<input name="minimum" inputmode="decimal" required value="${esc(limits.min_usdt)}"></label>

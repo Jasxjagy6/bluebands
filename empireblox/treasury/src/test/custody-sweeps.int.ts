@@ -163,7 +163,7 @@ test('eligibility joins all seven exact routes to the managed assignment, credit
   await deposit('SOL','USDT.SPL',solana); await deposit('ETH','ETH',legacy);
   await deposit('ETH','ETH',{user:eth.user,source:address('no assignment')});
   await deposit('ETH','ETH',eth,{status:'pending'}); await deposit('ETH','ETH',eth,{status:'orphaned'});
-  await deposit('ETH','USDT.ERC20',eth,{amount:999_999n});
+  await deposit('ETH','USDT.ERC20',eth,{amount:99_999n});
   await deposit('ETH','ETH',eth,{txid:'not-a-chain-transaction'});
   await db.query(`update assets set min_deposit=0 where id='ETH'`); await deposit('ETH','ETH',eth,{amount:1000n});
   const bad = await deposit('ETH','ETH',eth); await db.query(`update journals set ref='unrelated' where id=(select journal_id from deposits where id=$1)`,[bad]);
@@ -172,6 +172,25 @@ test('eligibility joins all seven exact routes to the managed assignment, credit
   for(const chain of ['ETH','BSC','POL','SOL'] as const) await Promise.all([engine.enqueue(chain),new SweepEngine(db).enqueue(chain)]);
   assert.deepEqual((await db.query('select deposit_id from custody_sweep_jobs')).rows.map(r=>r.deposit_id).sort(),ids.sort());
   assert.equal(remote.prepared.length,0);
+});
+
+test('0.1 USDT credits enter collection at exact network precision, with no second player credit',async()=>{
+  for(const [chain,asset,decimals] of [['ETH','USDT.ERC20',6],['BSC','USDT.BEP20',18],['POL','USDT.POL',6]] as const){
+    remote=new FixtureAdapter();
+    const o=await owner(chain),minimum=10n**BigInt(decimals-1);
+    const below=await deposit(chain,asset,o,{amount:minimum-1n});
+    const exact=await deposit(chain,asset,o,{amount:minimum});
+    const balance=async()=>(await db.query("select amount::text from balances where account=$1 and asset_id='USDT'",['u:'+o.user])).rows;
+    const original=await balance();
+    assert.equal(await engine.enqueue(chain),1);assert.equal(await job(below),undefined);
+    for(let n=0;n<12&&(await job(exact)).status!=='completed';n++){
+      await once(chain);
+      for(const p of remote.prepared)remote.final(p.step);
+    }
+    assert.equal((await job(exact)).status,'completed');
+    assert.equal(remote.prepared.find(p=>p.deposit===exact&&p.step.phase==='sweep')?.step.amount,minimum);
+    assert.deepEqual(await balance(),original);
+  }
 });
 
 test('commit before send, crash before/after broadcast, lost acknowledgement, and same bytes after restart',async()=>{
@@ -294,4 +313,21 @@ test('sponsor spending is bounded per signed transfer and in aggregate even acro
   await once('BSC');const states=(await db.query('select status,last_error from custody_sweep_jobs')).rows;
   assert.equal(states.filter(r=>r.status==='completed').length,10);assert.deepEqual(states.filter(r=>r.status!=='completed'),[{status:'queued',last_error:'fee_limit'}]);
   assert.equal((await db.query(`select sum(amount+fee) as total from custody_sweep_steps where phase='sponsor'`)).rows[0].total,String(10n*cap));
+});
+
+test('verified final network fees persist precisely and cannot be rewritten after finalization',async()=>{
+  const o=await owner('ETH'),dep=await deposit('ETH','ETH',o);await engine.enqueue('ETH');
+  await until(()=>remote.prepared.length===1);const step=remote.prepared[0]!.step;
+  remote.observations.set(step.txid,{state:'included',blockNumber:115,blockHash:'final-block',networkFee:1234n});
+  await once();assert.equal((await db.query('select actual_fee from custody_sweep_steps where job_id=(select id from custody_sweep_jobs where deposit_id=$1)',[dep])).rows[0].actual_fee,null);
+  remote.observations.set(step.txid,{state:'final',blockNumber:115,blockHash:'final-block',networkFee:1234n});await once();
+  const record=(await db.query('select actual_fee::text,fee::text,finalized_at from custody_sweep_steps where job_id=(select id from custody_sweep_jobs where deposit_id=$1)',[dep])).rows[0];
+  assert.equal(record.actual_fee,'1234');assert.equal(record.fee,step.fee.toString());assert.ok(record.finalized_at);
+  await assert.rejects(db.query('update custody_sweep_steps set actual_fee=1235 where job_id=(select id from custody_sweep_jobs where deposit_id=$1)',[dep]),/immutable|fee/i);
+  assert.equal((await job(dep)).status,'completed');
+});
+test('a receipt claiming more than its signed fee ceiling fences the job for review',async()=>{
+  const o=await owner('ETH'),dep=await deposit('ETH','ETH',o);await engine.enqueue('ETH');await until(()=>remote.prepared.length===1);
+  const step=remote.prepared[0]!.step;remote.observations.set(step.txid,{state:'final',blockNumber:115,blockHash:'final-block',networkFee:step.fee+1n});
+  await once();assert.equal((await job(dep)).status,'review');assert.equal((await job(dep)).last_error,'invalid_receipt');
 });

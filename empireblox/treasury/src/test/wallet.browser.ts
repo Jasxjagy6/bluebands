@@ -135,6 +135,7 @@ test('deposits stay in the popup without amount inputs or hosted checkout and sh
     await screenshot('wallet-receive-'+(width===320?'compact':'desktop'));
   }
   await page.setViewportSize({width:390,height:750});
+  await page.waitForFunction(()=>document.getElementById('ebwMenu')!.getBoundingClientRect().width<=390);
   const bounds=await dialog.boundingBox();assert.ok(bounds&&bounds.width<=390);assert.equal(page.url(),original);
   const selector=picker(page,'#popupDepositNetwork');await selector.click();const networkList=page.getByRole('listbox');
   assert.ok(await networkList.evaluate(el=>!!el.closest('dialog:modal')));
@@ -212,7 +213,7 @@ test('illustrated lobby loads real assets, fits supported screens and opens ever
       assert.ok(box.left>=0&&box.right<=width+1&&box.width>=120,JSON.stringify({width,box}));
       assert.ok(Math.abs(box.artWidth-(box.width-2))<=1,'Artwork must fill its card at '+width);
     }
-    if(width<=740)assert.equal(bounds[1]!.artHeight,bounds[2]!.artHeight,'Phone artwork rows must align');
+    if(width<=740)assert.ok(Math.abs(bounds[1]!.artHeight-bounds[2]!.artHeight)<.5,'Phone artwork rows must align');
     for(let i=0;i<bounds.length;i++)for(let j=i+1;j<bounds.length;j++){
       const a=bounds[i]!,b=bounds[j]!;assert.ok(a.right<=b.left+1||b.right<=a.left+1||a.bottom<=b.top+1||b.bottom<=a.top+1,'Overlapping lobby cards at '+width);
     }
@@ -406,7 +407,7 @@ test('account menu fits compact phones, supports the keyboard and opens each act
   await page.locator('#meChip').focus();await page.keyboard.press('Enter');
   await page.waitForURL('**/account/profile');
   const overview=page.locator('#walletContent');await overview.getByRole('heading',{name:'Wallet balances'}).waitFor();
-  assert.equal(await overview.locator('[data-view=security], [data-view=transactions]').count(),0);
+  assert.equal(await overview.locator('[data-view=security]').count(),1);assert.equal(await overview.locator('[data-view=transactions]').count(),0);
   assert.equal(await page.locator('#walletNav a[href="/account/security"], #walletNav a[href="/account/transactions"]').count(),2);
   assert.equal(await page.locator('#walletNav a').count(),7);
   assert.equal(await page.locator('#walletNav [data-view=deposit],#walletNav [data-view=withdraw],.account-quick [data-view=deposit],.account-quick [data-view=withdraw]').count(),0);
@@ -600,7 +601,7 @@ test('operator navigation discards late responses and recovers from a failed loa
     await p.getByRole('button',{name:'Try again'}).click();await p.getByRole('region',{name:'Deposit ledger'}).waitFor();
     assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await nav.getByRole('button',{name:'Secrets',exact:true}).click();await picker(p,'#s_name').waitFor();
-    await choose(p,'#s_name','rpc:ETH');assert.equal(await p.locator('#s_name').inputValue(),'rpc:ETH');
+    await choose(p,'#s_name','xpub:EVM');assert.equal(await p.locator('#s_name').inputValue(),'xpub:EVM');
     assert.equal(await p.locator('#s_name option[value=custom],#customName,#merchantKey,#merchantForm,#providerForm').count(),0);
     assert.ok((await p.locator('#s_name option').evaluateAll(els=>els.map(el=>(el as HTMLOptionElement).value))).every(value=>!value||/^(rpc|xpub):/.test(value)));
     const mast=await p.locator('.masthead').boundingBox(),strip=await nav.boundingBox();

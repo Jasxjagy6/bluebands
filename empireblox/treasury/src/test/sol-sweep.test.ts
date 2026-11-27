@@ -264,15 +264,15 @@ test('SOL broadcast rechecks spendability, signed fee and a recent blockhash; it
 
 test('SOL requires both matching finalized observations and the actual sender/recipient balance deltas', async () => {
   const { f, i, adapter, finalize } = fixture(), a = adapter(), s = await a.prepare(i, null); f.stored = s;
-  finalize(s); f.head = 222; assert.deepEqual(await a.inspect(i, s), { state: 'included', blockNumber: 222, blockHash: hash(13) });
-  f.head = 224; assert.deepEqual(await a.inspect(i, s), { state: 'final', blockNumber: 222, blockHash: hash(13) });
+  finalize(s); f.head = 222; assert.deepEqual(await a.inspect(i, s), { state: 'included', blockNumber: 222, blockHash: hash(13), networkFee: s.fee });
+  f.head = 224; assert.deepEqual(await a.inspect(i, s), { state: 'final', blockNumber: 222, blockHash: hash(13), networkFee: s.fee });
   for (const corrupt of [() => { f.tx.transaction[0] = f.inTx.transaction[0]; }, () => { f.tx.meta.err = {}; }, () => { f.status.err = {}; },
     () => { f.tx.meta.fee = s.fee + 1n; }, () => { f.tx.meta.postBalances[1]++; }, () => { f.tx.meta.postBalances[0]--; },
     () => { f.tx.slot = 221; }, () => { f.tx.version = 0; }, () => { f.tx.meta = null; }]) {
     finalize(s); corrupt(); assert.deepEqual(await a.inspect(i, s), { state: 'review', reason: 'invalid_receipt' });
   }
   finalize(s); f.outSigs = [i.depositTxid]; assert.deepEqual(await a.inspect(i, s), { state: 'review', reason: 'ambiguous' });
-  finalize(s); f.height = 651; f.valid = false; await a.broadcast(i, s); assert.deepEqual(await a.inspect(i, s), { state: 'final', blockNumber: 222, blockHash: hash(13) });
+  finalize(s); f.height = 651; f.valid = false; await a.broadcast(i, s); assert.deepEqual(await a.inspect(i, s), { state: 'final', blockNumber: 222, blockHash: hash(13), networkFee: s.fee });
   assert.equal(f.signed, 1); assert.deepEqual(f.sent, []);
 });
 

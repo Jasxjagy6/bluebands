@@ -20,7 +20,7 @@ after(()=>browser?.close());
 
 function status(){
   const networks=[['ETH','Ethereum','ETH','USDT.ERC20'],['BSC','BNB Smart Chain','BNB','USDT.BEP20'],['POL','Polygon','POL','USDT.POL'],['SOL','Solana','SOL','']] as const;
-  return {deposits_paused:false,
+  return {deposits_paused:false,alchemy_configured:false,alchemy_key_count:0,alchemy_key_slots:[] as {slot:number;active:boolean;cooling_down:boolean}[],
     key:{id:fingerprint,spki:der.toString('base64'),configured:false,ready:false,fee_address:null as string|null},
     networks:networks.map(([id,display_name,native,token])=>({id,display_name,required_conf:id==='POL'?128:15,rpc_configured:false,destination:null as string|null,destination_locked:false,sweeps_enabled:false,scan_ready:false,last_scanned:null as string|null,ready:false,
       assets:[{id:native,symbol:native,enabled:true,decimals:id==='SOL'?9:18,min_deposit:id==='SOL'?'1000000':'2000000000000001',token_address:null},
@@ -52,13 +52,19 @@ async function fixture(t:TestContext,options:{origin?:string;factor?:boolean;cry
         const body=req.postDataJSON();writes.push({path,body});
         assert.deepEqual(Object.keys(body).sort(),['key','value']);assert.equal(body.key,'deposits_paused');assert.equal(typeof body.value,'boolean');
         d.deposits_paused=body.value;return route.fulfill({json:{ok:true}});
-      }else if((req.method()==='POST' && path===custody+'/root') || (req.method()==='PUT' && path.startsWith(custody+'/networks/'))){
+      }else if((req.method()==='POST' && path===custody+'/root') || (req.method()==='PUT' && (path===custody+'/alchemy' || path.startsWith(custody+'/networks/')))){
         const body=req.postDataJSON();writes.push({path,body});
         if(rejectNext){const code=rejectNext;rejectNext=0;return route.fulfill({status:code,json:{error:'DO_NOT_ECHO '+JSON.stringify(body)}});}
         if(path.endsWith('/root'))d.key.configured=true;
+        else if(path.endsWith('/alchemy')){
+          d.alchemy_key_slots=d.alchemy_key_slots.filter(k=>k.slot!==1);
+          if(body.api_key!==null)d.alchemy_key_slots.unshift({slot:1,active:true,cooling_down:false});
+          d.alchemy_key_count=d.alchemy_key_slots.length;d.alchemy_configured=d.alchemy_key_count>0;
+          d.networks.forEach(n=>n.rpc_configured=d.alchemy_configured);
+        }
         else{
           const n=d.networks.find(n=>path.endsWith('/'+n.id))!;
-          if(body.destination)n.destination=body.destination;if(body.rpc_url)n.rpc_configured=true;if(typeof body.enabled==='boolean')n.sweeps_enabled=body.enabled;
+          if(body.destination)n.destination=body.destination;if(typeof body.enabled==='boolean')n.sweeps_enabled=body.enabled;
         }
         return route.fulfill({json:{ok:true}});
       }
@@ -125,8 +131,10 @@ test('HTTP, absent WebCrypto or operator 2FA are read-only; invalid worker keys 
 });
 
 test('routing separates scanner readiness, pinned assets, saved destination, TOTP activation and pausing',async t=>{
-  const {page,d,open,writes,other,reject}=await fixture(t,{width:320});d.key.configured=true;d.key.ready=true;d.key.fee_address=sponsor;
+  const {page,d,open,writes,other,reject}=await fixture(t,{width:320});d.key.configured=false;d.key.ready=true;d.key.fee_address=sponsor;
   await open();assert.equal(await page.locator('#custodyFeeAddress').innerText(),sponsor);assert.equal(await page.locator('[data-network]').count(),4);
+  assert.match(await page.locator('#view').innerText(),/Solana uses Alchemy directly/);
+  assert.equal(await page.locator('[data-rpc]').count(),0);
   assert.match(await page.locator('#view').innerText(),/ETH on Ethereum, BNB on BNB Smart Chain and POL on Polygon/);
   const jobs=page.getByRole('region',{name:'Recent sweep jobs'});assert.match(await jobs.innerText(),/Needs review/);assert.match(await jobs.innerText(),/native gas funding/);
   assert.ok(!(await page.locator('#view').innerHTML()).match(/signed-bytes-canary|private-player@/));
@@ -134,19 +142,25 @@ test('routing separates scanner readiness, pinned assets, saved destination, TOT
   for(const [id,pinned] of Object.entries(tokens)){const row=page.locator('[data-network='+id+']');await row.locator(':scope > summary').click();assert.match(await row.innerText(),/Pinned USDT contract/);assert.ok((await row.innerText()).includes(pinned));}
   const sol=page.locator('[data-network=SOL]');await sol.locator(':scope > summary').click();assert.match(await sol.innerText(),/SOL only/);assert.doesNotMatch(await sol.innerText(),/USDT|Pinned USDT contract/);
   await eth.locator(':scope > summary').click();assert.match(await eth.innerText(),/0\.002000000000000001 ETH/);assert.equal(await sweep.count(),0);
-  await eth.locator('.custody-edit > summary').click();const rpc='https://rpc.test.invalid/fixture-credential';
-  await edit.locator('[data-rpc]').fill(rpc);await edit.locator('[data-destination]').fill(destination);await edit.getByRole('button').click();
-  await edit.getByRole('status').filter({hasText:/six-digit/}).waitFor();assert.equal(writes.length,0);assert.equal(await edit.locator('[data-rpc]').inputValue(),'');
-  await edit.locator('[data-rpc]').fill(rpc);await edit.locator('[data-code]').fill('222222');reject(403);await edit.getByRole('button').click();
-  await edit.getByRole('status').filter({hasText:/not authorized/i}).waitFor();assert.doesNotMatch(await page.locator('#view').innerText(),/fixture-credential|DO_NOT_ECHO|222222/);
-  assert.equal(await edit.locator('[data-code]').inputValue(),'');await edit.locator('[data-rpc]').fill(rpc);await edit.locator('[data-code]').fill('333333');await edit.getByRole('button').click();
-  await eth.locator('code').filter({hasText:destination}).waitFor();assert.deepEqual(writes.at(-1),{path:custody+'/networks/ETH',body:{rpc_url:rpc,destination,totp:'333333'}});
+  const keyForm=page.locator('#alchemyRpcForm'),keyField=keyForm.locator('[data-alchemy-key]');
+  await keyField.fill('bad key');await keyForm.getByRole('button',{name:'Save Alchemy API key'}).click();
+  await keyForm.getByRole('status').filter({hasText:/without spaces/}).waitFor();assert.equal(writes.length,0);assert.equal(await keyField.inputValue(),'');
+  const apiKey='fixture-alchemy-api-key-1234567890';await keyField.fill(apiKey);await keyForm.locator('[data-code]').fill('222222');reject(403);
+  await keyForm.getByRole('button',{name:'Save Alchemy API key'}).click();
+  await keyForm.getByRole('status').filter({hasText:/not authorized/i}).waitFor();assert.doesNotMatch(await page.locator('#view').innerText(),/fixture-alchemy-api-key|DO_NOT_ECHO|222222/);
+  assert.equal(await keyForm.locator('[data-code]').inputValue(),'');assert.equal(await keyField.inputValue(),'');
+  await keyField.fill(apiKey);await keyForm.locator('[data-code]').fill('333333');await keyForm.getByRole('button',{name:'Save Alchemy API key'}).click();
+  await page.getByRole('status').filter({hasText:/Alchemy API key saved/}).waitFor();await page.locator('#alchemyRpcForm [data-remove-alchemy]').waitFor();
+  assert.deepEqual(writes.at(-1),{path:custody+'/alchemy',body:{api_key:apiKey,totp:'333333'}});
+  await eth.locator(':scope > summary').click();
+  await eth.locator('.custody-edit > summary').click();await edit.locator('[data-destination]').fill(destination);await edit.locator('[data-code]').fill('334444');await edit.getByRole('button').click();
+  await eth.locator('code').filter({hasText:destination}).waitFor();assert.deepEqual(writes.at(-1),{path:custody+'/networks/ETH',body:{destination,totp:'334444'}});
   assert.equal(await sweep.count(),0);const config=d.networks[0]!;config.scan_ready=config.ready=true;config.last_scanned='70001234';
   await page.locator('#refreshCustody').click();await eth.getByText('Block 70001234').waitFor();assert.match(await eth.locator(':scope > summary').innerText(),/Ready/);
-  await sweep.locator('[data-code]').fill('444444');await sweep.getByRole('button',{name:'Enable sweeps'}).click();await sweep.getByRole('status').filter({hasText:/Verify the full/}).waitFor();assert.equal(writes.length,2);
-  await sweep.locator('[data-verified]').check();await sweep.getByRole('button').click();await sweep.getByRole('status').filter({hasText:/six-digit/}).waitFor();assert.equal(writes.length,2);
+  await sweep.locator('[data-code]').fill('444444');await sweep.getByRole('button',{name:'Enable sweeps'}).click();await sweep.getByRole('status').filter({hasText:/Verify the full/}).waitFor();assert.equal(writes.length,3);
+  await sweep.locator('[data-verified]').check();await sweep.getByRole('button').click();await sweep.getByRole('status').filter({hasText:/six-digit/}).waitFor();assert.equal(writes.length,3);
   await sweep.locator('[data-code]').fill('555555');await sweep.getByRole('button').click();await sweep.getByRole('button',{name:'Pause sweeps'}).waitFor();
-  assert.deepEqual(writes.at(-1)?.body,{enabled:true,destination,totp:'555555'});assert.equal(await edit.count(),0);
+  assert.deepEqual(writes.at(-1)?.body,{enabled:true,destination,totp:'555555'});assert.equal(writes.length,4);assert.equal(await edit.count(),0);
   config.scan_ready=config.ready=d.key.ready=false;config.destination_locked=true;await page.locator('#refreshCustody').click();await eth.getByText('Not current',{exact:true}).waitFor();
   await sweep.locator('[data-code]').fill('666666');await sweep.getByRole('button',{name:'Pause sweeps'}).click();await eth.locator('.custody-edit > summary').click();
   assert.deepEqual(writes.at(-1)?.body,{enabled:false,totp:'666666'});assert.ok(await edit.locator('[data-destination]').isDisabled());

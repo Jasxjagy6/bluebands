@@ -4,6 +4,7 @@ import { query, tx, pool } from './db.js';
 import { hashPassword, verifyPassword } from './authutil.js';
 import { newServerSeed, hashSeed } from './fair.js';
 import { allocateCustodyAddresses } from './derive.js';
+import { authAttempt,consumeUserFactor,securityEvent } from './user-2fa.js';
 
 const SESSION_DAYS = 30;
 
@@ -54,11 +55,14 @@ export async function registerUser(email: string, username: string, password: st
   });
 }
 
-export async function loginUser(email: string, password: string): Promise<{ user: Profile; token: string }> {
+export async function loginUser(email: string, password: string,totp?:string): Promise<{ user: Profile; token: string }> {
+  await authAttempt(email,'login',30);
+  if(totp)await authAttempt(email,'factor',10);
   return tx(async c=>{
     const u=(await c.query<Profile & {pass_hash:string;disabled:boolean}>(`select id,email,username,is_admin,pass_hash,disabled
-      from users where email=$1 and player_active(disabled,suspended_until) for share`,[email])).rows[0];
+      from users where email=$1 and player_active(disabled,suspended_until) for update`,[email.trim()])).rows[0];
     if (!u || u.disabled || !verifyPassword(password,u.pass_hash)) throw new Error('Wrong email or password');
+    await consumeUserFactor(c,u.id,totp);
     const token=await createSession(u.id,c);
     return {user:{id:u.id,email:u.email,username:u.username,is_admin:u.is_admin},token};
   });
@@ -89,7 +93,8 @@ export async function destroySession(token: string): Promise<void> {
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
-  const r = await query<Profile>(`select id, email, username, is_admin, display_ccy, created_at from users where id=$1`, [userId]);
+  const r = await query<Profile>(`select id, email, username, is_admin, display_ccy, created_at,
+    exists(select 1 from user_authenticators a where a.user_id=users.id and a.enabled_at is not null) as totp_enabled from users where id=$1`, [userId]);
   return r.rows[0] ?? null;
 }
 
@@ -97,12 +102,15 @@ export async function renameUser(uid:string,name:string){
   try{return Boolean((await query('update users set username=$2 where id=$1',[uid,name])).rowCount);}
   catch(e){if((e as {code:string}).code==='23505')return false;throw e;}
 }
-export async function changePassword(uid:string,current:string,password:string){
+export async function changePassword(uid:string,current:string,password:string,totp?:string){
+  await authAttempt(uid,'password',10);
   return tx(async c=>{
     const u=(await c.query('select pass_hash from users where id=$1 and player_active(disabled,suspended_until) for update',[uid])).rows[0];
     if(!u || !verifyPassword(current,u.pass_hash))return null;
+    await consumeUserFactor(c,uid,totp);
     await c.query('update users set pass_hash=$2 where id=$1',[uid,hashPassword(password)]);
     await c.query('delete from user_sessions where user_id=$1',[uid]);
+    await securityEvent(c,uid,'security.password_changed');
     return createSession(uid,c);
   });
 }

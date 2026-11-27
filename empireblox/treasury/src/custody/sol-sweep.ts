@@ -311,7 +311,7 @@ export function createSolSweepAdapter(rpcUrl: string, signer: SolSweepSigner, op
       const pre = list(p.meta.preBalances).map(units), post = list(p.meta.postBalances).map(units);
       check(pre.length === 3 && post.length === 3 && pre[0]! - post[0]! === s.amount + s.fee &&
         post[1]! - pre[1]! === s.amount && pre[2] === post[2], invalid);
-      return { state: p.deep ? 'final' : 'included', blockNumber: p.at, blockHash: p.blockHash };
+      return { state: p.deep ? 'final' : 'included', blockNumber: p.at, blockHash: p.blockHash, networkFee: units(p.meta.fee) };
     } catch (e) { if (e instanceof SweepStop && e.code !== 'unavailable') return { state: 'review', reason: e.code }; throw e; }
   }
   async function broadcast(i: SweepIntent, requested: SignedSweep) {

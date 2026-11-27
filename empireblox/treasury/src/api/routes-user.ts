@@ -7,7 +7,8 @@ import { supportedAssets } from '../chains/receive.js';
 import { requireUser } from './guards.js';
 
 export async function depositSetup() {
-  const {rows:[setup]}=await query(`select (select value from settings where key='deposits_paused') is distinct from 'false'::jsonb as deposits_paused`);
+  const {rows:[setup]}=await query(`select (select value from settings where key='deposits_paused') is distinct from 'false'::jsonb
+    or coalesce((select deposits_paused from alchemy_rpc_state where singleton),false) as deposits_paused`);
   return setup;
 }
 

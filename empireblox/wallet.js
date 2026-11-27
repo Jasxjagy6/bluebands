@@ -1,3 +1,4 @@
+import { bindSoundToggle, playSound } from './assets/wallet/feedback.js';
 /* Player wallet. Account data and currency preferences live on the treasury. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c =>
@@ -71,7 +72,7 @@ document.body.insertAdjacentHTML('beforeend', `<dialog class="currency-menu" id=
     <div class="sheet-feedback"><span role="status"></span><button type="button" data-retry-currencies hidden>Try again</button></div>
     <button type="button" class="menu-profile" data-profile>View profile &amp; balances <span aria-hidden="true">&rarr;</span></button></dialog>
   <dialog id="noticePopup" aria-labelledby="popupHeading"><header><div><div class="popup-title"><h2 id="popupHeading">Notifications</h2><span id="popupUnread" hidden></span></div><p>Recent account activity</p></div><button type="button" id="closeNotices" aria-label="Close notifications" autofocus>×</button></header>
-  <div class="popup-feed"></div><p class="popup-status" role="status"></p><footer><button id="readPopup" class="wallet-link" disabled>Mark all as read</button><a href="/account/notifications" id="openInbox">View inbox <span aria-hidden="true">&rarr;</span></a></footer></dialog>
+  <div class="notice-preferences"><span>Account alerts &amp; game audio</span><button id="noticeSound" class="sound-toggle" type="button"></button></div><div class="popup-feed"></div><p class="popup-status" role="status"></p><footer><button id="readPopup" class="wallet-link" disabled>Mark all as read</button><a href="/account/notifications" id="openInbox">View inbox <span aria-hidden="true">&rarr;</span></a></footer></dialog>
   <aside id="accountAlert" class="account-alert" hidden aria-live="polite"></aside>`);
 $('.shell').insertAdjacentHTML('beforebegin',`<main id="accountPage" hidden aria-label="Player account">
   <div class="account-toolbar"><nav class="account-crumb" aria-label="Breadcrumb"><a href="/" id="walletClose">Lobby</a><span aria-hidden="true">/</span><span>My account</span></nav><div id="railActions"></div></div>
@@ -154,7 +155,7 @@ window.ebCurrency = () => current()?.id;
 window.ebCurrencyLabel = id => (id ? meta(id) : current())?.symbol || '';
 window.ebFormat = (minor, id) => human(minor, (id ? meta(id) : current())?.decimals);
 window.ebAsset = id => id ? meta(id) : current();
-window.ebBalance = () => current() && walletFresh ? balances.get(current().id)?.amount || '0' : null;
+window.ebBalance = id => (id || current()) && walletFresh ? balances.get(id || current().id)?.amount || '0' : null;
 
 const phoneWallet=matchMedia('(max-width:740px)');
 const sheetList=menu.querySelector('.sheet-list'), sheetStatus=menu.querySelector('.sheet-feedback [role=status]');
@@ -387,7 +388,7 @@ const sectionDescriptions={
   bets:'Your bets, outcomes and individual round details.',
   rewards:'Wager progress and earned level bonuses.',
   notifications:'Account updates and receipts in one place.',
-  security:'Manage your account details and password.'
+  security:'Manage your authenticator, password and active sessions.'
 };
 const paths = {
   profile: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0M4.5 21v-2a7.5 7.5 0 0 1 15 0v2',
@@ -422,7 +423,7 @@ function flowName(kind){
   if(gameNames[game])return (gameNames[game]+' · '+({bet:'Stake',payout:'Payout',refund:'Refund'}[type]||type));
   return {level_bonus:'Level bonus',admin_credit:'Balance credit',admin_debit:'Balance deduction',deposit:'Deposit',withdrawal_hold:'Withdrawal reserved',withdrawal_refund:'Withdrawal returned',withdrawal_sent:'Withdrawal sent'}[kind]||kind.replaceAll('_',' ');
 }
-function amountText(amount,dec,symbol){return human(amount,dec)+' '+symbol;}
+function amountText(amount,dec,symbol){return amount==null||symbol==null?'Account security':human(amount,dec)+' '+symbol;}
 function tabs(){
   const nav=$('#walletNav'),actions=$('#railActions');
   $('#railName').textContent=user.username;
@@ -706,9 +707,14 @@ const notificationNames={
   'deposit.pending':'Deposit detected','deposit.credited':'Deposit credited','deposit.orphaned':'Deposit removed from the chain',
   'withdrawal.requested':'Withdrawal requested','withdrawal.reviewing':'Withdrawal in review','withdrawal.approved':'Withdrawal approved',
   'withdrawal.sent':'Withdrawal sent','withdrawal.cancelled':'Withdrawal funds returned','reward.claimed':'Level bonus credited',
-  'balance.credit':'Balance credited','balance.debit':'Balance deducted'
+  'balance.credit':'Balance credited','balance.debit':'Balance deducted',
+  'security.2fa_enabled':'Authenticator enabled','security.2fa_disabled':'Authenticator disabled',
+  'security.password_changed':'Password changed','security.password_recovered':'Password recovered',
+  'security.sessions_revoked':'Other sessions signed out'
 };
-let noticeController=null,unread=0,noticeTimer;
+let noticeController=null,unread=0,noticeTimer,noticeDeadline=0,noticeRemaining=8000;
+const announcedNotices=new Set();
+bindSoundToggle($('#noticeSound'));
 export function paintUnread(){
   document.querySelectorAll('.unread-count').forEach(el=>{el.hidden=!unread;el.textContent=unread>99?'99+':String(unread);});
   const bell=$('#noticeBell');bell.classList.toggle('has-unread',unread>0);
@@ -719,11 +725,29 @@ function stopNotifications(){
   closeNoticePopup();noticeController?.abort();noticeController=null;clearTimeout(noticeTimer);
   popupReading=false;unread=0;paintUnread();$('#accountAlert').hidden=true;
 }
+function scheduleNoticeDismiss(){
+  clearTimeout(noticeTimer);noticeDeadline=performance.now()+noticeRemaining;
+  noticeTimer=setTimeout(()=>{$('#accountAlert').hidden=true;},noticeRemaining);
+}
+function pauseNoticeDismiss(){
+  clearTimeout(noticeTimer);noticeRemaining=Math.max(0,noticeDeadline-performance.now());
+}
+function resumeNoticeDismiss(){if(!$('#accountAlert').matches(':hover,:focus-within'))scheduleNoticeDismiss();}
 function announceNotice(n,count){
-  const alert=$('#accountAlert');
-  alert.innerHTML=`<button type="button"><span>${accountIcon('notifications')}</span><span><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><small>${esc(amountText(n.amount,n.decimals,n.symbol))}${count>1?' · '+count+' new updates':''}</small></span></button>`;
-  alert.hidden=false;alert.querySelector('button').onclick=()=>{alert.hidden=true;open('notifications');};
-  clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{alert.hidden=true;},6500);
+  const id=user?.id,revision=String(n.revision),key='banditblox.notice.'+id;
+  if(!id||announcedNotices.has(id+':'+revision))return;
+  // Share delivered revisions between tabs; initial unread history stays silent.
+  try{const delivered=localStorage.getItem(key);if(delivered&&BigInt(delivered)>=BigInt(revision))return;localStorage.setItem(key,revision);}catch{}
+  announcedNotices.add(id+':'+revision);
+  if(announcedNotices.size>200)announcedNotices.delete(announcedNotices.values().next().value);
+  const alert=$('#accountAlert'),credited=n.kind==='deposit.credited'||n.kind==='balance.credit'||n.kind==='reward.claimed';
+  const pending=n.kind==='deposit.pending';alert.dataset.tone=credited?'success':pending?'pending':'info';
+  const detail=pending&&n.required_conf!=null?'Awaiting '+n.required_conf+' confirmations':credited?'Available in your wallet':'View your account for details';
+  alert.innerHTML=`<button type="button" class="notice-open" aria-label="${esc(notificationNames[n.kind]||'Account update')}. View notifications"><span class="alert-icon">${accountIcon(credited?'deposit':pending?'clock':'notifications')}</span><span class="alert-copy"><span class="alert-kicker">${credited?'Wallet update':'Account activity'}</span><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><small>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?' · '+esc(network(n.chain_id)):''}${count>1?' · '+count+' new updates':''}</small><span class="alert-detail">${esc(detail)}</span></span></button><button type="button" class="notice-dismiss" aria-label="Dismiss notification">×</button><span class="alert-timer" aria-hidden="true"></span>`;
+  alert.hidden=false;alert.querySelector('.notice-open').onclick=()=>{alert.hidden=true;clearTimeout(noticeTimer);open(n.kind.startsWith('security.')?'security':'notifications');};
+  alert.querySelector('.notice-dismiss').onclick=()=>{alert.hidden=true;clearTimeout(noticeTimer);};
+  alert.onpointerenter=alert.onfocusin=pauseNoticeDismiss;alert.onpointerleave=alert.onfocusout=resumeNoticeDismiss;
+  noticeRemaining=8000;scheduleNoticeDismiss();playSound(credited?'success':'info');
 }
 async function startNotifications(){
   stopNotifications();const controller=new AbortController();noticeController=controller;
@@ -735,10 +759,10 @@ async function startNotifications(){
       unread=d.unread;paintUnread();
       if(revision!==null && d.revision!==revision){
         const fresh=await api('/me/notifications',{signal});if(signal.aborted)return;
-        const count=BigInt(fresh.revision)-BigInt(revision);
+        const newNotices=fresh.rows.filter(n=>BigInt(n.revision)>BigInt(revision));
         revision=fresh.revision;unread=fresh.unread;paintUnread();
         if($('#noticePopup').open)paintNoticePopup(fresh);
-        else if(fresh.rows[0]&&count>0n)announceNotice(fresh.rows[0],Number(count));
+        else if(newNotices.length)announceNotice(newNotices[0],newNotices.length);
         void refresh();
         if(!accountPage.hidden && view==='notifications')await updateInbox(fresh,signal);
         if(!accountPage.hidden && view==='transactions' && !pageIndex && !$('#walletContent details[open]'))void showList(activitySeq).catch(()=>{});
@@ -756,7 +780,7 @@ async function startNotifications(){
   }
 }
 function notificationList(rows){
-  return rows.map(n=>`<article class="notice-entry" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><span class="notice-icon">${accountIcon(n.kind.startsWith('deposit')?'deposit':n.kind.startsWith('withdrawal')?'withdraw':n.kind==='reward.claimed'?'rewards':'transactions')}</span>
+  return rows.map(n=>`<article class="notice-entry" data-kind="${esc(n.kind)}" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><span class="notice-icon">${accountIcon(n.kind.startsWith('deposit')?'deposit':n.kind.startsWith('withdrawal')?'withdraw':n.kind.startsWith('security.')?'security':n.kind==='reward.claimed'?'rewards':'transactions')}</span>
     <div><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><p>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?' · '+esc(network(n.chain_id)):''}</p>
     ${n.kind==='deposit.pending' && n.required_conf!=null?`<small>Awaiting ${esc(n.required_conf)} confirmations</small>`:''}${n.txid?`<details><summary>Transaction ID</summary>${explorerLink(n.chain_id,n.txid)}</details>`:''}</div><time>${esc(timeOf(n.created_at))}</time></article>`).join('');
 }
@@ -772,7 +796,7 @@ function paintNoticePopup(d){
   ++popupRequest;popupThrough=d.revision;
   const rows=d.rows.slice(0,5),ids=new Set(rows.map(n=>String(n.revision))),hadFocus=popupFeed.contains(document.activeElement);
   if(!rows.length){
-    if(!popupFeed.querySelector('.popup-empty'))popupFeed.innerHTML='<div class="popup-empty"><strong>No notifications yet.</strong><p>Deposits, withdrawals and account updates will appear here.</p></div>';
+    if(!popupFeed.querySelector('.popup-empty'))popupFeed.innerHTML=`<div class="popup-empty"><span class="empty-notice-icon" aria-hidden="true">${accountIcon('notifications')}</span><strong>You’re all caught up.</strong><p>Deposits, withdrawals and account updates will appear here.</p></div>`;
   }else{
     // Receipts are immutable apart from read state. Keep any open transaction ID and its keyboard focus.
     for(const item of [...popupFeed.children])if(!ids.has(item.dataset.revision))item.remove();
@@ -826,10 +850,10 @@ document.addEventListener('keydown',e=>{
 window.addEventListener('resize',positionPopup);
 function inboxReceipts(rows){
   return rows.map(n=>{
-    const kind=n.kind.split('.')[0],section={withdrawal:'withdraw',reward:'rewards',balance:'transactions',deposit:'transactions'}[kind];
+    const kind=n.kind.split('.')[0],section={withdrawal:'withdraw',reward:'rewards',balance:'transactions',deposit:'transactions',security:'security'}[kind];
     const reference=n.reference;
-    const link=section && (kind!=='deposit' || n.kind==='deposit.credited')?`<a class="section-link" href="${accountPath(section)}" data-view="${section}">${{withdraw:'View withdrawals',rewards:'View rewards',transactions:'View transactions'}[section]}</a>`:'';
-    return `<article class="notice-entry inbox-entry" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><details class="transaction-details"><summary class="activity-entry"><span class="notice-icon">${accountIcon({deposit:'deposit',withdrawal:'withdraw',reward:'rewards'}[kind]||'transactions')}</span>
+    const link=section && (kind!=='deposit' || n.kind==='deposit.credited')?`<a class="section-link" href="${accountPath(section)}" data-view="${section}">${{withdraw:'View withdrawals',rewards:'View rewards',transactions:'View transactions',security:'Review security'}[section]}</a>`:'';
+    return `<article class="notice-entry inbox-entry" data-revision="${esc(n.revision)}" data-unread="${!n.read_at}"><details class="transaction-details"><summary class="activity-entry"><span class="notice-icon">${accountIcon({deposit:'deposit',withdrawal:'withdraw',reward:'rewards',security:'security'}[kind]||'transactions')}</span>
       <span><strong>${esc(notificationNames[n.kind]||'Account update')}</strong><small>${receiptTime(n.created_at)} <span class="inbox-unread">Unread</span></small></span>
       <b>${esc(amountText(n.amount,n.decimals,n.symbol))}${n.chain_id?`<small>${esc(network(n.chain_id))}</small>`:''}</b></summary>
       <div class="inbox-receipt"><dl class="bet-facts">${n.kind==='deposit.pending'&&n.required_conf!=null?`<div><dt>Confirmations at detection</dt><dd>${esc(n.confirmations??'—')} / ${esc(n.required_conf)}</dd></div>`:''}${reference?`<div><dt>${kind==='withdrawal'?'Request ID':'Reference'}</dt><dd>${esc(reference)}</dd></div>`:''}${n.txid?`<div><dt>Transaction ID</dt><dd>${explorerLink(n.chain_id,n.txid)}</dd></div>`:''}</dl>${link}</div></details></article>`;
@@ -1043,7 +1067,7 @@ function renderProfile() {
   if(!$('#profileLevel')){
     host.innerHTML=`<div class="profile-dashboard"><div class="profile-summary"><div class="wallet-identity"><span class="wallet-avatar" aria-hidden="true"></span>
       <div><span class="profile-eyebrow">Player account</span><h2></h2><p></p></div></div>
-      <div class="profile-reference"><div class="profile-member"><small>Member since</small><strong></strong></div><div class="profile-account-id"><small>Account ID</small><code></code></div></div></div>
+      <div class="profile-reference"><div class="profile-member"><small>Member since</small><strong></strong></div><div class="profile-account-id"><small>Account ID</small><code></code></div></div><a href="/account/security" data-view="security" class="profile-security"></a></div>
       <section class="profile-funds" aria-label="Playing balance"><div><span class="balance-label">Available balance</span><div class="balance-value"></div><p class="profile-balance-context"></p></div>
       <div class="account-quick"><button type="button" class="wallet-primary" data-open-wallet>${accountIcon('deposit')}Open wallet</button></div></section>
       <section class="profile-ledger" aria-labelledby="balancesHeading"><div class="wallet-heading"><div><h3 id="balancesHeading">Wallet balances</h3><p class="profile-panel-description">Each currency is shown separately.</p></div><span class="profile-currency-count"></span></div>
@@ -1055,6 +1079,8 @@ function renderProfile() {
   host.querySelector('.wallet-identity p').textContent=user.email;
   host.querySelector('.profile-member strong').textContent=dateOf(user.created_at);
   host.querySelector('.profile-account-id code').textContent=user.id;
+  const security=host.querySelector('.profile-security');security.dataset.protected=String(Boolean(user.totp_enabled));
+  security.innerHTML=`${accountIcon('security')}<span><strong>${user.totp_enabled?'Authenticator enabled':'Protect your account'}</strong><small>${user.totp_enabled?'Review security & sessions':'Set up two-factor authentication'}</small></span><span aria-hidden="true">↗</span>`;
   const all = new Map(assets.map(a => [a.id, a]));
   for (const b of balances.values()) if (!all.has(b.asset_id)) all.set(b.asset_id, { ...b, id: b.asset_id });
   const selected=current(),display=selected && walletFresh?amountOf(selected):'—';
@@ -1089,7 +1115,61 @@ async function profileLevel(){
 function renderSecurity(){
   $('#walletContent').innerHTML=`<div id="securitySettings"><section aria-labelledby="identityHeading"><header class="security-heading"><span>${accountIcon('profile')}</span><div><h2 id="identityHeading">Account details</h2><p>Your account identity and username.</p></div></header><dl class="bet-facts"><div><dt>Email</dt><dd>${esc(user.email)}</dd></div><div><dt>Account ID</dt><dd>${esc(user.id)}</dd></div></dl>
     <form id="changeName"><label>Username<input name="username" autocomplete="username" aria-describedby="usernameRules" value="${esc(user.username)}" pattern="[a-zA-Z0-9_]{2,20}" minlength="2" maxlength="20" required></label><small id="usernameRules">2 to 20 characters: letters, numbers and underscores.</small><button class="secondary-action">Save username</button><p role="status"></p></form></section>
-    <section aria-labelledby="passwordHeading"><header class="security-heading"><span>${accountIcon('security')}</span><div><h2 id="passwordHeading">Change password</h2><p>Update the password used to sign in.</p></div></header><form id="changePassword"><label>Current password<input name="current" type="password" autocomplete="current-password" required></label><label>New password<input name="password" type="password" aria-describedby="passwordRules" minlength="8" maxlength="200" autocomplete="new-password" required></label><small id="passwordRules">Use at least 8 characters. Changing your password signs out other sessions.</small><button class="wallet-primary">Change password</button><p role="status"></p></form></section></div>`;
+    <section aria-labelledby="passwordHeading"><header class="security-heading"><span>${accountIcon('security')}</span><div><h2 id="passwordHeading">Change password</h2><p>Update the password used to sign in.</p></div></header><form id="changePassword"><label>Current password<input name="current" type="password" autocomplete="current-password" required></label><label>New password<input name="password" type="password" aria-describedby="passwordRules" minlength="8" maxlength="200" autocomplete="new-password" required></label><label data-password-factor${user.totp_enabled?'':' hidden'}>Authenticator or recovery code<input name="totp" autocomplete="one-time-code" maxlength="64"${user.totp_enabled?' required':''}></label><small id="passwordRules">Use at least 8 characters. Changing your password signs out other sessions.</small><button class="wallet-primary">Change password</button><p role="status"></p></form></section>
+    <section class="authenticator-panel" aria-labelledby="authenticatorHeading"><header class="security-heading"><span>${accountIcon('security')}</span><div><h2 id="authenticatorHeading">Authenticator</h2><p>Protect sign-in and recover your password with your authenticator app.</p></div></header><div id="authenticatorContent" aria-live="polite"></div></section>
+    <section aria-labelledby="sessionsHeading"><header class="security-heading"><span>${accountIcon('clock')}</span><div><h2 id="sessionsHeading">Active sessions</h2><p>Review sign-ins and end access on other sessions.</p></div></header><div id="securitySessions"></div></section></div>`;
+  void mountSecurity();
+}
+async function mountSecurity(){
+  const host=$('#authenticatorContent'),sessions=$('#securitySessions'),version=accountVersion;
+  const live=()=>host.isConnected&&version===accountVersion;
+  const passwordField='<label>Current password<input name="password" type="password" autocomplete="current-password" maxlength="200" required></label>';
+  const factorField='<label>Authenticator or recovery code<input name="totp" autocomplete="one-time-code" maxlength="64" required></label>';
+  const request=(path,data)=>api('/auth/'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
+  function protection(enabled){
+    user.totp_enabled=enabled;
+    const field=$('[data-password-factor]');if(field){field.hidden=!enabled;field.querySelector('input').required=enabled;field.querySelector('input').value='';}
+  }
+  function bind(form,action){
+    form.onsubmit=async e=>{
+      e.preventDefault();const button=form.querySelector('button[type=submit]'),status=form.querySelector('[role=status]');
+      if(button.disabled)return;button.disabled=true;status.textContent='';
+      try{await action(Object.fromEntries(new FormData(form)));}
+      catch(err){if(live()&&form.isConnected){status.textContent=err.message;status.dataset.state='error';}}
+      finally{if(form.isConnected){button.disabled=false;form.querySelectorAll('input[type=password]').forEach(input=>input.value='');}}
+    };
+  }
+  async function load(){
+    loading(host,'Loading account security');loading(sessions,'Loading sessions');
+    try{
+      const d=await api('/auth/security');if(!live())return;protection(d.totp_enabled);
+      host.removeAttribute('aria-busy');sessions.removeAttribute('aria-busy');
+      host.innerHTML=`<div class="security-state" data-enabled="${d.totp_enabled}"><span class="security-state-dot"></span><div><strong>${d.totp_enabled?'Two-factor authentication is on':'Two-factor authentication is off'}</strong><p>${d.totp_enabled?'Enabled '+dateOf(d.enabled_at)+' · '+d.recovery_codes_remaining+' recovery codes remaining':'Use Google Authenticator, Authy, 1Password or another compatible app.'}</p></div></div>`;
+      if(d.totp_enabled){
+        host.insertAdjacentHTML('beforeend',`<details class="security-manage"><summary>Disable authenticator</summary><p>Confirm your password and a fresh code to remove two-factor protection.</p><form id="disableAuthenticator">${passwordField}${factorField}<button type="submit" class="secondary-action">Disable authenticator</button><p role="status"></p></form></details>`);
+        bind(host.querySelector('form'),async values=>{await request('2fa/disable',values);if(live())await load();});
+      }else if(d.setup_available){
+        host.insertAdjacentHTML('beforeend',`<form id="setupAuthenticator">${passwordField}<button type="submit" class="wallet-primary">Set up authenticator</button><p role="status"></p></form>`);
+        bind(host.querySelector('form'),async values=>{
+          const setup=await request('2fa/setup',values);if(!live())return;
+          host.innerHTML=`<ol class="authenticator-steps"><li>Scan this QR code in your authenticator app.</li><li>Or enter the setup key shown below.</li><li>Confirm with a code from the app. Setup expires in 10 minutes.</li></ol><div class="authenticator-enrollment"><div id="authenticatorQr" role="img" aria-label="Authenticator setup QR code"></div><div><label>Manual setup key</label><code id="authenticatorKey" class="authenticator-key">${esc(setup.secret)}</code><button type="button" class="secondary-action" id="copyAuthenticatorKey">Copy setup key</button><p class="wallet-muted">Keep this key private. Anyone with it can generate your codes.</p></div></div><form id="enableAuthenticator">${passwordField}<label>Six-digit authenticator code<input name="totp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><div class="security-actions"><button type="submit" class="wallet-primary">Enable authenticator</button><button type="button" class="secondary-action" id="cancelAuthenticator">Cancel setup</button></div><p role="status"></p></form>`;
+          if(window.qrcode){const qr=window.qrcode(0,'M');qr.addData(setup.uri);qr.make();$('#authenticatorQr').innerHTML=qr.createSvgTag({cellSize:4,margin:4,scalable:true});}
+          $('#copyAuthenticatorKey').onclick=async e=>{try{await navigator.clipboard.writeText(setup.secret);if(live()&&e.target.isConnected)e.target.textContent='Key copied';}catch{if(live())e.target.textContent='Select the key to copy';}};
+          $('#cancelAuthenticator').onclick=()=>{setup.secret='';setup.uri='';void load();};
+          bind(host.querySelector('form'),async values=>{
+            const result=await request('2fa/enable',values);setup.secret='';setup.uri='';if(!live())return;protection(true);
+            host.innerHTML=`<div class="security-state" data-enabled="true"><span class="security-state-dot"></span><div><strong>Authenticator enabled</strong><p>Save your recovery codes before leaving this page.</p></div></div><p class="recovery-intro">Each code works once in place of an authenticator code, including password recovery. These codes are shown only once. Store them somewhere private, separate from this account.</p><ul class="recovery-codes">${result.recovery_codes.map(code=>`<li><code>${esc(code)}</code></li>`).join('')}</ul><div class="security-actions"><button type="button" id="copyRecoveryCodes" class="secondary-action">Copy recovery codes</button><button type="button" id="downloadRecoveryCodes" class="secondary-action">Download codes</button><button type="button" id="savedRecoveryCodes" class="wallet-primary">I saved my recovery codes</button></div><p id="recoveryStatus" role="status"></p>`;
+            $('#copyRecoveryCodes').onclick=async()=>{try{await navigator.clipboard.writeText(result.recovery_codes.join('\n'));if(live()&&$('#recoveryStatus'))$('#recoveryStatus').textContent='Recovery codes copied.';}catch{if(live()&&$('#recoveryStatus'))$('#recoveryStatus').textContent='Select the codes to copy them.';}};
+            $('#downloadRecoveryCodes').onclick=()=>{const url=URL.createObjectURL(new Blob(['BANDITBLOX recovery codes\nEach code can be used once. Keep these private.\n\n'+result.recovery_codes.join('\n')],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='banditblox-recovery-codes.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+            $('#savedRecoveryCodes').onclick=()=>{result.recovery_codes.fill('');void load();};
+          });
+        });
+      }else host.insertAdjacentHTML('beforeend','<p class="wallet-muted">Authenticator setup is temporarily unavailable. Please try again shortly.</p>');
+      sessions.innerHTML=`<div class="security-session-list">${d.sessions.map(s=>`<article><div><strong>${s.current?'This session':'Other session'}</strong><small>Signed in ${esc(receiptTime(s.created_at))}</small><small>Last active ${esc(receiptTime(s.last_seen_at))}</small></div><span class="security-session-badge">${s.current?'Current':'Active'}</span></article>`).join('')}</div>${d.sessions.some(s=>!s.current)?`<form id="revokeSessions">${passwordField}${d.totp_enabled?factorField:''}<button type="submit" class="secondary-action">Sign out other sessions</button><p role="status"></p></form>`:'<p class="wallet-muted">You are signed in only in this session.</p>'}`;
+      const revoke=sessions.querySelector('form');if(revoke)bind(revoke,async values=>{await request('sessions/revoke',values);if(live())await load();});
+    }catch(err){if(!live())return;if(err.status===401)return applyAccount(null);host.removeAttribute('aria-busy');host.innerHTML='<p class="wallet-muted">Could not load security settings.</p><button type="button" class="secondary-action">Try again</button>';host.querySelector('button').onclick=()=>void load();sessions.replaceChildren();}
+  }
+  await load();
 }
 function dateOf(value) {
   return value ? new Date(value).toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'}) : '—';
@@ -1125,13 +1205,16 @@ accountPage.addEventListener('submit',async event=>{
   event.preventDefault(); const button=form.querySelector('button'),status=form.querySelector('[role=status]'),version=accountVersion;
   const name=form.id==='changeName';
   button.disabled=true;status.textContent='';
+  // The old long poll rechecks its session when it wakes. Stop it before the
+  // password response rotates that cookie so an old 401 cannot end the new session.
+  if(!name){stopNotifications();++refreshId;}
   try{
     await api(name?'/auth/username':'/auth/password',{method:name?'PATCH':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});
     if(version!==accountVersion)return;
     if(name){user.username=form.elements.username.value;$('#railName').textContent=user.username;window.dispatchEvent(new CustomEvent('eb-username',{detail:user.username}));}
     else form.reset();
     status.dataset.state='saved';status.textContent=name?'Username saved.':'Password changed. Other sessions were signed out.';
-  }catch(err){status.dataset.state='error';status.textContent=err.message;}finally{button.disabled=false;}
+  }catch(err){status.dataset.state='error';status.textContent=err.message;}finally{button.disabled=false;if(!name&&version===accountVersion&&user)void startNotifications();}
 });
 accountPage.onclick = async e => {
   if(e.target.closest('[data-open-wallet]'))return openSheet('wallet');

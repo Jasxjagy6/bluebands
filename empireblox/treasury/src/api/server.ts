@@ -18,6 +18,7 @@ import { notificationRoutes } from './routes-notifications.js';
 import { activityRoutes } from './routes-activity.js';
 import { lobbyRoutes } from './routes-lobby.js';
 import { custodyAdminRoutes } from './routes-custody.js';
+import { sweepAdminRoutes } from './routes-sweeps.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -47,7 +48,7 @@ export async function buildServer() {
         return reply.code(403).send({error:'Request origin unavailable'});
     }
     const route=req.routeOptions.url || '';
-    const auth=['/api/auth/register','/api/auth/login','/api/auth/password','/api/admin/login','/api/admin/2fa/enable'].includes(route);
+    const auth=['/api/auth/register','/api/auth/login','/api/auth/password','/api/auth/password/recover','/api/auth/sessions/revoke','/api/admin/login','/api/admin/2fa/enable'].includes(route)||route.startsWith('/api/auth/2fa/');
     if (!auth && route!=='/api/me/address/:chain') return;
     const hit=await query(`insert into api_rate_limits(ip,route,window_start,hits) values($1,$2,now(),1)
       on conflict(ip,route) do update set
@@ -88,6 +89,7 @@ export async function buildServer() {
   await app.register(userRoutes);
   await app.register(adminRoutes);
   await app.register(custodyAdminRoutes);
+  await app.register(sweepAdminRoutes);
 
   return app;
 }

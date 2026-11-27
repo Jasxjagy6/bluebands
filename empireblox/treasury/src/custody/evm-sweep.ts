@@ -64,7 +64,7 @@ function terms(i: SweepIntent, signer: EvmSweepSigner, options: EvmSweepOptions)
   check(Object.hasOwn(networks, i.chainId) && i.chainId !== 'SOL', 'wrong_chain');
   const net = networks[i.chainId], token = i.assetId === net.asset;
   check((token || i.assetId === net.native) && uint(i.amount) && i.amount > 0n && typeof i.jobId === 'string' && i.jobId.length > 0, 'invalid_intent');
-  if (token) check(i.amount >= 10n ** BigInt(net.decimals), 'dust');
+  if (token) check(i.amount >= 10n ** BigInt(net.decimals - 1), 'dust');
   check(Number.isSafeInteger(i.derivIndex) && i.derivIndex >= 0 && i.derivIndex < 2 ** 31 &&
     Number.isSafeInteger(i.requiredConf) && i.requiredConf >= 1 && Number.isSafeInteger(i.depositBlock) && i.depositBlock > 0 &&
     (token ? Number.isSafeInteger(i.depositIndex) && i.depositIndex >= 0 : i.depositIndex === -1), 'invalid_intent');
@@ -273,7 +273,8 @@ export function createEvmSweepAdapter(rpcUrl: string, signer: EvmSweepSigner, op
       const head = await block('latest');
       check(head.number >= proof.height, 'ambiguous');
       check((await block(proof.height)).hash === proof.hash, 'orphaned');
-      return { state: head.number - proof.height + 1 >= i.requiredConf ? 'final' : 'included', blockNumber: proof.height, blockHash: proof.hash };
+      return { state: head.number - proof.height + 1 >= i.requiredConf ? 'final' : 'included', blockNumber: proof.height, blockHash: proof.hash,
+        networkFee: proof.used * proof.price };
     } catch (e) {
       if (e instanceof SweepStop && e.code !== 'unavailable') return { state: 'review', reason: e.code };
       throw e;

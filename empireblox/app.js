@@ -1,4 +1,5 @@
 /* Treasury owns accounts, balances and crypto games. */
+import { soundEnabled, playSound } from './assets/wallet/feedback.js';
 import { walletSession, sessionState, walletCatalog, paintUnread, displayAmount } from './wallet.js';
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -49,6 +50,7 @@ let toastT;
 const SFX = (() => {
   let ctx = null, out = null, verb = null;
   function ac() {
+    if (!soundEnabled()) return null;
     if (!ctx) {
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
       const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4; comp.connect(ctx.destination);
@@ -56,7 +58,7 @@ const SFX = (() => {
       verb = ctx.createGain(); verb.gain.value = .22;   // small room tail
       [0.031, 0.047].forEach((t, k) => { const d = ctx.createDelay(); d.delayTime.value = t; const fb = ctx.createGain(); fb.gain.value = .35; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200 - k * 800; verb.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(out); });
     }
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') void ctx.resume().catch(()=>{});
     return ctx;
   }
   function tone(f, d, { type = 'sine', vol = .2, at = 0, to = null, attack = .005, wet = .3 } = {}) {
@@ -75,6 +77,7 @@ const SFX = (() => {
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
     s.buffer = b; s.connect(fl); fl.connect(g); g.connect(out); s.start(t);
   }
+  document.addEventListener('eb:soundchange',()=>{if(out)out.gain.setValueAtTime(soundEnabled()?.55:0,ctx.currentTime);});
   const chord = (fs, d, o = {}) => fs.forEach((f, i) => tone(f, d, { ...o, at: (o.at || 0) + i * (o.step || 0) }));
   let spinT = [];
   const clear = () => { spinT.forEach(clearTimeout); spinT = []; };
@@ -110,8 +113,13 @@ const SFX = (() => {
 
 /* winnings show as +amount next to your balance instead of a pop-up */
 function toast(html, kind = '') {
-  if (kind === 'lose') SFX.lose();
- const t = $('toast'); t.innerHTML = html; t.className = 'show ' + kind; clearTimeout(toastT); toastT = setTimeout(() => { t.className = kind; }, 3000); }
+  if (kind === 'lose') playSound('error'); else if(kind === 'win') playSound('success'); else playSound('info');
+  const t=$('toast');t.innerHTML=html;t.className='show '+kind;
+  const close=document.createElement('button');close.className='toast-close';close.type='button';close.setAttribute('aria-label','Dismiss message');close.textContent='×';
+  close.onclick=()=>{clearTimeout(toastT);t.className=kind;};t.append(close);
+  const dismiss=()=>{clearTimeout(toastT);toastT=setTimeout(()=>{t.className=kind;},5000);};
+  t.onpointerenter=t.onfocusin=()=>clearTimeout(toastT);t.onpointerleave=t.onfocusout=dismiss;dismiss();
+}
 function gamesMenu(open) { $('gmenu').hidden = !open; $('gamesBtn').setAttribute('aria-expanded', open); }
 const GAME_PAGES = ['mines', 'cases', 'battles', 'upgrader', 'blackjack'];
 const pageTransition=$('pageTransition'),navigationMotion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -134,11 +142,12 @@ function showPage(p) {
   $('pageScroll').scrollTop=0;
   gamesMenu(false);
 }
-function nav(p){
+function nav(p,{silent=false}={}){
   if(!Object.hasOwn(pageNames,p))return;
   const unchanged=$(p).classList.contains('on')&&!document.body.classList.contains('account-open');
   cancelPageTransition();gamesMenu(false);
   if(unchanged)return;
+  if(!silent)playSound('tap');
   if(navigationMotion.matches){showPage(p);return;}
   const version=navigationVersion;
   $('pageTransitionLabel').textContent='Opening '+pageNames[p];
@@ -157,17 +166,26 @@ $('home').onclick=e=>{
     $('lobbyGamesTitle').scrollIntoView({behavior:navigationMotion.matches?'instant':'smooth',block:'start'});
     $('lobbyGamesTitle').focus({preventScroll:true});return;
   }
+  if(e.target.closest('[data-reset-games]')){
+    $('lobbySearch').value='';document.querySelector('[data-game-filter="all"]').click();$('lobbySearch').focus();return;
+  }
   const filter=e.target.closest('[data-game-filter]');if(!filter)return;
   document.querySelectorAll('[data-game-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b===filter)));
-  let count=0;document.querySelectorAll('#home .lobby-game').forEach(card=>{
-    card.hidden=filter.dataset.gameFilter!=='all'&&card.dataset.gameCategory!==filter.dataset.gameFilter;
+  filterGames();playSound('tap');
+};
+function filterGames(){
+  const mode=document.querySelector('[data-game-filter][aria-pressed=true]').dataset.gameFilter;
+  const search=$('lobbySearch').value.trim().toLowerCase();let count=0;
+  document.querySelectorAll('#home .lobby-game').forEach(card=>{
+    card.hidden=(mode!=='all'&&card.dataset.gameCategory!==mode)||!card.getAttribute('aria-label').toLowerCase().includes(search);
     if(!card.hidden)count++;
   });
-  $('lobbyGameCount').textContent=count+' '+(count===1?'game':'games');
-};
+  $('lobbyGameCount').textContent=count+' '+(count===1?'game':'games');$('lobbyEmpty').hidden=count!==0;
+}
+$('lobbySearch').addEventListener('input',filterGames);
 document.querySelector('.top .logo').onclick=e=>{
   if(e.button!==0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)return;
-  e.preventDefault();$('chat').classList.remove('open');nav('home');
+  e.preventDefault();$('chat').classList.remove('open');nav('home',{silent:true});
 };
 $('lbBtn').onclick = e => { e.stopPropagation(); nav('leaderboard'); };
 $('rewardsBtn').onclick = e => { e.stopPropagation(); nav('rewards'); };
@@ -191,7 +209,7 @@ async function api(path, method = 'GET', body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   let d = {}; try { d = await r.json(); } catch (e) {}
-  if (!r.ok) throw Object.assign(new Error(d.error || ('Error ' + r.status)), {status:r.status});
+  if (!r.ok) throw Object.assign(new Error(d.error || ('Error ' + r.status)), {status:r.status,need2fa:d.need2fa===true});
   return d;
 }
 // Currency helpers backed by the wallet module (selected real currency).
@@ -209,6 +227,25 @@ function adjustStake(input, op) {
   const amount = minorInput(input.value || '0');
   if (op === 'max') input.value = fmtMinor(window.ebBalance() || '0');
   else if (amount != null) input.value = fmtMinor(op === '2' ? amount * 2n : amount / 2n);
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function wagerProblem(amount,asset=window.ebCurrency()){
+  if(!me)return '';
+  if(amount==null||amount<=0n)return 'Enter a valid bet amount';
+  const balance=window.ebBalance(asset);
+  if(balance==null)return 'Updating your balance…';
+  return amount>BigInt(balance)?'Insufficient balance':'';
+}
+function pricedAmount(value,price=quote){
+  return price&&Date.parse(price.expires_at)>Date.now()?BigInt(Math.ceil(value))*BigInt(price.unit):null;
+}
+function wagerButton(button,amount,locked=false,asset=window.ebCurrency(),extra='',active=false){
+  const funds=wagerProblem(amount,asset),problem=active||!me?'':funds==='Insufficient balance'||funds==='Updating your balance…'?funds:extra||funds;
+  button.disabled=locked||!!problem;button.toggleAttribute('data-funds-blocked',problem==='Insufficient balance');
+  let hint=$(button.id+'Hint');
+  if(!hint){hint=document.createElement('p');hint.id=button.id+'Hint';hint.className='wager-feedback';hint.setAttribute('role','status');button.insertAdjacentElement('afterend',hint);button.setAttribute('aria-describedby',hint.id);}
+  hint.hidden=!problem;hint.textContent=problem+(problem==='Insufficient balance'?' · Available '+currencyText(window.ebBalance(asset),asset):'');
+  button.title=problem;
 }
 function mineReturn(stake, k, m, n) {
   if (!k) return stake;
@@ -293,8 +330,8 @@ function openAuth(view) {
   $('authModal').hidden = false;
   const first = $(VIEWS[view]).querySelector('input'); if (first) first.focus();
 }
-function closeAuth() { $('authModal').hidden = true; }
-function sent(msg, canResend) { openAuth('sent'); $('sentMsg').textContent = msg; $('resend').hidden = !canResend; }
+function closeAuth() { $('authModal').hidden = true;for(const id of ['liPass','liTotp','suPass','fpCode','fpPassword','fpConfirm'])$(id).value='';$('loginFactor').hidden=true; }
+function sent(msg, canResend) { openAuth('sent'); $('authTitle').textContent=canResend?'Check your email':'Password updated';$('sentMsg').textContent = msg; $('resend').hidden = !canResend; }
 const authErr = m => { $('authErr').textContent = m; };
 function busyBtn(btn, on, label) { btn.disabled = on; if (label) btn.textContent = on ? 'Please wait…' : label; }
 $('authTabs').onclick = e => { const b = e.target.closest('[data-v]'); if (b) openAuth(b.dataset.v); };
@@ -327,18 +364,29 @@ $('fLogin').onsubmit = async e => {
   if (!emailOk(email) || !pass) return authErr('Enter your email and password.');
   busyBtn($('liGo'), true, 'Log in');
   try {
-    await api('/api/auth/login', 'POST', { email, password: pass });
+    await api('/api/auth/login', 'POST', { email, password: pass,...($('liTotp').value.trim()?{totp:$('liTotp').value.trim()}:{}) });
     busyBtn($('liGo'), false, 'Log in');
     closeAuth(); $('liPass').value = '';
     await refreshMe(); if (me) { void resumeMines(); void resumeBj(); }
   } catch (err) {
     busyBtn($('liGo'), false, 'Log in');
+    if(err.need2fa){$('loginFactor').hidden=false;$('liTotp').value='';$('liTotp').focus();return authErr(err.message);}
+    if(err.status===429)return authErr(err.message);
     return authErr('Wrong email or password.');
   }
 };
 $('fForgot').onsubmit = async e => {
-  e.preventDefault();
-  authErr('Password reset by email isn’t available yet — contact support.');
+  e.preventDefault();authErr('');
+  const email=$('fpEmail').value.trim(),totp=$('fpCode').value.trim(),password=$('fpPassword').value;
+  if(!emailOk(email)||!totp||password.length<8)return authErr('Enter your email, authenticator or recovery code, and a new password.');
+  if(password!==$('fpConfirm').value)return authErr('The new passwords do not match.');
+  busyBtn($('fpGo'),true,'Reset password');
+  try{await api('/api/auth/password/recover','POST',{email,totp,password});
+    $('fpCode').value='';$('fpPassword').value='';$('fpConfirm').value='';
+    ++authRead;me=null;walletSession(null);renderAuth();renderChatInput();resetLobbyAccount();
+    sent('Password updated. Sign in with your new password and a fresh authenticator code, or another unused recovery code.',false);
+  }catch(err){$('fpCode').value='';authErr(err.status===429?err.message:'Recovery could not be verified. Check your email and authenticator or recovery code.');}
+  finally{busyBtn($('fpGo'),false,'Reset password');}
 };
 $('fReset').onsubmit = async e => { e.preventDefault(); closeAuth(); };
 $('resend').onclick = () => {};
@@ -489,6 +537,7 @@ function openCase(id) {
   $('cvIcon').innerHTML = cpic(cur); $('cvName').textContent = cur.name;
   $('cvMeta').textContent = `${cur.items.length} items` + (cur.tops.length ? ` · gold dice ${(cur.ttot / cur.tot * 100).toFixed(2)}%` : '');
   $('cvOpen').innerHTML = `Open for ${cv(cur.price)}`;
+  wagerButton($('cvOpen'),pricedAmount(cur.price),spinning,window.ebCurrency(),quote?'':'Updating the market price…');
   $('cvItems').innerHTML = cur.items.slice().sort((a, b) => b.v - a.v).map(i => `<div class="ic2 ${i.top ? 'tp' : ''}" style="--rc:${RC[i.r]}">${i.top ? '<span class="tpb" title="Behind the gold dice">' + DICE_ART + '</span>' : ''}<span class="odds">${(i.w / cur.tot * 100).toFixed(2)}%</span><span class="art">${pic(i)}</span><b>${esc(i.n)}</b>${cv(i.v)}</div>`).join('');
   idleH($('cvReel'), cur);
 }
@@ -508,7 +557,7 @@ $('cvOpen').onclick = async () => {
     $('caseView').dataset.phase='landed';
     toast(`You unboxed <b>${esc(w.n)}</b> · ${currencyText(r.payout,r.asset_id)}`);
   } catch (e) { $('caseView').dataset.phase=$('cvReel').parentElement.dataset.phase='error';toast(esc(niceErr(e)), 'lose'); }
-  spinning = false; $('cvOpen').disabled = false; $('cvBack').disabled = false;
+  spinning = false; wagerButton($('cvOpen'),pricedAmount(cur.price),false,window.ebCurrency(),quote?'':'Updating the market price…'); $('cvBack').disabled = false;
   $('caseView').setAttribute('aria-busy','false');
 };
 
@@ -531,6 +580,7 @@ function readBet() {
   return v;
 }
 async function startRound(bet) {
+  const problem=wagerProblem(minorInput(bet));if(problem){toast(problem);return false;}
   MN.busy = true; updM();
   try {
     const asset = window.ebCurrency();
@@ -584,6 +634,7 @@ function updM() {
   if (MN.mode === 'auto') { p.className = 'btn big ' + (MN.running ? 'redb' : 'gold'); p.textContent = MN.running ? 'Stop autobet' : 'Start autobet'; p.disabled = false; }
   else if (MN.on) { p.className = 'btn big mint'; p.textContent = k ? `Cash out ${currencyText(mineReturn(bet,k,MN.m,N), asset)}` : 'Pick a tile'; p.disabled = k === 0 || MN.busy; }
   else { p.className = 'btn big gold'; p.textContent = 'Play'; p.disabled = MN.busy; }
+  wagerButton(p,minorInput($('mBet').value),p.disabled,window.ebCurrency(),'',MN.on||MN.running);
   $('mRand').hidden = !(MN.mode === 'manual' && MN.on);
 }
 $('mPlay').onclick = async () => {
@@ -779,6 +830,7 @@ function renderCreate() {
   $('bFoot').innerHTML = `${draft.cases.length} case${draft.cases.length === 1 ? '' : 's'} · ${cv(cost)}${draft.borrow ? ` <span class="mut">· you pay ${cv(pay)}</span>` : ''}`;
   $('bBorrow').hidden = !draft.borrow; if (draft.borrow) borrowPanel($('bBorrow'), cost, draft.borrow, v => { draft.borrow = v; renderCreate(); });
   $('bMake').disabled = !draft.cases.length || busy;
+  wagerButton($('bMake'),pricedAmount(pay),!draft.cases.length||busy,window.ebCurrency(),quote?'':'Updating the market price…');
   $('bMake').textContent = 'Create battle';
 }
 /* volatility = how spread out a case's pulls are (0 calm … 1 wild) */
@@ -814,7 +866,7 @@ let BW = null;
 function openBorrowJoin(id, seat) {
   if (!requireAuth()) return; const b = BT[id]; if (!b) return;
   BW = { id, seat, pct: 20 }; $('borrowModal').hidden = false;
-  const draw = () => borrowPanel($('bwPanel'), b.cost, BW.pct, v => { BW.pct = v; draw(); }, b); draw();
+  const draw = () => {borrowPanel($('bwPanel'), b.cost, BW.pct, v => { BW.pct = v; draw(); }, b);wagerButton($('bwJoin'),BigInt(Math.ceil(b.cost*(100-BW.pct)/100))*BigInt(b.unit),busy,b.asset_id);}; draw();
 }
 $('borrowModal').onclick = e => { if (e.target === $('borrowModal') || e.target.closest('[data-bwclose]')) $('borrowModal').hidden = true; };
 $('bwJoin').onclick = () => { if (!BW) return; $('borrowModal').hidden = true; joinSeat(BW.id, BW.seat, BW.pct); };
@@ -952,7 +1004,7 @@ function tickView(force) {
       if (s) wh = `${avatar(s, true)}<b class="nm"></b><span class="ok">${IC.check}${p.ph === 'starting' ? 'Starting…' : 'Ready'}</span>`;
       else {
         wh = '<span class="ring"></span><b>Waiting for players</b>';
-        if (p.ph === 'open' && !mine) wh += `<button class="btn mint" data-join="${i}" ${busy ? 'disabled' : ''}>Join ${cv(b.cost,b)}</button><button class="btn dark sm" data-borrow="${i}" ${busy ? 'disabled' : ''} title="Pay less to enter, win less">Borrow</button>`;
+        if (p.ph === 'open' && !mine) wh += `<button class="btn mint" data-join="${i}" ${busy||wagerProblem(BigInt(b.cost)*BigInt(b.unit),b.asset_id) ? 'disabled title="Insufficient balance or entry unavailable"' : ''}>Join ${cv(b.cost,b)}</button><button class="btn dark sm" data-borrow="${i}" ${busy ? 'disabled' : ''} title="Pay less to enter, win less">Borrow</button>`;
         if (p.ph === 'open' && isCreator) wh += `<button class="btn dark" data-bot="${i}" ${busy ? 'disabled' : ''}>${IC.bot}Add bot</button>`;
       }
     }
@@ -1141,6 +1193,7 @@ function renderUpg(result) {
   const p = $('uPlay');
   if (U.mode === 'auto') { p.className = 'btn big ' + (U.running ? 'redb' : 'gold'); p.textContent = U.running ? 'Stop autobet' : 'Start autobet'; p.disabled = false; }
   else { p.className = 'btn big gold'; p.textContent = uSpinning ? 'Rolling…' : 'Play'; p.disabled = uSpinning; }
+  wagerButton(p,minorInput($('uBet').value),p.disabled,window.ebCurrency(),!quote?'Updating the market price…':!uSel?'Select an item to upgrade to':uChance()<=0?'Pick an item worth more than your bet':'',U.running||uSpinning);
   const lock = uSpinning || U.running;
   ['uBet', 'uCustom', 'uCount'].forEach(id => $(id).disabled = lock);
   document.querySelectorAll('#uMult button,#uDir button,#uMode button,[data-ub]').forEach(b => b.disabled = lock);
@@ -1155,6 +1208,7 @@ async function upgradeOnce(spinMs) {
   const b = uBet();
   if (!uSel) { toast('Pick an item to upgrade to', 'lose'); return false; }
   if (!(b > 0)) { toast('Enter a bet amount', 'lose'); return false; }
+  const problem=wagerProblem(minorInput($('uBet').value));if(problem){toast(problem);return false;}
   if (b >= uSel.v) { toast('Pick an item worth more than your bet', 'lose'); return false; }
   if (!requireQuote()) return false;
   uSpinning = true; renderUpg();
@@ -1285,9 +1339,10 @@ function bjRender(st, animateDealer) {
   if (st && st.status === 'insurance') $('bjInsTxt').innerHTML = `The dealer shows an ace. Insure for ${currencyText(BigInt(st.bet) / 2n, st.asset_id)}? It pays 2 to 1 if the dealer has blackjack.`;
   const playing = st && st.status === 'playing';
   $('bjHit').disabled = $('bjStand').disabled = !playing || bjBusy;
-  $('bjDouble').disabled = !playing || bjBusy || !st.can_double;
-  $('bjSplit').disabled = !playing || bjBusy || !st.can_split;
-  $('bjDeal').disabled = bjBusy || !!live;
+  $('bjDouble').disabled = !playing || bjBusy || !st.can_double || !!wagerProblem(BigInt(st?.hands[st.active-1]?.bet||0),st?.asset_id);
+  $('bjSplit').disabled = !playing || bjBusy || !st.can_split || !!wagerProblem(BigInt(st?.hands[st.active-1]?.bet||0),st?.asset_id);
+  $('bjYesIns').disabled = bjBusy || !!wagerProblem(BigInt(st?.bet||0)/2n,st?.asset_id);
+  wagerButton($('bjDeal'),minorInput($('bjBet').value),bjBusy||!!live,window.ebCurrency(),'',!!live);
   $('bjDeal').textContent = live ? 'Hand in play' : hasGame ? 'Deal again' : 'Deal';
   ['bjBet'].forEach(id => $(id).disabled = !!live || bjBusy);
   document.querySelectorAll('[data-bb]').forEach(b => b.disabled = !!live || bjBusy);
@@ -1336,6 +1391,7 @@ $('bjSplit').onclick = () => BJ && bjSend('action', { id:BJ.id, version:BJ.versi
 $('bjYesIns').onclick = () => BJ && bjSend('action', { id:BJ.id, version:BJ.version, action: 'insure' });
 $('bjNoIns').onclick = () => BJ && bjSend('action', { id:BJ.id, version:BJ.version, action: 'no_insure' });
 document.querySelectorAll('[data-bb]').forEach(b => b.onclick = () => { const el = $('bjBet'); adjustStake(el,b.dataset.bb); });
+$('bjBet').oninput=()=>{if(!BJ||BJ.status==='done')wagerButton($('bjDeal'),minorInput($('bjBet').value),bjBusy);};
 addEventListener('keydown', e => {
   if (document.querySelector('body.account-open,dialog[open],.modal:not([hidden])') || !$('blackjack').classList.contains('on') || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
   const k = e.key.toLowerCase(), map = { h: 'bjHit', s: 'bjStand', d: 'bjDouble', p: 'bjSplit' };
@@ -1345,6 +1401,11 @@ async function resumeBj() { if (!me) return; try { const owner = me.id; const {r
 bjRender(null);
 window.addEventListener('eb-currency', () => {
   updM(); $('bjCurrency').textContent = ccySym(BJ && BJ.status !== 'done' ? BJ.asset_id : undefined);
+  if(BJ&&BJ.status!=='done')bjRender(BJ);else wagerButton($('bjDeal'),minorInput($('bjBet').value),bjBusy);
+  if(!uSpinning)renderUpg();
+  if(cur&&!spinning)wagerButton($('cvOpen'),pricedAmount(cur.price),false,window.ebCurrency(),quote?'':'Updating the market price…');
+  if(!$('bCreate').hidden)renderCreate();
+  lobbySig='';if(vs)vs.sig='';
 });
 
 /* ---------- provably fair ---------- */
@@ -1480,18 +1541,35 @@ async function verifyBattle(id) {
 }
 
 /* ---------- weekly leaderboard ---------- */
-let LB = null, lbEnd = 0;
+let LB = null, lbEnd = 0, lbSequence=0,lbAsset=null,lbAccount=null;
 const pad2 = n => String(Math.max(0, n)).padStart(2, '0');
 async function loadLb() {
-  const asset=window.ebCurrency(); if(!asset) return;
+  const asset=window.ebCurrency(),seq=++lbSequence;if(!asset){$('lbStatus').textContent='Loading currencies…';return;}
+  const changed=lbAsset!==asset||lbAccount!==(me?.id||null);
+  if(changed){lbAsset=asset;lbAccount=me?.id||null;LB=null;lbEnd=0;$('lbRows').innerHTML='<div class="lbempty">Loading standings…</div>';$('lbPodium').replaceChildren();$('lbMe').replaceChildren();$('lbParticipants').textContent=$('lbTotal').textContent='—';}
+  $('lbRefresh').disabled=true;$('lbStatus').textContent='';$('lbCurrency').textContent=ccySym(asset);
   try {
     const data=await api('/api/leaderboard/'+encodeURIComponent(asset));
-    if(asset!==window.ebCurrency()) return;
+    if(seq!==lbSequence||asset!==window.ebCurrency())return;
     LB=data;lbEnd=Date.parse(data.ends_at);
-    $('lbRows').innerHTML=data.top.map((r,i)=>`<div class="lbrow"><span>${i+1}</span><span>${esc(r.username)}</span><b>${esc(currencyText(r.wagered,asset))}</b></div>`).join('') || '<div class="lbempty">No wagers in this currency this week.</div>';
-    tickLb();
-  }catch { $('lbRows').textContent='Leaderboard temporarily unavailable.'; }
+    const top=data.top.map((r,i)=>({...r,rank:r.rank||String(i+1)}));
+    const mine=data.me||top.find(r=>r.user_id===me?.id);
+    const member=r=>`<button type="button" class="lb-player" data-uid="${esc(r.user_id)}"><span class="lb-avatar" aria-hidden="true">${esc(r.username.slice(0,1).toUpperCase())}</span><span>${esc(r.username)}</span>${r.user_id===me?.id?'<small>You</small>':''}</button>`;
+    $('lbRows').innerHTML=top.map(r=>`<div class="lbrow${r.user_id===me?.id?' lb-own-row':''}" role="listitem"><span class="lb-rank">${esc(r.rank.padStart(2,'0'))}</span>${member(r)}<b class="r">${esc(currencyText(r.wagered,asset))}</b></div>`).join('')||'<div class="lbempty"><strong>No standings yet</strong><p>No qualifying wagers in this currency this week.</p></div>';
+    $('lbRows').setAttribute('role','list');
+    $('lbPodium').innerHTML=top.slice(0,3).map((r,i)=>`<article class="lb-leader" data-rank="${i+1}"><div class="lb-leader-top"><span class="lb-place">${String(i+1).padStart(2,'0')}</span><span>${['Leading the week','Second place','Third place'][i]}</span>${i===0?IC.trophy:''}</div>${member(r)}<div class="lb-leader-wager"><small>Wagered this week</small><strong>${esc(currencyText(r.wagered,asset))}</strong></div></article>`).join('');
+    $('lbParticipants').textContent=data.participants??String(top.length);$('lbTotal').textContent=currencyText(data.total_wagered??top.reduce((s,r)=>s+BigInt(r.wagered),0n),asset);
+    const end=new Date(lbEnd),start=new Date(data.starts_at||lbEnd-7*86400000),date=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'});
+    $('lbPeriod').textContent=date(start)+' – '+date(end)+' · UTC';
+    $('lbMe').innerHTML=me?`<section class="lb-personal"><span class="lb-personal-icon">${IC.trophy}</span><div><span class="eyebrow">Your position this week</span><strong>${mine?'#'+esc(mine.rank):'Unranked'}</strong><p>${mine?'Your rank across all qualifying players.':'No qualifying wagers in this currency this week.'}</p></div><div class="lb-personal-wager"><small>Your wagers</small><strong>${esc(currencyText(mine?.wagered||'0',asset))}</strong></div></section>`:'';
+    $('lbUpdated').textContent='Updated '+new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})+' · Refreshes every 30s';tickLb();
+  }catch{
+    if(seq!==lbSequence||asset!==window.ebCurrency())return;
+    $('lbStatus').textContent=LB?'Standings could not refresh. Showing the last update. Use Refresh standings to try again.':'Standings are temporarily unavailable. Use Refresh standings to try again.';
+    if(!LB)$('lbRows').innerHTML='<div class="lbempty">Could not load weekly rankings.</div>';
+  }finally{if(seq===lbSequence)$('lbRefresh').disabled=false;}
 }
+$('lbRefresh').onclick=()=>void loadLb();
 function tickLb() {
   if (!lbEnd) return;
   let t = Math.max(0, Math.floor((lbEnd - Date.now()) / 1000));
@@ -1562,8 +1640,8 @@ window.addEventListener('eb-currency',()=>{
   if(asset!==lastAsset){
     lastAsset=asset;quote=null;Object.keys(BT).forEach(k=>delete BT[k]);showB('bLobby');$('borrowModal').hidden=true;
     $('uCurrency').textContent=ccySym();void refreshQuote();void loadBattles();
-    if($('leaderboard').classList.contains('on'))void loadLb();
   }
+  if($('leaderboard').classList.contains('on'))void loadLb();
 });
 
 /* ---------- start ---------- */

@@ -106,3 +106,30 @@ test('admin sessions revoke on logout and the watch-only vault refuses signing k
   assert.equal((await app.inject({method:'POST',url:'/api/admin/logout',headers})).statusCode,200);
   assert.equal((await app.inject({url:'/api/admin/me',headers})).statusCode,401);
 });
+
+test('weekly ranking includes an authenticated position beyond the top 50 and excludes refunded battle wagers',async()=>{
+  const baseline=(await app.inject('/api/leaderboard/'+asset)).json(),players:string[]=[];let sum=0n;
+  try{
+    for(let i=0;i<51;i++){
+      const uid=randomUUID(),amount=10n**70n-BigInt(i);players.push(uid);sum+=amount;
+      await query("insert into users(id,username,email,pass_hash) values($1,$2,$3,'fixture')",[uid,'rank'+randomBytes(6).toString('hex'),uid+'@rank.invalid']);
+      await tx(async c=>{
+        await post(c,'deposit',randomUUID(),[{account:'ext:ranking-fixture',asset,delta:-amount},{account:'u:'+uid,asset,delta:amount}]);
+        await post(c,'bet:ranking-fixture',randomUUID(),[{account:'u:'+uid,asset,delta:-amount},{account:'house:ranking-fixture',asset,delta:amount}]);
+      });
+    }
+    const uid=players.at(-1)!,amount=10n**71n,ref=randomUUID();
+    await tx(async c=>{
+      await post(c,'deposit',randomUUID(),[{account:'ext:ranking-fixture',asset,delta:-amount},{account:'u:'+uid,asset,delta:amount}]);
+      await post(c,'bet:battles',ref,[{account:'u:'+uid,asset,delta:-amount},{account:'house:ranking-fixture',asset,delta:amount}]);
+      await post(c,'refund:battles',ref,[{account:'house:ranking-fixture',asset,delta:-amount},{account:'u:'+uid,asset,delta:amount}]);
+    });
+    const headers={cookie:'eb_sess='+await createSession(uid)},response=await app.inject({url:'/api/leaderboard/'+asset,headers}),data=response.json();
+    assert.equal(response.statusCode,200,response.body);assert.equal(response.headers['cache-control'],'private, no-store');
+    assert.equal(data.top.length,50);assert.ok(!data.top.some((r:any)=>r.user_id===uid));assert.equal(data.me.user_id,uid);assert.ok(Number(data.me.rank)>50);
+    assert.equal(data.me.wagered,(10n**70n-50n).toString());assert.equal(BigInt(data.total_wagered),BigInt(baseline.total_wagered)+sum);
+    assert.equal(BigInt(data.participants),BigInt(baseline.participants)+51n);
+    const start=new Date(data.starts_at);assert.equal(start.getUTCDay(),1);assert.equal(start.getUTCHours(),0);assert.equal(Date.parse(data.ends_at)-start.getTime(),7*86400000);
+    assert.equal((await app.inject('/api/leaderboard/'+asset)).json().me,null);
+  }finally{if(players.length)await query('update users set disabled=true where id=any($1::uuid[])',[players]);}
+});

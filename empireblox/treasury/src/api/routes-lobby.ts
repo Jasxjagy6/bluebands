@@ -1,4 +1,4 @@
-import { lockActivePlayer } from '../auth-user.js';
+import { lockActivePlayer,verifySession } from '../auth-user.js';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { query,tx } from '../db.js';
@@ -43,13 +43,21 @@ export async function lobbyRoutes(app:FastifyInstance){
   });
   app.get('/api/leaderboard/:asset',async req=>{
     const p=z.object({asset}).parse(req.params);
-    const rows=await query(`select u.id as user_id, u.username,(-sum(e.delta * power(10::numeric, case when $1='USDT' then 18-a.decimals else 0 end)))::numeric(100,0)::text as wagered from ledger_entries e
+    const uid=req.cookies.eb_sess?await verifySession(req.cookies.eb_sess):null;
+    const rows=await query(`with week as (select date_trunc('week',now() at time zone 'UTC') at time zone 'UTC' as starts_at),
+      totals as (select u.id as user_id, u.username,(-sum(e.delta * power(10::numeric, case when $1='USDT' then 18-a.decimals else 0 end)))::numeric(100,0) as units from ledger_entries e
       join journals j on j.id=e.journal_id join users u on e.account='u:'||u.id::text
       join assets a on a.id=e.asset_id
-      where j.kind like 'bet:%' and (e.asset_id=$1 or ($1='USDT' and a.symbol='USDT')) and not u.disabled and j.created_at>=date_trunc('week', now())
+      where j.kind like 'bet:%' and (e.asset_id=$1 or ($1='USDT' and a.symbol='USDT')) and not u.disabled and j.created_at>=(select starts_at from week)
+        and j.created_at<(select starts_at+interval '1 week' from week)
         and not exists(select 1 from journals refund where refund.kind='refund:battles' and j.kind='bet:battles' and refund.ref=j.ref)
-      group by u.id order by -sum(e.delta * power(10::numeric, case when $1='USDT' then 18-a.decimals else 0 end)) desc,u.id limit 50`,[p.asset]);
-    return {top:rows.rows,ends_at:(await query("select date_trunc('week',now())+interval '1 week' as ends_at")).rows[0].ends_at};
+      group by u.id having sum(e.delta)<0),
+      ranked as (select user_id,username,units::text as wagered,row_number() over(order by units desc,user_id)::text as rank,units from totals)
+      select (select coalesce(jsonb_agg(to_jsonb(r)-'units' order by r.units desc,r.user_id),'[]') from ranked r where r.rank::bigint<=50) as top,
+      (select to_jsonb(r)-'units' from ranked r where r.user_id=$2::uuid) as me,
+      (select count(*)::text from ranked) as participants,(select coalesce(sum(units),0)::text from ranked) as total_wagered,
+      starts_at,starts_at+interval '1 week' as ends_at from week`,[p.asset,uid]);
+    return rows.rows[0];
   });
   app.get('/api/battles/:asset',async req=>({battles:await listBattles(z.object({asset}).parse(req.params).asset)}));
   app.register(async r=>{
